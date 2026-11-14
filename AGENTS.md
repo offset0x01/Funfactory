@@ -9,6 +9,7 @@ This repo holds browser games designed by kids and built by an AI agent. The sit
 - **Before starting any work, pull `main` and read this file again**, plus `CHANGELOG.md` for recent changes. Someone may have improved it from another platform.
 - **When you change how games are built or integrated** (new rule, new required file, a better pattern you discovered), update this file in the same commit, add a dated line to `CHANGELOG.md`, and, if it affects existing games, say which ones still need updating.
 - Keep `CLAUDE.md` as a pointer to this file; don't duplicate instructions there.
+- **Anything durable goes in the repo, not just your workspace.** Chat and agent workspaces are private to one session and are not shared with other chats, tools or people. Commit tools, scripts, harness code, templates and docs you build here (in the folder where they belong) and push them, or the next session can't use them.
 
 ## Repo map
 

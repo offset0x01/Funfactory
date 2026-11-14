@@ -4,6 +4,7 @@ Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. New
 
 ## 2026-11-14
 
+- Added the rule that anything durable built in a session (tools, scripts, harness code, docs) is committed to the repo, because session workspaces aren't shared between chats.
 - Committed the test-harness code to `test-harness/`: `harness/run_tests.py` (smoke tests, Evolution Bot, Jev / Quick-Pick / Thinking bots, fairness checks, bot scoreboard), `tests/mock_ai_server.py`, `examples/lost-luggage/` (hooked example + `hook.patch`), `requirements.txt` and `.env.example`. Smoke test passes on the example from the new location. `.gitignore` now ignores `.env` files. `AGENTS.md` "Test hook" now requires running the harness. Existing games that still need the hook: `lost-luggage-of-the-cosmos`.
 
 - `AGENTS.md` declared the source of truth for building games on any platform; agents pull and re-read it before working, and update it plus this changelog in the same commit as any spec change.
