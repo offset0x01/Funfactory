@@ -2,7 +2,7 @@
 
 A three-level 2D platformer built from a Game Card as the first test of the kids' game-builder prompt. Read this before changing anything; it covers what exists, why it was built this way, and where to make common changes.
 
-**Status (2026-11-14):** v1.1 complete and playable, with a 30-second demo mode and a full-screen button. All automated tests pass. Tilt has not been tried on a real iPad yet (see Open items).
+**Status (2026-11-14):** test hook added and the harness passes; v1.1 complete and playable, with a 30-second demo mode and a full-screen button. All automated tests pass. Tilt has not been tried on a real iPad yet (see Open items).
 
 ## Files
 
@@ -65,10 +65,11 @@ The page content sits between the `GAME-START` and `GAME-END` comments. The scri
 11. **Game** (`Game`): state machine (`title → intro → play ⇄ paused → complete / over / win`), `update(dt)` with player, enemies, items, spikes, checkpoints, messages and goal.
 12. **Drawing**: background per level (`bgDecor`: `junk`, `ship`, `asteroid`), tiles, items, enemies, player, particles.
 13. **UI**: shows and hides the `<section class="screen">` overlays, HUD, message banner and settings buttons.
-14. **Hosting extras** (end of the script): when the page is served from a `games/<name>/` folder it shows an **All games** link back to the picker, and when it has its manifest link and a secure origin it registers `sw.js`. The artifact copy has neither, so both stay off there.
-15. **Full screen** (`Full`): a tappable **Full screen** button at the top of the title card (always shown), a small HUD button (only where full screen works) and the F key. Uses the Fullscreen API with the `webkit` prefix for Safari. Where full screen is not allowed (iPhone, the Claude app's artifact view), tapping the title button shows a note explaining how to get it: open the game's own page, or use Add to Home Screen on iPad.
-16. **Demo** (`Demo`): the title screen's **Watch demo** button. A scripted bot holds right and presses jump at walls, gaps, spikes and nearby enemies, and burps when a jump falls short. It plays about 30 seconds (`Demo.LENGTH`), which covers level 1 and most of level 2, then returns to the title. Any key or tap stops it. During the demo the input functions read `Demo.axis` / `Demo.held`, getting hit only bounces the courier (`Demo.oops`, no lives lost), finishing a level loads the next one without a screen, and the best score is not saved.
-17. **Main loop and boot**: `requestAnimationFrame` loop, WebGL failure screen, Claude `hot` snapshot hook, and `window.__game` for tests.
+14. **Test hook** (`Hook` near the top, `window.GAME_TEST_HOOK` at the end): see Testing.
+15. **Hosting extras** (end of the script): when the page is served from a `games/<name>/` folder it shows an **All games** link back to the picker, and when it has its manifest link and a secure origin it registers `sw.js`. The artifact copy has neither, so both stay off there.
+16. **Full screen** (`Full`): a tappable **Full screen** button at the top of the title card (always shown), a small HUD button (only where full screen works) and the F key. Uses the Fullscreen API with the `webkit` prefix for Safari. Where full screen is not allowed (iPhone, the Claude app's artifact view), tapping the title button shows a note explaining how to get it: open the game's own page, or use Add to Home Screen on iPad.
+17. **Demo** (`Demo`): the title screen's **Watch demo** button. A scripted bot holds right and presses jump at walls, gaps, spikes and nearby enemies, and burps when a jump falls short. It plays about 30 seconds (`Demo.LENGTH`), which covers level 1 and most of level 2, then returns to the title. Any key or tap stops it. During the demo the input functions read `Demo.axis` / `Demo.held`, getting hit only bounces the courier (`Demo.oops`, no lives lost), finishing a level loads the next one without a screen, and the best score is not saved.
+18. **Main loop and boot**: `requestAnimationFrame` loop, WebGL failure screen, Claude `hot` snapshot hook, and `window.__game` for tests.
 
 ### Gravity zones
 
@@ -109,10 +110,19 @@ Other level fields: `name`, `intro`, `sky` (top and bottom colors), `rock` and `
 
 ## Testing
 
+Run both from the repo root before every commit:
+
 ```
-pip install playwright   # once; uses an installed Chrome
-python3 test_game.py index.html [screenshot_dir]
+pip install -r test-harness/requirements.txt    # once
+python3 games/lost-luggage-of-the-cosmos/test_game.py games/lost-luggage-of-the-cosmos/index.html
+python3 test-harness/harness/run_tests.py all games/lost-luggage-of-the-cosmos/index.html
 ```
+
+The **test harness** (`test-harness/`, spec in `test-harness/GAME_TEST_HOOK_SPEC.md`) drives the game only through `window.GAME_TEST_HOOK` (the `TEST HOOK (spec v1)` block at the end of the script, plus the `Hook` state object near the top). Bot mode freezes the real-time loop, skips level-complete screens (`Hook.levelDone`), turns sound off and never saves the player's best score. `progress` is the courier's distance from start to the Delivery Pad in the current level, plus levels completed, divided by 3. The harness writes the bot scores between the `BOT-SCORES` markers, and the title screen shows "Bot's best: N bolts. Can you beat it?"; beating it on the win or game-over screen shows "You beat the bot!".
+
+**Latest results (2026-11-14):** all smoke tests pass. Evolution Bot scores start 760, mid 1165, best 1375 (won, no lives lost). All fairness checks pass. Timing tolerance 70%; the tight moments are around 6 s, 26 s and 38 to 39 s into a run, which are the spots to playtest if anything feels unfair. Full report: `test-results/report.md`; scores: `bot-scores.json`.
+
+The game's own test:
 
 `test_game.py` launches Chrome from `/usr/bin/google-chrome` with SwiftShader WebGL; change `executable_path` if Chrome lives elsewhere. It checks: loads without console errors; title and intro screens; keyboard movement, jumping and scoring; Fizzy Jet; robot hurt and stomp; pause; game over and restart; gravity zone flip; Delivery Pad completion; a bot finishing all three levels (terrain only, enemies ignored); the demo (plays by itself, stops on a key, ends after 30 s and reaches level 2); no page scrolling even with host padding; a full-screen button always on the title screen that explains itself where full screen is blocked; iPad-portrait touch controls; and the tilt maths. The test drives the game through `window.__game`.
 

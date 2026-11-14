@@ -1,0 +1,24 @@
+{
+  "game": "Lost Luggage of the Cosmos",
+  "bots": {
+    "evolutionary": {
+      "label": "Evolution Bot",
+      "start": 760,
+      "mid": 1165,
+      "best": 1375,
+      "won": true,
+      "passes": [
+        760,
+        1165,
+        1375
+      ]
+    }
+  },
+  "updated": "2026-11-14T23:14:07Z",
+  "champion": {
+    "bot": "evolutionary",
+    "label": "Evolution Bot",
+    "score": 1375,
+    "won": true
+  }
+}
