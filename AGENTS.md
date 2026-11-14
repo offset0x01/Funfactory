@@ -20,7 +20,7 @@ This repo holds browser games designed by kids and built by an AI agent. The sit
 | `README.md` | Human overview: how to play, how to start a new game. |
 | `index.html` | The game picker page (the GitHub Pages home). |
 | `games/<name>/` | One game per folder (see Repo conventions). |
-| `test-harness/` | The test-hook contract (`GAME_TEST_HOOK_SPEC.md`), harness docs and, later, the harness code. |
+| `test-harness/` | The test-hook contract (`GAME_TEST_HOOK_SPEC.md`), the harness (`harness/run_tests.py`), its docs, a worked example (`examples/lost-luggage/`) and `.env.example`. |
 
 You are a patient game-building partner helping a beginner (a middle schooler who has never written code) turn their idea into a working browser game. They describe the game with a **Game Card** (template at the end).
 
@@ -81,12 +81,14 @@ New games must expose the test hook in `test-harness/GAME_TEST_HOOK_SPEC.md` (`w
 - Give the game a clear **win condition** and a `progress` measure from 0 to 1.
 - Put the `BOT-SCORES` markers before the main script, and show "Bot's best: N. Can you beat it?" on the title screen when `window.BOT_SCORES` is set.
 
-The harness runner is not in the repo yet (see `test-harness/README.md`). Until it is, the game's own browser test is the required check. Once it lands:
+The harness lives in `test-harness/` (setup and flags in `test-harness/README.md`; `pip install -r test-harness/requirements.txt` once). Run it from the repo root, as well as the game's own browser test:
 
-1. Run `python3 test-harness/harness/run_tests.py smoke games/<name>/index.html` and fix everything until it passes.
-2. Run `... run_tests.py all ...`. If the Evolution Bot can't win, look at where it got stuck (`test-results/report.md`) and either fix that spot or explain in HANDOFF.md why it is fine. If a fairness check fails, fix the game, not the test.
-3. Commit the game with the bot scores written into it, plus `bot-scores.json` and `test-results/report.md`.
+1. Run `python3 test-harness/harness/run_tests.py smoke games/<name>/index.html` and fix everything until it passes. The worked example is `test-harness/examples/lost-luggage/index.html` (search for "TEST HOOK", "Hook.mode" and "BOT-SCORES").
+2. Run `python3 test-harness/harness/run_tests.py all games/<name>/index.html`. It runs the Evolution Bot (free) plus any AI bots configured in `test-harness/.env`. If the Evolution Bot can't win, look at where it got stuck (`test-results/report.md`) and either fix that spot or explain in HANDOFF.md why it is fine. If a fairness check fails, fix the game, not the test.
+3. Commit the game with the bot scores written into it, plus `bot-scores.json` and `test-results/report.md` (`test-results/` is git-ignored, so add the report with `git add -f`).
 4. In HANDOFF.md, list the bot scores (start, mid, best) and any tight moments the timing-tolerance check found.
+
+Never commit `test-harness/.env` or any API key; only `.env.example` belongs in the repo.
 
 ## Repo conventions (every new game)
 

@@ -1,19 +1,17 @@
 # Kids Games Test Harness
 
-> **Status (2026-11-14):** these documents describe the harness and the test-hook contract. The harness code itself (`harness/`, `tests/`, `examples/`, `requirements.txt`, `.env.example`) was built in a separate Claude chat and **has not been committed to this repo yet**. Until it is, each game's own browser test (for example `games/lost-luggage-of-the-cosmos/test_game.py`) is the required check. When the code lands, put it in this folder and update this note and `AGENTS.md`.
-
 Proves each game is **playable, winnable and fair**, then has bots play it so the kids have a score to beat.
 
 ```
 test-harness/
   GAME_TEST_HOOK_SPEC.md     the contract every game implements (give this to the coding agent)
   LLM_GUIDED_BOT.md          the Thinking Bot (v2) and the GEPA upgrade path
-  harness/run_tests.py       the test runner                                   (not committed yet)
-  harness/gamebot/           smoke tests, fairness checks, bots, scoreboard    (not committed yet)
-  examples/lost-luggage/     Lost Luggage with the hook added                  (not committed yet)
-  tests/mock_ai_server.py    offline fake LiteLLM + Jev endpoint               (not committed yet)
-  .env.example               model settings for the AI bots                    (not committed yet)
-  requirements.txt                                                             (not committed yet)
+  harness/run_tests.py       the test runner (run it from the repo root)
+  harness/gamebot/           smoke tests, fairness checks, bots, scoreboard
+  examples/lost-luggage/     Lost Luggage with the hook added (index.html + hook.patch)
+  tests/mock_ai_server.py    offline fake LiteLLM + Jev endpoint for testing the plumbing for free
+  .env.example               model settings for the AI bots (copy to .env; never commit .env)
+  requirements.txt           playwright, pillow, numpy
 ```
 
 The builder-prompt addendum that used to live here (`PROMPT_ADDENDUM.md`) is now part of `AGENTS.md` ("Test hook").
@@ -61,14 +59,14 @@ The game's clock is **frozen while an AI bot thinks**, so Jev's 70 to 500 ms lat
 
 ## Setting up the AI bots
 
-Copy `.env.example` to `.env` (in this folder, or pass `--env`) and fill in:
+Copy `test-harness/.env.example` to `test-harness/.env` (or pass `--env`) and fill in:
 
 - `LITELLM_BASE_URL`, `LITELLM_API_KEY`: your LiteLLM proxy (DeepInfra behind it).
 - `ENUM_MODEL`: the LiteLLM model name for the Quick-Pick Bot. Pick a small, fast model. If the model "thinks" before answering, turn that off with `CHAT_EXTRA_BODY`.
 - `LLM_DECIDE_MODEL` / `LLM_REFLECT_MODEL`: Thinking Bot per-move model (defaults to `ENUM_MODEL`) and its between-pass reviewer (can be a stronger model; it is only called twice per test).
 - `JEV_URL`, `JEV_API_KEY`, `JEV_MODEL`: Jev isn't on DeepInfra. The default URL is OpenRouter's SystemOne endpoint (`https://openrouter.ai/api/v1/systemone`) with an OpenRouter key. Jev uses a different API shape from chat models (state + typed questions), so it is called directly rather than through LiteLLM's chat endpoint. To keep everything behind LiteLLM, set up a LiteLLM pass-through route for `/systemone` and point `JEV_URL` at it.
 
-Never commit `.env`; it holds keys. The report lists calls, errors, p50/p90 latency and tokens per bot, which is the Jev vs DeepInfra comparison.
+Never commit `.env`; it holds keys (the root `.gitignore` ignores it). The report lists calls, errors, p50/p90 latency and tokens per bot, which is the Jev vs DeepInfra comparison.
 
 To test the plumbing without spending anything:
 
@@ -84,6 +82,8 @@ Hand the agent the spec plus this instruction:
 
 > Read test-harness/GAME_TEST_HOOK_SPEC.md and add the test hook to `games/<game>/index.html`. Use `test-harness/examples/lost-luggage/index.html` (search for "TEST HOOK", "Hook.mode" and "BOT-SCORES") as the worked example. Then run the smoke test and fix everything until it passes, then run `all`.
 
-## What it found on Lost Luggage (in the other chat)
+About the example: `examples/lost-luggage/index.html` was made from the published Claude artifact copy of Lost Luggage, which is older than `games/lost-luggage-of-the-cosmos/index.html` (it has no full-screen button or hosting extras). `examples/lost-luggage/hook.patch` is the exact diff from that copy. Against the current game it applies in a dry run (`patch --dry-run --fuzz=3 games/lost-luggage-of-the-cosmos/index.html < test-harness/examples/lost-luggage/hook.patch`), but two hunks need fuzz, so check where they landed and run the smoke test before committing.
 
-All smoke tests passed. The Evolution Bot scored 760, then 1165, then won on pass 3 with 1375 bolts and no lives lost. Every fairness check passed. Timing tolerance was 70%; the tightest moments were around 6 s, 26 s and 38–39 s into a run, which are the spots to playtest if anything feels unfair. The repo's copy of Lost Luggage does not have the hook yet.
+## What it found on Lost Luggage
+
+Run on the example copy (`test-harness/examples/lost-luggage/index.html`): all smoke tests passed. The Evolution Bot scored 760, then 1165, then won on pass 3 with 1375 bolts and no lives lost. Every fairness check passed. Timing tolerance was 70%; the tightest moments were around 6 s, 26 s and 38–39 s into a run, which are the spots to playtest if anything feels unfair. The repo's copy of Lost Luggage does not have the hook yet.
