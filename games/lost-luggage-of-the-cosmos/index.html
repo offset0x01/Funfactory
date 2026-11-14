@@ -99,6 +99,23 @@ p{margin:0;line-height:1.45;color:var(--ink)}
 .stat span{color:var(--fizz)}
 .stat.beat{color:var(--slipper)}
 #botNote{color:var(--fizz);font-weight:700}
+/* High score table and initials entry */
+.hs{display:flex;flex-direction:column;gap:10px;min-width:0}
+.hsForm{display:flex;flex-direction:column;gap:8px;background:#241c5c;border:2px solid var(--slipper);border-radius:16px;padding:12px}
+.hsForm label{font:800 16px var(--font-display);color:var(--slipper)}
+.hsForm .row{flex-wrap:nowrap}
+.hsForm input{width:5.2em;min-width:0;font:800 28px/1 var(--font-display);letter-spacing:.25em;text-transform:uppercase;text-align:center;
+  color:var(--ink);background:var(--space);border:2px solid var(--panel-edge);border-radius:12px;padding:10px 6px}
+.hsForm input:focus-visible{outline:3px solid var(--fizz);outline-offset:2px}
+.hsTable{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:15px}
+.hsTable th{text-align:left;font:800 12px var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:4px 6px;border-bottom:2px solid var(--panel-edge)}
+.hsTable td{padding:6px;border-bottom:1px solid rgba(67,55,140,.5)}
+.hsTable td.num{text-align:right;font-weight:800}
+.hsTable th.num{text-align:right}
+.hsTable td.ini{font:800 16px var(--font-display);letter-spacing:.12em}
+.hsTable tr.new td{background:rgba(255,111,181,.22);color:var(--ink)}
+.hsTable tr.new td.ini{color:var(--slipper)}
+.hsEmpty{color:var(--muted);font-size:15px}
 
 /* Touch controls */
 #touch{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none;
@@ -150,6 +167,7 @@ p{margin:0;line-height:1.45;color:var(--ink)}
       <button class="btn" id="btnStart">Start delivery</button>
       <button class="btn pink" id="btnDemo">Watch demo</button>
       <button class="btn alt" id="btnTilt" hidden>Use tilt</button>
+      <button class="btn alt" id="btnScores">High scores</button>
       <button class="btn alt" id="btnSound">Sound: on</button>
     </div>
     <dl class="howto">
@@ -160,7 +178,7 @@ p{margin:0;line-height:1.45;color:var(--ink)}
       <dt>Purple zones</dt><dd>Gravity flips! Walk on the ceiling.</dd>
       <dt>Pause</dt><dd>P or Esc. M turns sound on or off. F toggles full screen.</dd>
     </dl>
-    <p class="note" id="titleNote">Best score: <span id="bestScore">0</span></p>
+    <p class="note" id="titleNote">Top score: <span id="bestScore">0</span></p>
     <p class="note" id="botNote" hidden></p>
   </div>
 </section>
@@ -214,6 +232,7 @@ p{margin:0;line-height:1.45;color:var(--ink)}
     <p class="stat">Bolts: <span id="overScore">0</span></p>
     <p class="stat beat" id="overBeat" hidden>You beat the bot!</p>
     <p class="muted">The parcel is fine. It is always fine. Try again?</p>
+    <div class="hs" id="hsOver"></div>
     <div class="row"><button class="btn" id="btnRetry">Try again</button><button class="btn alt" id="btnMenu">Main menu</button></div>
   </div>
 </section>
@@ -226,7 +245,18 @@ p{margin:0;line-height:1.45;color:var(--ink)}
     <p>Inside the mystery parcel: a second, slightly smaller mystery parcel. Customer satisfaction is off the charts.</p>
     <p class="stat">Final bolts: <span id="winScore">0</span></p>
     <p class="stat beat" id="winBeat" hidden>You beat the bot!</p>
-    <div class="row"><button class="btn pink" id="btnAgain">Play again</button></div>
+    <div class="hs" id="hsWin"></div>
+    <div class="row"><button class="btn pink" id="btnAgain">Play again</button><button class="btn alt" id="btnMenu2">Main menu</button></div>
+  </div>
+</section>
+
+<!-- High scores -->
+<section class="screen" id="scrScores" hidden>
+  <div class="card">
+    <div class="eyebrow">Courier hall of fame</div>
+    <h2>High scores</h2>
+    <div class="hs" id="hsList"></div>
+    <div class="row"><button class="btn" id="btnScoresBack">Back</button></div>
   </div>
 </section>
 
@@ -373,9 +403,51 @@ function hex(h, a = 1) {
 function shade(c, f, a) { return [clamp(c[0] * f, 0, 1), clamp(c[1] * f, 0, 1), clamp(c[2] * f, 0, 1), a ?? c[3]]; }
 function mix(c1, c2, t) { return [lerp(c1[0], c2[0], t), lerp(c1[1], c2[1], t), lerp(c1[2], c2[2], t), lerp(c1[3], c2[3], t)]; }
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+// Saved data lives in this browser only. Every game on the site shares one storage space,
+// so every key starts with this game's folder name. If storage is blocked (private browsing,
+// some embedded viewers) values are kept in memory for this visit only.
+const STORE_PREFIX = 'lost-luggage-of-the-cosmos.';
 const store = {
-  get(k, d) { try { const v = localStorage.getItem('llotc.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('llotc.' + k, JSON.stringify(v)); } catch { /* storage blocked: ignore */ } },
+  mem: {}, ok: (() => { try { const k = STORE_PREFIX + '__test'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; } catch { return false; } })(),
+  get(k, d) {
+    try { const v = localStorage.getItem(STORE_PREFIX + k); if (v != null) return JSON.parse(v); } catch { /* blocked or bad data */ }
+    return k in this.mem ? this.mem[k] : d;
+  },
+  set(k, v) { this.mem[k] = v; try { localStorage.setItem(STORE_PREFIX + k, JSON.stringify(v)); } catch { /* blocked: memory only */ } },
+};
+// One-time move from the old 'llotc.' keys (before 2026-11-14) so players keep their settings and best score.
+(() => {
+  try {
+    for (const k of ['muted', 'tiltOffset', 'tiltSens', 'tiltInvert']) {
+      const old = localStorage.getItem('llotc.' + k);
+      if (old != null && localStorage.getItem(STORE_PREFIX + k) == null) localStorage.setItem(STORE_PREFIX + k, old);
+      localStorage.removeItem('llotc.' + k);
+    }
+    const oldBest = JSON.parse(localStorage.getItem('llotc.best') || '0');
+    if (oldBest > 0 && localStorage.getItem(STORE_PREFIX + 'scores') == null) {
+      localStorage.setItem(STORE_PREFIX + 'scores', JSON.stringify([{ initials: 'YOU', score: oldBest, detail: 'Earlier best', date: new Date().toISOString().slice(0, 10) }]));
+    }
+    localStorage.removeItem('llotc.best');
+  } catch { /* storage blocked: nothing to move */ }
+})();
+
+// ---------- HIGH SCORES: top 10 on this device, highest first ----------
+const Scores = {
+  MAX: 10,
+  list() {
+    const l = store.get('scores', []);
+    return Array.isArray(l) ? l.filter(e => e && typeof e.score === 'number').slice(0, this.MAX) : [];
+  },
+  top() { const l = this.list(); return l.length ? l[0].score : 0; },
+  qualifies(score) { const l = this.list(); return score > 0 && (l.length < this.MAX || score > l[l.length - 1].score); },
+  // adds an entry and returns its position (ties keep the earlier entry above)
+  add(initials, score, detail) {
+    const l = this.list(), entry = { initials, score, detail, date: new Date().toISOString().slice(0, 10) };
+    let i = l.findIndex(e => score > e.score); if (i < 0) i = l.length;
+    l.splice(i, 0, entry); store.set('scores', l.slice(0, this.MAX));
+    return i < this.MAX ? i : -1;
+  },
+  cleanInitials(v) { return (v || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); },
 };
 
 // test hook state (the hook itself is defined at the end of this script; see TEST HOOK)
@@ -483,6 +555,7 @@ const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in win
 
 addEventListener('keydown', e => {
   Sound.unlock();
+  if (e.target && e.target.matches && e.target.matches('input, textarea')) return; // typing initials: no game shortcuts
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
   if (e.repeat) return;
   Input.keys.add(e.code);
@@ -696,7 +769,7 @@ const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h 
 
 // ---------- GAME ----------
 const Game = {
-  state: 'title', levelIdx: 0, level: null, player: null, score: 0, lives: CFG.START_LIVES, best: store.get('best', 0),
+  state: 'title', levelIdx: 0, level: null, player: null, score: 0, lives: CFG.START_LIVES, best: Scores.top(),
   t: 0, particles: [], banner: null, shake: 0, levelStartScore: 0,
   newPlayer(at) {
     return { x: at.x, y: at.y, w: 0.7, h: 0.9, vx: 0, vy: 0, gs: 1, onGround: false, face: 1, coyote: 0, jumpBuf: 0,
@@ -728,20 +801,21 @@ const Game = {
   },
   gameOver() {
     this.state = 'over'; Sound.stopMusic(); Sound.sfx('over'); this.saveBest();
-    document.getElementById('overScore').textContent = this.score; UI.beatBot('overBeat'); UI.show('scrOver');
+    document.getElementById('overScore').textContent = this.score; UI.beatBot('overBeat'); UI.endRun('hsOver', `Level ${this.levelIdx + 1}`); UI.show('scrOver');
   },
   completeLevel() {
     if (Hook.mode === 'bot') { Hook.levelDone(); return; }
     if (this.demo) { Demo.nextLevel(); return; }
     this.state = 'complete'; Sound.stopMusic(); Sound.sfx('win'); this.saveBest();
-    if (this.levelIdx >= LEVELS.length - 1) { document.getElementById('winScore').textContent = this.score; UI.beatBot('winBeat'); UI.show('scrWin'); this.state = 'win'; return; }
+    if (this.levelIdx >= LEVELS.length - 1) { document.getElementById('winScore').textContent = this.score; UI.beatBot('winBeat'); UI.endRun('hsWin', 'Delivered!'); UI.show('scrWin'); this.state = 'win'; return; }
     document.getElementById('completeScore').textContent = this.score;
     document.getElementById('completeTitle').textContent = LEVELS[this.levelIdx].name + ' done!';
     document.getElementById('completeText').textContent = 'Next stop: ' + LEVELS[this.levelIdx + 1].name + '.';
     UI.show('scrComplete');
   },
   nextLevel() { this.levelIdx++; this.showIntro(); },
-  saveBest() { if (this.demo || Hook.mode) return; if (this.score > this.best) { this.best = this.score; store.set('best', this.best); } },
+  // high scores are saved from the game-over / win screen (UI.endRun); bots and the demo never save
+  saveBest() { if (this.demo || Hook.mode) return; this.best = Math.max(this.best, this.score); },
   burst(x, y, col, n, speed = 6) {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = Math.random() * speed;
@@ -1090,9 +1164,11 @@ function render() {
 // ---------- UI / SCREENS ----------
 const $ = id => document.getElementById(id);
 const UI = {
-  screens: ['scrTitle', 'scrIntro', 'scrPause', 'scrComplete', 'scrOver', 'scrWin'],
+  screens: ['scrTitle', 'scrIntro', 'scrPause', 'scrComplete', 'scrOver', 'scrWin', 'scrScores'],
+  pending: null, lastInitials: store.get('initials', ''),
   current: 'scrTitle', toastTimer: null,
   show(id) {
+    if (this.pending && this.current === this.pending.screen && id !== this.current) this.savePending(); // leaving without pressing Save still keeps the score
     this.current = id;
     for (const s of this.screens) $(s).hidden = s !== id;
     const playing = id === null;
@@ -1103,13 +1179,13 @@ const UI = {
       $('introEyebrow').textContent = `Level ${Game.levelIdx + 1} of ${LEVELS.length}`;
       $('introName').textContent = d.name; $('introText').textContent = d.intro;
     }
-    const focusBtn = { scrTitle: 'btnStart', scrIntro: 'btnGo', scrPause: 'btnResume', scrComplete: 'btnNext', scrOver: 'btnRetry', scrWin: 'btnAgain' }[id];
-    if (focusBtn && !isTouch) setTimeout(() => $(focusBtn).focus({ preventScroll: true }), 30);
+    const focusBtn = { scrTitle: 'btnStart', scrIntro: 'btnGo', scrPause: 'btnResume', scrComplete: 'btnNext', scrOver: 'btnRetry', scrWin: 'btnAgain', scrScores: 'btnScoresBack' }[id];
+    if (focusBtn && !isTouch && !this.pending) setTimeout(() => $(focusBtn).focus({ preventScroll: true }), 30);
     if (playing) document.activeElement && document.activeElement.blur && document.activeElement.blur();
     this.syncHud();
   },
   primaryAction() {
-    const map = { scrTitle: 'btnStart', scrIntro: 'btnGo', scrComplete: 'btnNext', scrOver: 'btnRetry', scrWin: 'btnAgain', scrPause: 'btnResume' };
+    const map = { scrTitle: 'btnStart', scrIntro: 'btnGo', scrComplete: 'btnNext', scrOver: 'btnRetry', scrWin: 'btnAgain', scrPause: 'btnResume', scrScores: 'btnScoresBack' };
     const id = map[this.current]; if (id && document.activeElement?.tagName !== 'BUTTON') $(id).click();
   },
   syncHud() {
@@ -1137,8 +1213,59 @@ const UI = {
     $('btnInvert').textContent = 'Invert tilt: ' + (Tilt.invert ? 'on' : 'off');
     $('movePad').hidden = Tilt.enabled; $('tiltHint').hidden = !Tilt.enabled;
   },
+  // ----- high scores -----
+  // called when a run ends: ask for initials if the score makes the top 10, else show the table
+  endRun(boxId, detail) {
+    this.pending = null;
+    for (const id of ['hsOver', 'hsWin']) $(id).replaceChildren(); // only one initials box at a time
+    if (Game.demo || Hook.mode) return;
+    if (Scores.qualifies(Game.score)) this.pending = { boxId, screen: $(boxId).closest('.screen').id, score: Game.score, detail };
+    this.renderScores(boxId, -1);
+  },
+  savePending(initials) {
+    const p = this.pending; if (!p) return -1;
+    this.pending = null;
+    const ini = Scores.cleanInitials(initials ?? this.lastInitials) || '???';
+    if (ini !== '???') { this.lastInitials = ini; store.set('initials', ini); }
+    const pos = Scores.add(ini, p.score, p.detail);
+    Game.best = Scores.top(); this.syncBest();
+    return pos;
+  },
+  renderScores(boxId, highlight) {
+    const box = $(boxId); box.replaceChildren();
+    const p = this.pending && this.pending.boxId === boxId ? this.pending : null;
+    if (p) {
+      const form = document.createElement('form'); form.className = 'hsForm';
+      form.innerHTML = '<label for="hsInitials">New high score! Type your initials</label>'
+        + '<div class="row"><input id="hsInitials" name="initials" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" aria-label="Your initials, 3 letters">'
+        + '<button class="btn pink" type="submit">Save</button></div>';
+      const input = form.querySelector('input'); input.value = this.lastInitials;
+      input.addEventListener('input', () => { input.value = Scores.cleanInitials(input.value); });
+      form.addEventListener('submit', e => { e.preventDefault(); Sound.unlock(); Sound.sfx('check'); const pos = this.savePending(input.value); this.renderScores(boxId, pos); });
+      box.append(form);
+      if (!isTouch) setTimeout(() => { input.focus({ preventScroll: true }); input.select(); }, 60);
+    }
+    const list = Scores.list();
+    if (!list.length) {
+      if (!p) { const e = document.createElement('p'); e.className = 'hsEmpty'; e.textContent = 'No high scores yet. Finish a run to get on the board!'; box.append(e); }
+    } else {
+      const wrap = document.createElement('div'); wrap.style.overflowX = 'auto';
+      const t = document.createElement('table'); t.className = 'hsTable';
+      t.innerHTML = '<thead><tr><th class="num">#</th><th>Who</th><th class="num">Bolts</th><th>Reached</th></tr></thead>';
+      const tb = document.createElement('tbody');
+      list.forEach((e, i) => {
+        const tr = document.createElement('tr'); if (i === highlight) tr.className = 'new';
+        for (const [cls, val] of [['num', i + 1], ['ini', e.initials], ['num', e.score], ['', e.detail || '']]) {
+          const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = val; tr.append(td);
+        }
+        tb.append(tr);
+      });
+      t.append(tb); wrap.append(t); box.append(wrap);
+    }
+    if (!store.ok) { const n = document.createElement('p'); n.className = 'note'; n.textContent = 'Scores can\u2019t be saved in this browser, so this list resets when you close the game.'; box.append(n); }
+  },
   syncBest() {
-    $('bestScore').textContent = Game.best;
+    $('bestScore').textContent = Scores.top();
     const champ = window.BOT_SCORES?.champion;
     $('botNote').hidden = !champ;
     if (champ) $('botNote').textContent = `Bot's best: ${champ.score} bolts. Can you beat it?`;
@@ -1160,6 +1287,9 @@ click('btnQuit', () => Game.toMenu());
 click('btnNext', () => Game.nextLevel());
 click('btnRetry', () => Game.startRun());
 click('btnMenu', () => Game.toMenu());
+click('btnMenu2', () => Game.toMenu());
+click('btnScores', () => { UI.renderScores('hsList', -1); UI.show('scrScores'); });
+click('btnScoresBack', () => UI.show('scrTitle'));
 click('btnAgain', () => Game.startRun());
 click('btnSound', () => Sound.setMuted(!Sound.muted));
 click('btnSound2', () => Sound.setMuted(!Sound.muted));

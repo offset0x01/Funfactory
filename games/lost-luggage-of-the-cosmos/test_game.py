@@ -177,6 +177,77 @@ with sync_playwright() as pw:
     check(t > 0.5, f'tilt maths turns a right tilt into rightward movement ({t:.2f})')
     if SHOTS: pg.wait_for_timeout(300); pg.screenshot(path=str(SHOTS / 'ipad-portrait.png'))
     ctx.close()
+
+    # ---- high scores (fresh browser profile each time) ----
+    KEY = 'lost-luggage-of-the-cosmos.scores'
+    def end_run(pg, score, win=False):
+        pg.evaluate(f"""() => {{ const {{Game}}=__game; Game.startRun(); Game.beginLevel(); Game.score={score};
+          {'Game.levelIdx=2; Game.completeLevel();' if win else 'Game.lives=1; Game.player.invuln=0; Game.hurt();'} }}""")
+        pg.wait_for_timeout(150)
+
+    hctx = b.new_context(viewport={'width': 1024, 'height': 768})
+    pg = hctx.new_page(); pg.on('pageerror', lambda e: errors.append(str(e)))
+    pg.goto(HTML.as_uri()); pg.wait_for_timeout(400)
+    pg.click('#btnScores'); pg.wait_for_timeout(100)
+    check(pg.is_visible('#scrScores') and 'No high scores yet' in pg.inner_text('#hsList'), 'High scores screen shows an empty board at first')
+    pg.click('#btnScoresBack'); pg.wait_for_timeout(100)
+
+    end_run(pg, 120)
+    check(pg.is_visible('#hsOver .hsForm'), 'a qualifying game over asks for initials')
+    pg.fill('#hsInitials', ''); pg.type('#hsInitials', 'ab1cpm')
+    check(pg.input_value('#hsInitials') == 'ABC', f"initials are 3 capital letters ({pg.input_value('#hsInitials')!r})")
+    check(pg.evaluate('__game.Game.state') == 'over' and not pg.evaluate("document.getElementById('scrPause').hidden === false"), 'typing P in initials does not pause')
+    pg.keyboard.press('Enter'); pg.wait_for_timeout(150)
+    rows = pg.evaluate("[...document.querySelectorAll('#hsOver tbody tr')].map(r => [r.className, ...[...r.cells].map(c => c.textContent)])")
+    check(rows == [['new', '1', 'ABC', '120', 'Level 1']], f'Enter saves and highlights the new row ({rows})')
+    saved = pg.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+    check(len(saved) == 1 and saved[0]['initials'] == 'ABC', 'score saved in this game\'s own storage key')
+
+    end_run(pg, 50)
+    check(pg.input_value('#hsInitials') == 'ABC', 'initials prefilled with the last ones used')
+    pg.click('#btnRetry'); pg.wait_for_timeout(150)
+    saved = pg.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+    check([e['score'] for e in saved] == [120, 50], 'leaving without pressing Save still keeps the score')
+
+    end_run(pg, 900, win=True)
+    check(pg.is_visible('#hsWin .hsForm'), 'a winning run asks for initials')
+    pg.fill('#hsInitials', 'Zed'); pg.click('#hsWin button[type=submit]'); pg.wait_for_timeout(150)
+    top = pg.evaluate("[...document.querySelectorAll('#hsWin tbody tr')][0].textContent")
+    check('ZED' in top and '900' in top and 'Delivered!' in top, f'win entry goes to the top ({top})')
+
+    pg.reload(); pg.wait_for_timeout(400)
+    check(pg.inner_text('#bestScore') == '900', 'top score shows on the title screen after reload')
+    pg.evaluate("() => { const l=[]; for(let i=0;i<10;i++) l.push({initials:'AAA',score:1000-i*10,detail:'x'}); localStorage.setItem('lost-luggage-of-the-cosmos.scores', JSON.stringify(l)); }")
+    end_run(pg, 5)
+    check(not pg.is_visible('#hsOver .hsForm'), 'a score below the top 10 does not ask for initials')
+    pg.click('#btnMenu'); pg.wait_for_timeout(100)
+
+    # test-hook bot runs never save
+    before = pg.evaluate(f"localStorage.getItem('{KEY}')")
+    pg.evaluate("() => { GAME_TEST_HOOK.reset({seed:1}); __game.Game.score = 5000; __game.Game.lives = 1; __game.Game.player.invuln = 0; __game.Game.hurt(); }")
+    pg.wait_for_timeout(100)
+    check(pg.evaluate(f"localStorage.getItem('{KEY}')") == before and not pg.is_visible('#hsOver .hsForm'), 'bot runs never save scores')
+    hctx.close()
+
+    # migration from the old 'llotc.' keys
+    mctx = b.new_context()
+    mctx.add_init_script("if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded','1'); localStorage.setItem('llotc.best','300'); localStorage.setItem('llotc.muted','true'); }")
+    pg = mctx.new_page(); pg.on('pageerror', lambda e: errors.append(str(e)))
+    pg.goto(HTML.as_uri()); pg.wait_for_timeout(400)
+    m = pg.evaluate("({s: JSON.parse(localStorage.getItem('lost-luggage-of-the-cosmos.scores')), muted: localStorage.getItem('lost-luggage-of-the-cosmos.muted'), old: localStorage.getItem('llotc.best')})")
+    check(m['s'] and m['s'][0]['score'] == 300 and m['muted'] == 'true' and m['old'] is None, f'old llotc. keys are migrated ({m})')
+    mctx.close()
+
+    # storage blocked: still plays, keeps scores for the visit, says so
+    bctx = b.new_context()
+    bctx.add_init_script("Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('blocked', 'SecurityError'); } });")
+    pg = bctx.new_page(); pg.on('pageerror', lambda e: errors.append(str(e)))
+    pg.goto(HTML.as_uri()); pg.wait_for_timeout(400)
+    end_run(pg, 70)
+    pg.fill('#hsInitials', 'KID'); pg.keyboard.press('Enter'); pg.wait_for_timeout(150)
+    txt = pg.inner_text('#hsOver')
+    check('KID' in txt and "can’t be saved" in txt, 'blocked storage keeps scores for the visit and says so')
+    bctx.close()
     b.close()
 
 check(not errors, f'no console errors ({errors[:3]})')

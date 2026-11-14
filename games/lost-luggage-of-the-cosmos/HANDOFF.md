@@ -2,7 +2,7 @@
 
 A three-level 2D platformer built from a Game Card as the first test of the kids' game-builder prompt. Read this before changing anything; it covers what exists, why it was built this way, and where to make common changes.
 
-**Status (2026-11-14):** test hook added and the harness passes; v1.1 complete and playable, with a 30-second demo mode and a full-screen button. All automated tests pass. Tilt has not been tried on a real iPad yet (see Open items).
+**Status (2026-11-14):** top-10 high score table added; test hook added and the harness passes; v1.1 complete and playable, with a 30-second demo mode and a full-screen button. All automated tests pass. Tilt has not been tried on a real iPad yet (see Open items).
 
 ## Files
 
@@ -46,6 +46,8 @@ Published copy: a Claude artifact titled "Lost Luggage of the Cosmos". It is `in
 | Fizzy Jet ability is per level and survives respawns | Each level hands out a can before the first wall that needs it. |
 | Body pinned with `position: fixed; inset: 0`, and `html` uses `box-sizing: border-box` | The Claude artifact viewer pads the page for phone safe areas; without this the page grew taller than the screen and scrolled. The test checks for it. |
 | Title-screen full-screen button is always shown; the HUD one only where supported | Fullscreen works in desktop browsers and iPad Safari, not on iPhone or in some app views. On iPad, Add to Home Screen also gives a full-screen game (the page has the `apple-mobile-web-app-capable` meta). |
+| Top-10 high scores with 3-letter initials, saved per device | Follows AGENTS.md "High scores and saved data". There is no server, so scores live in the browser; a Home Screen copy keeps its own list. Leaving the screen without pressing Save still keeps the score, using the last initials (or ???). |
+| Storage keys start with `lost-luggage-of-the-cosmos.` | Every game on the site shares one storage space. Older `llotc.` keys are moved over once on load, and an old best score becomes a "YOU" entry. |
 | Demo mode never loses lives | It exists so people can watch the game where they cannot play it (for example inside the Claude artifact viewer); it should always look like a clean run. |
 
 ## Architecture (inside `index.html`)
@@ -54,7 +56,7 @@ The page content sits between the `GAME-START` and `GAME-END` comments. The scri
 
 1. **CONFIG** (`CFG`): every tuning number. Units are tiles and seconds. Jump height ≈ `JUMP_V² / (2·GRAVITY)` ≈ 2.4 tiles; Fizzy Jet adds ≈ 2 tiles.
 2. **LEVELS**: array of level objects (format below).
-3. **Helpers**: color helpers (`hex`, `shade`), seeded `rng`, `store` (localStorage wrapped in try/catch, keys prefixed `llotc.`).
+3. **Helpers and saved data**: color helpers (`hex`, `shade`), seeded `rng`, `store` (localStorage with keys prefixed `lost-luggage-of-the-cosmos.`, falling back to memory when storage is blocked; `store.ok` says which), the one-time `llotc.` migration, and `Scores` (top-10 list under `scores`: `{ initials, score, detail, date }`, highest first).
 4. **Sound**: `unlock()`, `sfx(name)`, and a tiny step sequencer (`startMusic(song)`) driven by each level's `music`.
 5. **Input**: one object fed by keyboard, touch buttons (`bindHold`) and `Tilt`. The game reads only `Input.axis()`, `Input.jumpHeld()` and `Input.consumeJump()`.
 6. **Tilt**: permission request (must be called straight from a tap), screen-rotation-aware tilt angle, calibration offset, sensitivity and invert, all saved to localStorage. If no motion events arrive within 1.5 s it turns itself off and shows the touch buttons.
@@ -64,7 +66,7 @@ The page content sits between the `GAME-START` and `GAME-END` comments. The scri
 10. **Physics** (`moveBox`): axis-separated box versus tile collision. The world has solid side walls and is open above and below.
 11. **Game** (`Game`): state machine (`title → intro → play ⇄ paused → complete / over / win`), `update(dt)` with player, enemies, items, spikes, checkpoints, messages and goal.
 12. **Drawing**: background per level (`bgDecor`: `junk`, `ship`, `asteroid`), tiles, items, enemies, player, particles.
-13. **UI**: shows and hides the `<section class="screen">` overlays, HUD, message banner and settings buttons.
+13. **UI** (including high scores: `UI.endRun` when a run ends, `UI.renderScores` draws the initials form and table, `UI.savePending` saves; the High scores button opens `scrScores`): shows and hides the `<section class="screen">` overlays, HUD, message banner and settings buttons.
 14. **Test hook** (`Hook` near the top, `window.GAME_TEST_HOOK` at the end): see Testing.
 15. **Hosting extras** (end of the script): when the page is served from a `games/<name>/` folder it shows an **All games** link back to the picker, and when it has its manifest link and a secure origin it registers `sw.js`. The artifact copy has neither, so both stay off there.
 16. **Full screen** (`Full`): a tappable **Full screen** button at the top of the title card (always shown), a small HUD button (only where full screen works) and the F key. Uses the Fullscreen API with the `webkit` prefix for Safari. Where full screen is not allowed (iPhone, the Claude app's artifact view), tapping the title button shows a note explaining how to get it: open the game's own page, or use Add to Home Screen on iPad.
@@ -124,7 +126,7 @@ The **test harness** (`test-harness/`, spec in `test-harness/GAME_TEST_HOOK_SPEC
 
 The game's own test:
 
-`test_game.py` launches Chrome from `/usr/bin/google-chrome` with SwiftShader WebGL; change `executable_path` if Chrome lives elsewhere. It checks: loads without console errors; title and intro screens; keyboard movement, jumping and scoring; Fizzy Jet; robot hurt and stomp; pause; game over and restart; gravity zone flip; Delivery Pad completion; a bot finishing all three levels (terrain only, enemies ignored); the demo (plays by itself, stops on a key, ends after 30 s and reaches level 2); no page scrolling even with host padding; a full-screen button always on the title screen that explains itself where full screen is blocked; iPad-portrait touch controls; and the tilt maths. The test drives the game through `window.__game`.
+`test_game.py` launches Chrome from `/usr/bin/google-chrome` with SwiftShader WebGL; change `executable_path` if Chrome lives elsewhere. It checks: loads without console errors; title and intro screens; keyboard movement, jumping and scoring; Fizzy Jet; robot hurt and stomp; pause; game over and restart; gravity zone flip; Delivery Pad completion; a bot finishing all three levels (terrain only, enemies ignored); the demo (plays by itself, stops on a key, ends after 30 s and reaches level 2); no page scrolling even with host padding; a full-screen button always on the title screen that explains itself where full screen is blocked; iPad-portrait touch controls; the tilt maths; and high scores (empty board, initials entry and cleanup, P not pausing while typing, Enter and Save, keeping an unsaved score, ordering and the top-10 cut-off, reload, bot runs never saving, `llotc.` migration, and blocked storage). The test drives the game through `window.__game`.
 
 ## Publishing as a Claude artifact
 

@@ -72,6 +72,19 @@ You are a patient game-building partner helping a beginner (a middle schooler wh
 
 - Keep content suitable for a middle schooler. No online accounts, chat, data collection or ads.
 
+## High scores and saved data
+
+Games save on the player's device with `localStorage` (IndexedDB only for big save data). There is no server, so scores are per device and per browser; a Home Screen copy on iOS keeps its own storage, separate from Safari.
+
+- **Prefix every storage key with the game's folder name and a dot** (for example `lost-luggage-of-the-cosmos.scores`). Every game on the site shares one storage space, so unprefixed keys collide.
+- **Keep a top-10 high score table** under `<folder>.scores`: an array of `{ initials, score, detail, date }`, highest first (ties keep the earlier entry). `detail` is a short note such as "Level 2" or "Delivered!".
+- When a run ends with a score that makes the table, ask for **3-letter initials** right on the game-over or win screen: a large text field (font at least 16px so iOS doesn't zoom), letters only, prefilled with the last initials used, saved with Enter or a big Save button. Then show the table with the new row highlighted.
+- Show the table from the title screen (a **High scores** button), and show the top score on the title screen itself.
+- While the player is typing in a field, the game's keyboard shortcuts (P, M, F, Space, Enter-to-start) must not fire.
+- Wrap every storage read and write in `try/catch`. If storage is blocked (private browsing, some embedded viewers), keep scores in memory for the session and say so in one line under the table ("Scores can't be saved in this browser").
+- Test-hook bot runs and demo mode never write scores or the player's best.
+- If you rename or re-prefix keys, migrate the old values once on load so players keep their scores.
+
 ## Test hook
 
 New games must expose the test hook in `test-harness/GAME_TEST_HOOK_SPEC.md` (`window.GAME_TEST_HOOK`, spec v1). Read the spec before writing the game loop, because it shapes how you structure it:
