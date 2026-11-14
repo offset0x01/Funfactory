@@ -1,0 +1,12 @@
+# Changelog
+
+Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. Newest first. Add a line here whenever you change how games are built or integrated.
+
+## 2026-11-14
+
+- `AGENTS.md` declared the source of truth for building games on any platform; agents pull and re-read it before working, and update it plus this changelog in the same commit as any spec change.
+- Added `test-harness/`: the game test-hook contract (`GAME_TEST_HOOK_SPEC.md`), the harness README and the Thinking Bot notes. The harness code is not committed yet.
+- New games must implement the test hook (spec v1). Existing games that still need it: `lost-luggage-of-the-cosmos`.
+- Pages must be pinned so they never scroll, and the title screen must offer a tappable Full screen button that explains itself where full screen is blocked (found while testing on iPhone).
+- Each game ships Home Screen files (`manifest.webmanifest`, `sw.js`, icons) for full screen, tilt and offline play on iPad and iPhone.
+- Repo created with the game picker and Lost Luggage of the Cosmos; GitHub Pages publishes `main`.

@@ -2,6 +2,26 @@
 
 This repo holds browser games designed by kids and built by an AI agent. The site is published with GitHub Pages: the home page (`index.html`) lists the games, and each game lives in its own folder under `games/`.
 
+## This file is the source of truth
+
+`AGENTS.md` in `offset0x01/Funfactory` is **the** build spec for every game, whichever tool or platform builds it (Claude, Claude Code, OpenCode, or anything else). Copies of these instructions elsewhere (chat projects, docs, prompts) are convenience copies and may be out of date.
+
+- **Before starting any work, pull `main` and read this file again**, plus `CHANGELOG.md` for recent changes. Someone may have improved it from another platform.
+- **When you change how games are built or integrated** (new rule, new required file, a better pattern you discovered), update this file in the same commit, add a dated line to `CHANGELOG.md`, and, if it affects existing games, say which ones still need updating.
+- Keep `CLAUDE.md` as a pointer to this file; don't duplicate instructions there.
+
+## Repo map
+
+| Path | What it is |
+| --- | --- |
+| `AGENTS.md` | This build spec (source of truth). |
+| `CHANGELOG.md` | Dated changes to the spec and scaffolding. |
+| `CLAUDE.md` | Points Claude Code here. |
+| `README.md` | Human overview: how to play, how to start a new game. |
+| `index.html` | The game picker page (the GitHub Pages home). |
+| `games/<name>/` | One game per folder (see Repo conventions). |
+| `test-harness/` | The test-hook contract (`GAME_TEST_HOOK_SPEC.md`), harness docs and, later, the harness code. |
+
 You are a patient game-building partner helping a beginner (a middle schooler who has never written code) turn their idea into a working browser game. They describe the game with a **Game Card** (template at the end).
 
 ## What to build
@@ -51,6 +71,23 @@ You are a patient game-building partner helping a beginner (a middle schooler wh
 
 - Keep content suitable for a middle schooler. No online accounts, chat, data collection or ads.
 
+## Test hook
+
+New games must expose the test hook in `test-harness/GAME_TEST_HOOK_SPEC.md` (`window.GAME_TEST_HOOK`, spec v1). Read the spec before writing the game loop, because it shapes how you structure it:
+
+- Keep a **fixed-step simulation** with one `update(dt)` function, separate from drawing, so the hook can run it without the real-time loop.
+- Route **all input** through one input object, so keyboard, touch, tilt and the hook's actions all feed the same place.
+- Use a **seeded random number generator** for anything that affects gameplay.
+- Give the game a clear **win condition** and a `progress` measure from 0 to 1.
+- Put the `BOT-SCORES` markers before the main script, and show "Bot's best: N. Can you beat it?" on the title screen when `window.BOT_SCORES` is set.
+
+The harness runner is not in the repo yet (see `test-harness/README.md`). Until it is, the game's own browser test is the required check. Once it lands:
+
+1. Run `python3 test-harness/harness/run_tests.py smoke games/<name>/index.html` and fix everything until it passes.
+2. Run `... run_tests.py all ...`. If the Evolution Bot can't win, look at where it got stuck (`test-results/report.md`) and either fix that spot or explain in HANDOFF.md why it is fine. If a fairness check fails, fix the game, not the test.
+3. Commit the game with the bot scores written into it, plus `bot-scores.json` and `test-results/report.md`.
+4. In HANDOFF.md, list the bot scores (start, mid, best) and any tight moments the timing-tolerance check found.
+
 ## Repo conventions (every new game)
 
 Copy the pattern in `games/lost-luggage-of-the-cosmos/`:
@@ -61,6 +98,8 @@ Copy the pattern in `games/lost-luggage-of-the-cosmos/`:
 | `HANDOFF.md` | Game Card, decisions, architecture, how to make common changes, testing, open items. Keep it current with every change. |
 | `test_game.py` (or similar) | The headless browser test. It must pass before you commit. |
 | `manifest.webmanifest`, `sw.js`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Home Screen install, full screen and offline play. Bump `CACHE` in `sw.js` when the file list changes. |
+
+Never commit secrets (`.env` files, API keys). Keep family names and other personal details out of the repo; the site is public.
 
 Then add the game to the `GAMES` list at the top of the script in the root `index.html` (newest first), commit everything in one commit, and push to `main`. GitHub Pages publishes it within a couple of minutes at `https://offset0x01.github.io/Funfactory/games/<game-name>/`.
 

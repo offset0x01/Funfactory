@@ -13,7 +13,8 @@ Browser games designed by kids and built with an AI coding agent. Each game is o
 - `index.html` (root) is the game picker. Its `GAMES` list names each game folder.
 - `games/<name>/` holds one game: `index.html`, a `HANDOFF.md` for the next coding session, a browser test, and the Home Screen files (manifest, offline helper, icons).
 - GitHub Pages publishes `main` automatically, a minute or two after each push.
-- `AGENTS.md` is the instruction set for coding agents (OpenCode, Claude Code). `CLAUDE.md` points Claude Code at it.
+- `AGENTS.md` is the build spec and the **source of truth** for making games on any platform (Claude, Claude Code, OpenCode). `CLAUDE.md` points Claude Code at it, and `CHANGELOG.md` records changes to it.
+- `test-harness/` holds the game test-hook contract and the bot test harness docs.
 
 ## Making a new game
 
