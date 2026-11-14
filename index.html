@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0820">
+<title>Funfactory</title>
+<link rel="icon" href="games/lost-luggage-of-the-cosmos/icon-192.png">
+<style>
+/* Layout: a single column of game cards on a starfield; cards go two-up on wide screens. No web fonts, no network. */
+:root{
+  --space:#0b0820; --panel:#1a1442; --edge:#43378c; --ink:#f4f0ff; --muted:#b8afe2;
+  --orange:#ff8a3d; --pink:#ff6fb5; --green:#7dffa0;
+  --display:"Avenir Next Rounded","Arial Rounded MT Bold",ui-rounded,"Trebuchet MS",system-ui,sans-serif;
+  --body:"Trebuchet MS",ui-rounded,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{background:var(--space)}
+body{margin:0;min-height:100vh;color:var(--ink);font:16px/1.45 var(--body);
+  background:radial-gradient(1200px 600px at 80% -10%, #3b1f5e 0%, transparent 60%), var(--space);
+  padding:calc(env(safe-area-inset-top,0px) + 28px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 32px) max(16px,env(safe-area-inset-left,0px))}
+#stars{position:fixed;inset:0;z-index:0;pointer-events:none}
+main{position:relative;z-index:1;max-width:60rem;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+header{display:flex;flex-direction:column;gap:6px}
+.eyebrow{font:800 13px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--orange)}
+h1{margin:0;font:800 clamp(36px,8vw,64px)/1 var(--display);letter-spacing:-.01em;text-wrap:balance}
+h1 span{color:var(--pink)}
+.lead{margin:0;color:var(--muted);max-width:40rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,26rem),1fr));gap:16px}
+.card{display:flex;gap:16px;align-items:flex-start;background:var(--panel);border:3px solid var(--edge);border-radius:22px;padding:16px;min-width:0}
+.card img{width:96px;height:96px;border-radius:20px;flex:none;image-rendering:auto}
+.card .body{display:flex;flex-direction:column;gap:8px;min-width:0}
+.card h2{margin:0;font:800 22px/1.15 var(--display)}
+.card p{margin:0;color:var(--ink)}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font:800 12px var(--display);letter-spacing:.04em;color:var(--green);border:2px solid #2f6b4a;border-radius:999px;padding:3px 9px}
+.play{align-self:flex-start;margin-top:4px;font:800 17px/1 var(--display);color:#1a0f2e;background:var(--orange);border-radius:999px;padding:13px 22px;
+  text-decoration:none;box-shadow:0 4px 0 #a84d14}
+.play:active{transform:translateY(2px);box-shadow:0 2px 0 #a84d14}
+.play:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+.tip{background:rgba(26,20,66,.75);border:2px dashed var(--edge);border-radius:18px;padding:14px 16px;color:var(--muted);font-size:15px}
+.tip b{color:var(--ink)}
+@media (prefers-reduced-motion: reduce){.play:active{transform:none}}
+</style>
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+<main>
+  <header>
+    <div class="eyebrow">Made at home</div>
+    <h1>Fun<span>factory</span></h1>
+    <p class="lead">Games dreamed up by kids and built with an AI helper. Pick one and play.</p>
+  </header>
+
+  <section class="grid" id="games" aria-label="Games"></section>
+
+  <p class="tip"><b>Playing on an iPad or iPhone?</b> Open a game, tap Share, then <b>Add to Home Screen</b>. Launch it from the new icon for full screen, tilt controls and offline play in the car.</p>
+</main>
+
+<script>
+'use strict';
+// GAME LIST: add one entry per game folder under games/ (newest first).
+const GAMES = [
+  {
+    slug: 'lost-luggage-of-the-cosmos',
+    title: 'Lost Luggage of the Cosmos',
+    blurb: 'A space courier in fuzzy slippers delivers a mystery parcel across a junkyard planet, a wobbly cruise ship and a talking asteroid. Burp-powered double jumps included.',
+    tags: ['Platformer', '3 levels', 'Keyboard', 'Touch', 'Tilt'],
+  },
+];
+
+const grid = document.getElementById('games');
+for (const g of GAMES) {
+  const card = document.createElement('article'); card.className = 'card';
+  const img = document.createElement('img'); img.src = `games/${g.slug}/icon-192.png`; img.alt = '';
+  img.onerror = () => img.remove();
+  const body = document.createElement('div'); body.className = 'body';
+  const h = document.createElement('h2'); h.textContent = g.title;
+  const p = document.createElement('p'); p.textContent = g.blurb;
+  const tags = document.createElement('div'); tags.className = 'tags';
+  for (const t of g.tags || []) { const s = document.createElement('span'); s.className = 'tag'; s.textContent = t; tags.append(s); }
+  const a = document.createElement('a'); a.className = 'play'; a.href = `games/${g.slug}/`; a.textContent = 'Play';
+  body.append(h, p, tags, a); card.append(img, body); grid.append(card);
+}
+
+// twinkling starfield
+const c = document.getElementById('stars'), x = c.getContext('2d');
+let W = 0, H = 0; const stars = Array.from({ length: 140 }, () => ({ x: Math.random(), y: Math.random(), s: Math.random() * 1.6 + 0.4, t: Math.random() * 6 }));
+function size() { const d = Math.min(devicePixelRatio || 1, 2); W = c.width = innerWidth * d; H = c.height = innerHeight * d; c.style.width = innerWidth + 'px'; c.style.height = innerHeight + 'px'; }
+function draw(now) {
+  x.clearRect(0, 0, W, H);
+  for (const s of stars) { x.globalAlpha = 0.35 + 0.35 * Math.sin(now / 700 + s.t); x.fillStyle = '#fff'; x.fillRect(s.x * W, s.y * H, s.s * 2, s.s * 2); }
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(draw);
+}
+addEventListener('resize', size); size(); requestAnimationFrame(draw);
+</script>
+</body>
+</html>
