@@ -10,7 +10,7 @@ One or two sentences: what the game is and who asked for it. Read this before ch
 | --- | --- |
 | `index.html` | The whole game. |
 | `test_game.py` | This game's own browser test (rules, screens, touch). |
-| `TEST_REPORT.md`, `bot-scores.json` | Written by the harness `all` run. Don't edit by hand. |
+| `TEST_REPORT.md`, `bot-scores.json`, `bot-best-run.json` | Written by the harness `all` run. Don't edit by hand. |
 | `manifest.webmanifest`, `sw.js`, icons | Add to Home Screen, full screen and offline play. |
 
 Live: https://offset0x01.github.io/Funfactory/games/<folder>/
@@ -42,10 +42,11 @@ The order of the sections inside `index.html`, and what each one owns. Note anyt
 python3 test-harness/harness/run_tests.py smoke games/<folder>/index.html   # after every change
 python3 games/<folder>/test_game.py
 python3 test-harness/harness/run_tests.py all games/<folder>/index.html     # before committing
+python3 test-harness/harness/check_live.py games/<folder>                    # after pushing
 ```
 
 - How `progress` is measured, and `maxSteps`.
-- **Bot scores:** start, mid, best; did it win; any flags it needed (`--extra-passes`).
+- **Bot scores:** start, mid, best; did it win; any flags it needed (`--extra-passes`, `--fresh`, `--allow-no-win` and why).
 - **Tight moments** from the timing-tolerance check, as places to playtest.
 
 ## Sources and credits

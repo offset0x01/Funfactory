@@ -31,6 +31,15 @@ def bot_entry(bot: str, pass_scores: list[int], won: bool, extra: dict | None = 
     return e
 
 
+def old_entry(path: pathlib.Path, game_title: str, bot: str):
+    """This bot's entry from an earlier run of the same game, or None."""
+    try:
+        old = json.loads(path.read_text())
+        return old["bots"].get(bot) if old.get("game") == game_title else None
+    except Exception:
+        return None
+
+
 def merge_scores(path: pathlib.Path, game_title: str, new_bots: dict) -> dict:
     """Merge this run's bots into bot-scores.json (bots not run this time keep their old entry)."""
     data = {"game": game_title, "bots": {}}

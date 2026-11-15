@@ -1,6 +1,6 @@
 # Funfactory
 
-Browser games designed by kids and built with an AI coding agent. Each game is one self-contained HTML file that runs offline on desktops, Chromebooks, iPads and iPhones.
+Browser games designed by kids and built with an AI coding agent. Each game is one self-contained HTML file that runs offline on iPads, iPhones, Chromebooks and desktops, with touch and keyboard controls.
 
 **Play:** https://offset0x01.github.io/Funfactory/
 
@@ -11,11 +11,11 @@ Browser games designed by kids and built with an AI coding agent. Each game is o
 ## How it works
 
 - `index.html` (root) is the game picker. Its `GAMES` list names each game folder.
-- `games/<name>/` holds one game: `index.html`, a `HANDOFF.md` for the next coding session, its own browser test, the harness's `TEST_REPORT.md` and bot scores, and the Home Screen files (manifest, offline helper, icons).
+- `games/<name>/` holds one game: `index.html`, a `HANDOFF.md` for the next coding session, its own browser test, the harness's files (`TEST_REPORT.md`, `bot-scores.json`, `bot-best-run.json`), and the Home Screen files (manifest, offline helper, icons).
 - GitHub Pages publishes `main` automatically, a minute or two after each push.
 - `AGENTS.md` is the build spec and the **source of truth** for making games on any platform (Claude, Claude Code, OpenCode). `CLAUDE.md` points Claude Code at it, and `CHANGELOG.md` records changes to it.
 - `templates/game/` is the starter every new game is copied from: a tiny complete game with touch and keyboard controls, high scores, offline play and the test hook already working.
-- `test-harness/` holds the game test-hook contract and the test harness: quick checks of the rules every game follows, bots that prove a game can be won, and fairness checks.
+- `test-harness/` holds the game test-hook contract and the test harness: quick checks of the rules every game follows, bots that prove a game can be won, fairness checks, and a check that a pushed game is live.
 
 ## Making a new game
 
@@ -42,4 +42,7 @@ pip install -r test-harness/requirements.txt                               # onc
 python3 test-harness/harness/run_tests.py smoke games/<name>/index.html   # quick check, about 20 s
 python3 games/<name>/test_game.py                                          # the game's own test
 python3 test-harness/harness/run_tests.py all games/<name>/index.html     # bots and fairness, before committing
+python3 test-harness/harness/check_live.py games/<name>                    # after pushing: is it live?
 ```
+
+`all` fails unless a bot can win the game. Details and flags: `test-harness/README.md`.

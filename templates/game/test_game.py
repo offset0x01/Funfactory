@@ -4,8 +4,8 @@
   python3 games/<name>/test_game.py
 
 The shared harness (test-harness/harness/run_tests.py) already checks the things every game
-must do: loading, the test hook, keyboard, pause, no scrolling, saved-data names, offline, and
-whether a bot can win. Test only what is special to THIS game here: its rules, its screens,
+must do: loading, the test hook, keyboard, pause, no scrolling, saved-data names, offline, a
+phone-sized touch screen, and whether a bot can win. Test only what is special to THIS game here: its rules, its screens,
 its touch controls. It drives the game through window.__game.
 """
 import pathlib

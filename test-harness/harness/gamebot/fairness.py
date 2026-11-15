@@ -7,7 +7,7 @@ from .browser import GameSession
 
 
 def run_fairness(g: GameSession, info: dict, best_genome=None, best_result=None, seed: int = 1, samples: int = 24,
-                 require_win: bool = False) -> dict:
+                 require_win: bool = True) -> dict:
     sps = info["stepsPerSecond"]
     findings = []
 
@@ -41,12 +41,12 @@ def run_fairness(g: GameSession, info: dict, best_genome=None, best_result=None,
             "error" if errs else "warn")
 
     # 5. Winnable by a human-speed bot.
-    # (Not finding a win is not proof the game is impossible, so this is a warning unless --require-win.)
+    # A game no bot can win fails, unless the run was started with --allow-no-win.
     if best_result is not None:
         won = best_result["status"] == "won"
         detail = (f"won with score {best_result['score']}, lives lost {best_result['livesLost']}" if won else
                   f"not proven: best run reached {best_result['progress']:.0%} (level {best_result['level'] + 1}). "
-                  "Either that spot is too hard or the bot needs more tries (--rollouts).")
+                  "Either that spot is too hard or the bot needs more tries (--extra-passes 10).")
         add("a human-speed bot can win", won, detail, "error" if require_win else "warn")
 
     # 6. Timing tolerance: nudge one input change ~40 ms early or late. Does the run still succeed?

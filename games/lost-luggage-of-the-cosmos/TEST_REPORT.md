@@ -1,6 +1,6 @@
 # Test report: Lost Luggage of the Cosmos
 
-Run at 2026-11-14 19:31:19 · seed 1
+Run at 2026-11-15 12:09:26 · seed 1
 
 ## Smoke tests
 
@@ -36,18 +36,26 @@ Run at 2026-11-14 19:31:19 · seed 1
 | PASS | unknown action is rejected |  |
 | PASS | observe() gives text | 769 chars |
 | PASS | same seed + same inputs = same run | run A 100/0.017 vs B 100/0.017 |
-| PASS | full-length run simulates in < 5 s | 0.22 s for 86400 steps |
-| PASS | real keyboard works (right) | idle player {'x': 2.15, 'y': 12.099, 'vx': 0, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none', 'shield': False, 'megaSeconds': 0} vs keys {'x': 9.757, 'y': 12.099, 'vx': 3.2, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none', 'shield': False, 'megaSeconds': 0} |
-| PASS | game screen is drawn (not blank) | pixel std 32.6, ~642 colors |
+| PASS | full-length run simulates in < 5 s | 0.20 s for 86400 steps |
+| PASS | real keyboard works (right) | idle player {'x': 2.15, 'y': 12.099, 'vx': 0, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none', 'shield': False, 'megaSeconds': 0} vs keys {'x': 9.64, 'y': 12.099, 'vx': 4.2, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none', 'shield': False, 'megaSeconds': 0} |
+| PASS | game screen is drawn (not blank) | pixel std 32.6, ~640 colors |
 | PASS | no console errors while playing |  |
+| PASS | P pauses and resumes | nothing may change while paused, and the smoke action must work again after the second P |
+| PASS | page never scrolls | page is 0 px too wide, 0 px too tall |
+| PASS | bot runs save nothing | a bot run wrote to localStorage: [] |
+| PASS | storage keys start with the folder name | 1 key(s) checked |
+| PASS | no network requests |  |
+| PASS | title screen has a High scores button | no 'High scores' text on the title screen |
+| PASS | phone touch screen: loads, draws, no scroll | pixel std 36.5, ~1103 colors; overflow [0, 0] |
 | PASS | title screen shows the bot's best | set window.BOT_SCORES and the number did not appear |
 
 ## Bots
 
-| Bot | Start | Mid | Best | Won? | Passes |
+| Bot | Start | Mid | Best | Won? | Passes in this run |
 | --- | --- | --- | --- | --- | --- |
-| Evolution Bot | 895 | 3080 | 6045 | yes | 895 (stopped, 22%), 975 (stopped, 24%), 1940 (stopped, 47%), 2440 (stopped, 57%), 3080 (stopped, 69%), 4055 (stopped, 84%), 4525 (stopped, 88%), 4860 (stopped, 92%), 4885 (stopped, 92%), 6045 (won, 100%) |
+| Evolution Bot | 895 | 3080 | 6045 | yes | 6045 (won, 100%) |
 
+- **Evolution Bot** replayed its saved best run (`bot-best-run.json`): it still wins exactly as before, so nothing was searched. Its earlier passes are in `bot-scores.json`.
 
 ## Fairness
 

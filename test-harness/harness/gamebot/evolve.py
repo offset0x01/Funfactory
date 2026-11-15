@@ -9,6 +9,9 @@ gives the same run. Each pass it:
   3. tries new random moves from there (biased toward moves that worked before),
   4. keeps whichever version gets further / scores more.
 
+Its best run is saved next to the game (bot-best-run.json). The next test starts from that run, so
+a small change to a long game costs seconds or minutes, not a search from scratch.
+
 Holds are never shorter than ~150 ms of game time, roughly how fast a person can change input,
 so whatever it finds is something a quick human could also do.
 """
@@ -108,6 +111,10 @@ class EvolutionaryBot:
         self.elite.sort(key=lambda e: -e[0])
         self.elite = self.elite[:6]
         return improved
+
+    def start_from(self, genome):
+        """Begin the search from a run saved earlier (bot-best-run.json) instead of from nothing."""
+        self._consider([list(s) for s in genome], self._search_eval(genome))
 
     def run(self, passes: int = 3, extra_passes_for_win: int = 0) -> dict:
         if not self.elite:

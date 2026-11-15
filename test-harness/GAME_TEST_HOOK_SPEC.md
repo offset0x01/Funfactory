@@ -176,7 +176,7 @@ The game must:
 - When the player finishes or loses a run with a score above `champion.score`, celebrate it ("You beat the bot!").
 - Show nothing extra when `BOT_SCORES` is `null`.
 
-The same numbers are saved next to the game as `bot-scores.json`.
+The same numbers are saved next to the game as `bot-scores.json`. The Evolution Bot's best run (its exact inputs) is saved beside it as `bot-best-run.json`, and the next test starts by replaying it. That only works because the same seed and the same actions always give the same run, so keep every bit of gameplay randomness on the seeded generator.
 
 ## 9. Checklist for the coding agent
 

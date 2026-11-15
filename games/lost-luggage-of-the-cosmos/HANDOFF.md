@@ -9,7 +9,8 @@ A ten-level 2D platformer with a boss fight, built from a Game Card as the first
 | File | What it is |
 | --- | --- |
 | `index.html` | The whole game (about 130 KB). Source of truth. Open it directly, or serve the folder over HTTPS. |
-| `test_game.py` | Headless Chrome test (Playwright). Run after every change. |
+| `test_game.py` | This game's own headless browser test (Playwright). Run after every change. |
+| `TEST_REPORT.md`, `bot-scores.json`, `bot-best-run.json` | Written by the harness `all` run: the report, the bots' scores, and the Evolution Bot's best run (the next test starts from it). Don't edit by hand. |
 | `manifest.webmanifest`, `sw.js`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Add to Home Screen: name, icon, full screen, landscape, and offline play. `sw.js` serves the saved copy first and downloads updates in the background. Its cache is named after the folder and it only deletes its own old caches (all games share one cache space); bump `VERSION` when the file list changes. |
 | `HANDOFF.md` | This file. |
 
@@ -143,17 +144,21 @@ Other level fields: `name`, `intro`, `sky` (top and bottom colors), `rock` and `
 
 ## Testing
 
-Run both from the repo root before every commit:
+Run from the repo root:
 
 ```
 pip install -r test-harness/requirements.txt    # once
+python3 test-harness/harness/run_tests.py smoke games/lost-luggage-of-the-cosmos/index.html   # after every change
 python3 games/lost-luggage-of-the-cosmos/test_game.py games/lost-luggage-of-the-cosmos/index.html
-python3 test-harness/harness/run_tests.py all games/lost-luggage-of-the-cosmos/index.html
+python3 test-harness/harness/run_tests.py all games/lost-luggage-of-the-cosmos/index.html     # before committing
+python3 test-harness/harness/check_live.py games/lost-luggage-of-the-cosmos                   # after pushing
 ```
+
+`all` fails unless a bot wins. The Evolution Bot starts from `bot-best-run.json`: while that run still wins, `all` takes under a minute; after a change that breaks it, the bot searches on from the old run. A search from nothing (`--fresh --extra-passes 12`) takes 20 to 25 minutes for this game.
 
 The **test harness** (`test-harness/`, spec in `test-harness/GAME_TEST_HOOK_SPEC.md`) drives the game only through `window.GAME_TEST_HOOK` (the `TEST HOOK (spec v1)` block at the end of the script, plus the `Hook` state object near the top). Bot mode freezes the real-time loop, skips level-complete screens (`Hook.levelDone`), turns sound off and never saves the player's best score. `progress` is the courier's distance from start to the Delivery Pad in the current level, plus levels completed, divided by 10. On the boss level it is 25% for reaching the arena, 60% for the stomps (12% each) and 15% for walking to the pad. `MAX_STEPS` is 12 minutes of game time. The harness writes the bot scores between the `BOT-SCORES` markers, and the title screen shows "Bot's best: N bolts. Can you beat it?"; beating it on the win or game-over screen shows "You beat the bot!".
 
-**Latest results (2026-11-14, v2 with ten levels):** all smoke tests pass. Evolution Bot scores start 895, mid 3080, best 6045 (won, beat the Baggage Beast, no lives lost). It needed extra passes (`--extra-passes 12`; it won on pass 10, about 19 minutes) because the game is long. All fairness checks pass. Timing tolerance 57%; the tight moments are around 11 s, 25 s, 44 s, 87 s and 99 s into a run (roughly levels 1, 2, 3 and 6), which are the spots to playtest if anything feels unfair. Full report: `TEST_REPORT.md` (written by a harness `all` run); scores: `bot-scores.json`. The terrain check in `test_game.py` now fails a level if the bot touches hot sauce, or spikes from level 4 on; that caught an 8-tile sauce pit, a 5-tile spike strip and too-short landings while building v2.
+**Latest results (2026-11-15, v2 with ten levels):** all smoke tests pass, including the site-rule checks (pause, no scrolling, storage names, no network, phone-sized touch screen). Evolution Bot scores start 895, mid 3080, best 6045 (won, beat the Baggage Beast, no lives lost). From nothing it needed extra passes (`--extra-passes 12`; it won on pass 10, 20 to 25 minutes) because the game is long; that run is saved in `bot-best-run.json`, so `all` now replays it in about 30 seconds. All fairness checks pass. Timing tolerance 57%; the tight moments are around 11 s, 25 s, 44 s, 87 s and 99 s into a run (roughly levels 1, 2, 3 and 6), which are the spots to playtest if anything feels unfair. Full report: `TEST_REPORT.md` (written by a harness `all` run); scores: `bot-scores.json`. The terrain check in `test_game.py` now fails a level if the bot touches hot sauce, or spikes from level 4 on; that caught an 8-tile sauce pit, a 5-tile spike strip and too-short landings while building v2.
 
 The game's own test:
 

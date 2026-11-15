@@ -6,8 +6,10 @@
   python3 test-harness/harness/run_tests.py bots   path/to/index.html --bots jev,enum  # just these bots
   python3 test-harness/harness/run_tests.py all    path/to/index.html --bots evolutionary,jev,enum,llm --passes 3
 
-`all` writes the report to commit, <game folder>/TEST_REPORT.md. Working files (smoke-report.md, bots-report.md,
-report.json, screenshots, the bot's best run) go to <game folder>/test-results/, which git ignores.
+`all` writes the report to commit, <game folder>/TEST_REPORT.md, and fails if no bot can win the game
+(--allow-no-win turns that into a warning). The Evolution Bot's best run is saved in
+<game folder>/bot-best-run.json and the next test starts from it (--fresh ignores it). Working files (smoke-report.md, bots-report.md,
+report.json, screenshots) go to <game folder>/test-results/, which git ignores.
 Bot scores go to <game folder>/bot-scores.json and into the game file between the BOT-SCORES markers
 (use --no-inject to leave the game file alone). Exit code 1 means the game failed a required check.
 """
@@ -28,7 +30,7 @@ from gamebot.browser import GameSession  # noqa: E402
 from gamebot.evolve import EvolutionaryBot  # noqa: E402
 from gamebot.fairness import run_fairness  # noqa: E402
 from gamebot.providers import ProviderError, load_dotenv  # noqa: E402
-from gamebot.scores import LABELS, bot_entry, inject_file, merge_scores, summarize_passes  # noqa: E402
+from gamebot.scores import LABELS, bot_entry, inject_file, merge_scores, old_entry, summarize_passes  # noqa: E402
 from gamebot.smoke import run_smoke  # noqa: E402
 
 AI_BOTS = ["jev", "enum", "llm"]
@@ -37,6 +39,55 @@ CONFIGURED = {"jev": ["JEV_API_KEY"], "enum": ["ENUM_MODEL"], "llm": ["LLM_DECID
 
 def configured(bot: str) -> bool:
     return any(os.environ.get(k) for k in CONFIGURED[bot])
+
+
+RUN_KEYS = ["status", "score", "steps", "livesLost"]
+
+
+def load_best_run(path: pathlib.Path, seed: int, info: dict):
+    """The Evolution Bot's saved best run, if it still fits this game (same seed, same action list)."""
+    try:
+        saved = json.loads(path.read_text())
+    except Exception:
+        return None
+    if saved.get("seed") != seed or saved.get("actions") != [x["id"] for x in info["actions"]] or not saved.get("genome"):
+        return None
+    return saved
+
+
+def run_evolution(g, info, a, passes, game: pathlib.Path, log):
+    """Run the Evolution Bot, starting from its saved best run when there is one.
+
+    Returns (bot result, best genome, full replay of it, how it relates to the saved run):
+      "replayed"  = the saved run still wins exactly as before, so nothing was searched;
+      "continued" = the saved run replays exactly as before but hadn't won, so the search carried on;
+      "restarted" = the game changed (the saved run plays out differently), search started from the saved run;
+      None        = no usable saved run.
+    """
+    path = game.parent / "bot-best-run.json"
+    saved = None if a.fresh else load_best_run(path, a.seed, info)
+    bot = EvolutionaryBot(g, info, seed=a.seed, rollouts_per_pass=a.rollouts, log=log)
+    how = None
+    if saved:
+        replay = g.rollout(saved["genome"], seed=a.seed, stall_steps=info["maxSteps"])
+        same = all(replay.get(k) == (saved.get("result") or {}).get(k) for k in RUN_KEYS)
+        if same and replay["status"] == "won":
+            log(f"  saved best run still wins (score {replay['score']}); nothing to search. Use --fresh to search from scratch.")
+            one = {"pass": 1, "score": replay["score"], "status": "won", "progress": round(replay["progress"], 4),
+                   "livesLost": replay["livesLost"], "steps": replay["steps"]}
+            return ({"bot": "evolutionary", "passes": [one], "won": True, "resumed": "replayed"}, saved["genome"], replay, "replayed")
+        how = "continued" if same else "restarted"
+        log(f"  starting from the saved best run ({'unchanged' if same else 'the game has changed since it was saved'}; "
+            f"it now reaches {replay['progress']:.0%})")
+        bot.start_from(saved["genome"])
+    r = bot.run(passes, a.extra_passes)
+    best = r.pop("best_genome")
+    full = g.rollout(best, seed=a.seed, stall_steps=info["maxSteps"])
+    path.write_text(json.dumps({"seed": a.seed, "actions": [x["id"] for x in info["actions"]],
+                                "result": {k: full[k] for k in RUN_KEYS + ["progress"]}, "genome": best}, separators=(",", ":")) + "\n")
+    if how:
+        r["resumed"] = how
+    return r, best, full, how
 
 
 def icon(ok, severity):
@@ -53,12 +104,13 @@ def write_report(out: pathlib.Path, report: dict, md: pathlib.Path) -> pathlib.P
         L += [f"| {icon(c['ok'], c['severity'])} | {c['name']} | {c['detail'].replace('|', '/')} |" for c in report["smoke"]["checks"]]
         L.append("")
     if report.get("bots"):
-        L += ["## Bots", "", "| Bot | Start | Mid | Best | Won? | Passes |", "| --- | --- | --- | --- | --- | --- |"]
+        L += ["## Bots", "", "| Bot | Start | Mid | Best | Won? | Passes in this run |", "| --- | --- | --- | --- | --- | --- |"]
         for k, b in report["bots"].items():
             if "error" in b:
                 L.append(f"| {LABELS.get(k, k)} | – | – | – | – | {b['error']} |")
                 continue
-            s = summarize_passes([p["score"] for p in b["passes"]])
+            # start / mid / best come from the scoreboard, which also remembers passes from earlier runs
+            s = ((report.get("scoreboard") or {}).get("bots") or {}).get(k) or summarize_passes([p["score"] for p in b["passes"]])
             L.append(f"| {LABELS.get(k, k)} | {s['start']} | {s['mid']} | {s['best']} | {'yes' if b['won'] else 'no'} | "
                      + ", ".join(f"{p['score']} ({p['status']}, {p['progress']:.0%})" for p in b["passes"]) + " |")
         L.append("")
@@ -68,6 +120,10 @@ def write_report(out: pathlib.Path, report: dict, md: pathlib.Path) -> pathlib.P
                     L.append(f"- **{LABELS.get(k, k)} ({part})** model `{b.get('model')}`: {u['calls']} calls, {u['errors']} errors, "
                              f"p50 {u['latency_ms_p50']} ms, p90 {u['latency_ms_p90']} ms, {u['input_tokens']} in / {u['output_tokens']} out tokens"
                              + (f", ${u['reported_cost_usd']}" if u.get("reported_cost_usd") else ""))
+            if b.get("resumed"):
+                L.append({"replayed": "- **Evolution Bot** replayed its saved best run (`bot-best-run.json`): it still wins exactly as before, so nothing was searched. Its earlier passes are in `bot-scores.json`.",
+                          "continued": "- **Evolution Bot** carried on from its saved best run (`bot-best-run.json`); the passes above are the new ones.",
+                          "restarted": "- **Evolution Bot** started from its saved best run (`bot-best-run.json`), which plays out differently now that the game has changed."}[b["resumed"]])
             if b.get("strategies"):
                 L += ["", f"Final strategy written by the Thinking Bot's reviewer:", "", "> " + b["strategies"][-1].replace("\n", "\n> ")]
         L.append("")
@@ -91,7 +147,9 @@ def main():
     ap.add_argument("--passes", type=int, default=3, help="passes per bot (at least 3)")
     ap.add_argument("--rollouts", type=int, default=1000, help="evolution bot: tries per pass")
     ap.add_argument("--extra-passes", type=int, default=2, help="evolution bot: extra passes allowed if it hasn't won yet")
-    ap.add_argument("--require-win", action="store_true", help="fail the build if no bot proves the game can be won")
+    ap.add_argument("--allow-no-win", action="store_true", help="`all` normally fails when no bot can win; this makes it a warning")
+    ap.add_argument("--require-win", action="store_true", help=argparse.SUPPRESS)  # old flag; now the default
+    ap.add_argument("--fresh", action="store_true", help="evolution bot: ignore bot-best-run.json and search from scratch")
     ap.add_argument("--decision-seconds", type=float, default=0.25, help="AI bots: game time each chosen move is held")
     ap.add_argument("--max-decisions", type=int, default=600, help="AI bots: move limit per pass (caps cost)")
     ap.add_argument("--seed", type=int, default=1)
@@ -139,18 +197,13 @@ def main():
     with GameSession(str(game)) as g:
         info = g.info()
         report["title"] = info["title"]
-        evo_best = evo_full = None
+        evo_best = evo_full = resumed = None
         for bot in bots:
             log(f"\n{LABELS.get(bot, bot)} ({bot}), {passes} passes")
             t = time.time()
             try:
                 if bot == "evolutionary":
-                    r = EvolutionaryBot(g, info, seed=a.seed, rollouts_per_pass=a.rollouts, log=log).run(passes, a.extra_passes)
-                    evo_best = r.pop("best_genome")
-                    out.mkdir(parents=True, exist_ok=True)
-                    (out / "evolutionary-best-run.json").write_text(json.dumps({"seed": a.seed, "actions": [x["id"] for x in info["actions"]],
-                                                                                "genome": evo_best}) + "\n")
-                    evo_full = g.rollout(evo_best, seed=a.seed, stall_steps=info["maxSteps"])
+                    r, evo_best, evo_full, resumed = run_evolution(g, info, a, passes, game, log)
                 else:
                     r = AgentBot(bot, g, info, seed=a.seed, decision_seconds=a.decision_seconds, max_decisions=a.max_decisions, log=log).run(passes)
             except (ProviderError, RuntimeError) as e:
@@ -160,11 +213,20 @@ def main():
             r["seconds"] = round(time.time() - t, 1)
             report["bots"][bot] = r
             extra = {"model": r["model"]} if r.get("model") else None
-            entries[bot] = bot_entry(bot, [p["score"] for p in r["passes"]], r["won"], extra)
+            scores = [p["score"] for p in r["passes"]]
+            if bot == "evolutionary" and resumed in ("replayed", "continued"):
+                # same game as last time: keep the bot's history, so start / mid / best still tell the whole story
+                old = old_entry(game.parent / "bot-scores.json", info["title"], bot)
+                if old and resumed == "replayed":
+                    entries[bot] = old
+                    continue
+                if old:
+                    scores = list(old.get("passes") or []) + scores
+            entries[bot] = bot_entry(bot, scores, r["won"], extra)
 
         if a.command == "all":
             log("\nFairness checks")
-            fr = run_fairness(g, info, evo_best, evo_full, seed=a.seed, require_win=a.require_win)
+            fr = run_fairness(g, info, evo_best, evo_full, seed=a.seed, require_win=not a.allow_no_win)
             report["fairness"] = fr
             for f in fr["findings"]:
                 log(f"  [{icon(f['ok'], f['severity'])}] {f['name']}  ({f['detail']})")

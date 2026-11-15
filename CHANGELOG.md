@@ -2,6 +2,13 @@
 
 Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. Newest first. Add a line here whenever you change how games are built or integrated.
 
+## 2026-11-15
+
+- **The Evolution Bot remembers.** Its best run is saved in `games/<name>/bot-best-run.json` (commit it) and the next `all` starts from it: an unchanged game replays the win in seconds, a changed game is searched from the old run. `--fresh` ignores it. The old ignored copy (`test-results/evolutionary-best-run.json`) is gone.
+- **A bot must win, or `all` fails.** This was a warning unless `--require-win`; now it is the default, and `--allow-no-win` is the exception (explain it in HANDOFF.md).
+- New `test-harness/harness/check_live.py`: after pushing, confirms the live GitHub Pages files match the repo and the game is on the home page. Added to the Done checklist.
+- `AGENTS.md`, both READMEs, the starter's docs and Lost Luggage's HANDOFF.md updated to match. `lost-luggage-of-the-cosmos` now has its `bot-best-run.json` and a fresh `TEST_REPORT.md`; no existing games still need updating.
+
 ## 2026-11-14
 
 - Dropped the Claude-artifact leftovers now that GitHub Pages is the only delivery route: the `GAME-START` / `GAME-END` markers are no longer required (removed from `AGENTS.md`, the starter and `lost-luggage-of-the-cosmos`, with its `claude.hot` lines and "Publishing as a Claude artifact" notes). `<title>` now sits in `<head>`. No existing games need changes.

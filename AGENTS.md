@@ -25,7 +25,7 @@ You are a patient game-building partner helping a beginner (a middle schooler wh
 | `games/<name>/` | One game per folder. |
 | `templates/game/` | **The starter every new game is copied from.** A tiny complete game with every required part already working and tested. |
 | `templates/make_icons.py` | Makes the three Home Screen icons. |
-| `test-harness/` | The test-hook contract (`GAME_TEST_HOOK_SPEC.md`), the harness (`harness/run_tests.py`), its docs and `.env.example`. |
+| `test-harness/` | The test-hook contract (`GAME_TEST_HOOK_SPEC.md`), the harness (`harness/run_tests.py`), the live-site check (`harness/check_live.py`), their docs and `.env.example`. |
 
 ## What to build
 
@@ -123,7 +123,11 @@ Setup is in `test-harness/README.md` (`pip install -r test-harness/requirements.
 
 1. **After every change:** `python3 test-harness/harness/run_tests.py smoke games/<name>/index.html` (about 20 s). It checks the hook, the real keyboard, drawing, pause, no scrolling, storage names, no network, bot runs saving nothing, and a phone-sized touch screen. Fix everything it reports.
 2. **The game's own test:** `python3 games/<name>/test_game.py`. It covers what is special to this game (rules, screens, its touch controls); don't repeat the harness's checks there.
-3. **Before committing:** `python3 test-harness/harness/run_tests.py all games/<name>/index.html`. It adds the Evolution Bot (free), any AI bots configured in `test-harness/.env`, and the fairness checks, then writes `TEST_REPORT.md`, `bot-scores.json` and the bot's best into the game file. If the bot can't win, read the report: if its passes were still improving, give it more tries (`--extra-passes 10`; it stops when it wins), which long games need. If it was stuck in one spot, fix that spot or explain in HANDOFF.md why it is fine. If a fairness check fails, fix the game, not the test.
+3. **Before committing:** `python3 test-harness/harness/run_tests.py all games/<name>/index.html`. It adds the Evolution Bot (free), any AI bots configured in `test-harness/.env`, and the fairness checks, then writes `TEST_REPORT.md`, `bot-scores.json`, `bot-best-run.json` and the bot's best into the game file.
+   - **A bot must win, or `all` fails.** If the Evolution Bot can't win, read the report. If its passes were still improving, run `all` again with more tries (`--extra-passes 10`; it stops when it wins); it carries on from where it got to. If it was stuck in one spot, fix that spot. Only when the game is truly fine and the bot just can't play it (say why in HANDOFF.md) use `--allow-no-win`.
+   - **The bot remembers.** Its best run is saved in `bot-best-run.json`, and the next `all` starts from it: an unchanged game replays the win in seconds, and a changed game is searched from the old run, not from nothing. Commit that file. `--fresh` throws the saved run away (use it after reworking early levels, or when a search from the old run goes nowhere).
+   - If a fairness check fails, fix the game, not the test.
+4. **After pushing:** `python3 test-harness/harness/check_live.py games/<name>`. It waits for GitHub Pages and confirms the live files match the repo and the game is on the home page. If it says the site can't be reached from your sandbox (exit code 2), say so in the summary and give the player the link to check.
 
 Never commit `test-harness/.env` or any API key.
 
@@ -134,19 +138,20 @@ Never commit `test-harness/.env` or any API key.
 | `index.html` | The game. Keep the `BOT-SCORES` markers before the main script. |
 | `HANDOFF.md` | Game Card, decisions, architecture, how to make common changes, testing, sources, open items. Keep it current with every change. |
 | `test_game.py` | The game's own browser test. Use the harness's `GameSession` to launch the browser, as the starter does; never hard-code a browser path. |
-| `TEST_REPORT.md`, `bot-scores.json` | Written by the harness `all` run. Commit them; don't edit by hand. |
+| `TEST_REPORT.md`, `bot-scores.json`, `bot-best-run.json` | Written by the harness `all` run: the report, the bots' scores, and the Evolution Bot's best run (the next test starts from it). Commit them; don't edit by hand. |
 | `manifest.webmanifest`, `sw.js`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Home Screen install, full screen and offline play. `sw.js` needs no edits for a new game; bump its `VERSION` when the file list changes. All games share one cache space, so a service worker must only ever delete caches named after its own folder. |
 
 `test-results/` (screenshots and working files) is git-ignored; leave it that way.
 
 ## Done checklist
 
-- [ ] `smoke` passes, `test_game.py` passes, and `all` passes with the Evolution Bot winning (or HANDOFF.md explains why not).
+- [ ] `smoke` passes, `test_game.py` passes, and `all` passes, which means a bot won (or HANDOFF.md explains why `--allow-no-win` was needed).
 - [ ] Played through on a phone-sized touch screen and with the keyboard in the headless browser: start, move, score, pause, lose, restart, win.
 - [ ] `HANDOFF.md` is current: decisions, bot scores (start, mid, best), tight moments from the timing check, open items, and a source cited for every piece of outside art, music, sound and research.
 - [ ] New game only: added to the `GAMES` list at the top of the script in the root `index.html` (newest first) and to the table in `README.md`.
 - [ ] No secrets, and no family names or other personal details anywhere. The repo and the site are public.
 - [ ] One commit with everything, `git pull --rebase`, then push to `main`. GitHub Pages publishes within a couple of minutes at `https://offset0x01.github.io/Funfactory/games/<name>/`.
+- [ ] `check_live.py` says the game is live and up to date (or the summary says the site couldn't be reached from the sandbox).
 
 ## How to talk to the player
 
