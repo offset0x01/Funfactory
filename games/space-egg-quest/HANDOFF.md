@@ -87,6 +87,14 @@ python3 test-harness/harness/check_live.py games/space-egg-quest                
 - **Bot scores:** Evolution Bot start 4400, mid 4400, best 4400; won on pass 1 with no hearts lost; no extra flags needed.
 - **Tight moments** (timing check, 21% of 40 ms nudges did as well): 2.6 s, 5.8 s, 10.6 s, 15.8 s. In a 3D game a tiny change in when you turn changes your whole path afterward, so a low score here is expected; it is not a single unfair jump. Still worth playtesting the first Gloomling (about 6 s in).
 
+## Build log
+
+One row per build or change. The next session's time estimate is made from these.
+
+| Date | What was built | Expected | Actual |
+| --- | --- | --- | --- |
+| 2026-11-15 | First version | not recorded | not recorded |
+
 ## Sources and credits
 
 All art and sound are made in code by the Funfactory builder; no downloaded assets.
