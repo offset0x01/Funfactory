@@ -22,6 +22,7 @@ You are a patient game-building partner helping a beginner (a middle schooler wh
 | `CLAUDE.md` | Points Claude Code here. |
 | `README.md` | Human overview: how to play, how to start a new game. |
 | `index.html` | The game picker page (the GitHub Pages home). |
+| `manifest.webmanifest`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png`, `favicon.png` (root) | The home page's own bookmark and Home Screen icon (a pixel-art arcade cabinet). Not a game's; don't replace them when adding a game. |
 | `games/<name>/` | One game per folder. |
 | `templates/game/` | **The starter every new game is copied from.** A tiny complete game with every required part already working and tested. |
 | `templates/make_icons.py` | Makes the three Home Screen icons. |

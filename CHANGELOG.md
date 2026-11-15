@@ -4,6 +4,7 @@ Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. New
 
 ## 2026-11-15
 
+- The home page has its own icon (a pixel-art arcade cabinet) for bookmarks and Home Screen shortcuts: root `manifest.webmanifest`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` and `favicon.png`. It used to borrow Lost Luggage's. No games need changes.
 - **Plan and build time.** Every task that creates or changes a game now starts with a short plan and an expected build time (stated, not waiting for approval) and ends with the actual build time. Each game's HANDOFF.md keeps a Build log of expected and actual times, which the next estimate is made from. `AGENTS.md`, both session prompts, `README.md`, the starter's HANDOFF outline, `lost-luggage-of-the-cosmos` and `space-egg-quest` updated; no existing games still need changes.
 - **Privacy review.** New "Privacy" section in `AGENTS.md`: no real people or places (swap for made-up ones, never record the original), no games about real people, no photos or voices of real people, commit as a neutral builder identity, and no chat or agent session links in commit messages. "Keep it appropriate" spelled out. The Game Card and HANDOFF outline say the same.
 - New `test-harness/harness/check_private.py` (run before every push) scans files and unpushed commits for emails, home paths, keys, phone numbers, session links and real-looking commit identities, plus words in an optional git-ignored `.private-words` list. `smoke` runs the file scan on each game folder.
