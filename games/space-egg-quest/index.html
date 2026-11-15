@@ -96,10 +96,10 @@ tr.new td { color: var(--good); font-weight: 700; }
 <section class="screen" id="scrTitle">
   <div class="card">
     <h1>Space Egg Quest</h1>
-    <p>Your ship landed on Planet Wobblor. Find the 8 glowing alien eggs. Each one hatches into a little buddy who follows you and zaps the Gloomlings!</p>
-    <p>Find every egg and MEGA GLOOM comes down from the sky. Beat it with your buddies to win.</p>
+    <p>Your ship landed on Planet Wobblor. Explore the hills, mountains and alien forests to find 10 alien eggs. Two are hidden down in underground dungeons! Each egg hatches into a little buddy who follows you and zaps monsters.</p>
+    <p>Watch out for Gloomlings, dashing Zapbugs, goo-spitting mushrooms and tough Rockbacks. Find every egg and MEGA GLOOM comes down from the sky. It can teleport and fly!</p>
     <p class="note"><b>Keyboard:</b> W / Up arrow to walk, S / Down to back up, Left / Right or A / D to turn, Q / E to step sideways, Space to blast, drag the mouse to look. P pauses, M mutes.<br><b>Touch:</b> the stick walks and turns, drag anywhere to look, the big button blasts.</p>
-    <p class="note">Follow the green arrow at the top: it points to the nearest egg.</p>
+    <p class="note">Your egg sensor at the top points to an egg once you get within 40 m. Explore to find them!</p>
     <p id="titleTop"></p>
     <p id="titleBot" class="good"></p>
     <div class="row">
@@ -143,15 +143,16 @@ tr.new td { color: var(--good); font-weight: 700; }
 
 <!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
 <!-- BOT-SCORES-START -->
-<script>window.BOT_SCORES = {"game":"Space Egg Quest","bots":{"evolutionary":{"label":"Evolution Bot","start":4400,"mid":4400,"best":4400,"won":true,"passes":[4400,4400,4400]}},"updated":"2026-11-15T18:41:57Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":4400,"won":true}};</script>
+<script>window.BOT_SCORES = {"game":"Space Egg Quest","bots":{"evolutionary":{"label":"Evolution Bot","start":2415,"mid":4855,"best":6945,"won":true,"passes":[2415,2415,2765,4855,4855,4860,6945]}},"updated":"2026-11-15T19:23:13Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":6945,"won":true}};</script>
 <!-- BOT-SCORES-END -->
 
 <script>
 'use strict';
 // =====================================================================================
 // SPACE EGG QUEST: a first-person 3D game on an alien planet.
-// Walk around, find 8 alien eggs (each hatches into a buddy who follows you and fights),
-// blast the Gloomlings, then beat MEGA GLOOM, the giant boss.
+// Explore a big hilly planet with mountains, alien trees and two underground dungeons.
+// Find 10 alien eggs (each hatches into a buddy who follows you and fights), blast four
+// kinds of monsters, then beat MEGA GLOOM, a giant boss with three angry phases.
 // Built from the Funfactory starter: fixed-step update(), one Input object, seeded random
 // numbers, saved high scores, pause, touch controls, full screen and the test hook.
 // =====================================================================================
@@ -163,25 +164,68 @@ const TITLE = 'Space Egg Quest';
 const SCORE_NAME = 'points';
 const CFG = {                       // every tuning number lives here
   STEPS_PER_SECOND: 60,             // the simulation always moves in steps of exactly 1/60 s
-  WORLD_R: 54,                      // how far from the middle of the map you can walk
+  WORLD_R: 110,                     // how far from the middle of the map you can walk
   HEARTS: 5,
-  WALK: 7.5, TURN: 2.6,             // walking speed (units per second) and turning speed (radians per second)
-  EGGS: 8, EGG_REACH: 1.7,          // how many eggs, how close you need to get to pick one up
-  ROCKS: 34,
-  SHOT_SPEED: 34, SHOT_LIFE: 1.3, FIRE_EVERY: 0.22,   // your blaster
-  AIM_HELP: 0.22,                   // auto-aim: shots bend toward a foe this close to the crosshair (radians)
-  BUDDY_SHOT_SPEED: 22, BUDDY_FIRE_EVERY: 1.1, BUDDY_RANGE: 14,
-  GLOOM_HP: 2, GLOOM_SPEED: 2.3, GLOOM_SPEEDUP: 0.12, GLOOM_FIRST: 6,   // Gloomlings: first one shows up after 6 s
-  BOSS_HP: 60, BOSS_R: 3.2, BOSS_FIRE_EVERY: 2.4, ORB_SPEED: 8,
+  WALK: 9, TURN: 2.6,               // walking speed (units per second) and turning speed (radians per second)
+  SURFACE_EGGS: 8, EGG_REACH: 1.8,  // eggs out in the open (each dungeon hides one more)
+  ROCKS: 50, TREES: 46, MOUNTAINS: 7,
+  CELL: 4,                          // size of one dungeon square, in meters
+  SHOT_SPEED: 36, SHOT_LIFE: 1.3, FIRE_EVERY: 0.22,   // your blaster
+  SENSOR_RANGE: 40,                 // the egg sensor arrow only shows eggs and stairs this close (meters)
+  AIM_HELP: 0.22,                   // auto-aim: shots bend toward a monster this close to the crosshair (radians)
+  BUDDY_SHOT_SPEED: 22, BUDDY_FIRE_EVERY: 1.1, BUDDY_RANGE: 15,
+  ENEMY_FIRST: 6,                   // the first monster shows up after 6 s
+  BOSS_HP: 250, BOSS_R: 3.2, ORB_SPEED: 8,
   SAFE_SECONDS: 1.3,                // can't be hurt for this long after losing a heart
-  POINTS: { egg: 100, gloom: 25, bossHit: 5, boss: 1000, heart: 200 },
-  MAX_SECONDS: 360,                 // a bot run longer than this counts as a fail
+  POINTS: { egg: 100, bossHit: 5, boss: 1000, heart: 200 },
+  MAX_SECONDS: 600,                 // a bot run longer than this counts as a fail
 };
+// The monsters. r = how big they are (for hits), speed in meters per second.
+const KINDS = {
+  gloom:    { name: 'Gloomling',   hp: 2, speed: 2.4, r: 0.95, points: 25 }, // floats after you on a wiggly path
+  zapbug:   { name: 'Zapbug',      hp: 1, speed: 3.0, r: 0.8,  points: 30 }, // circles, then dashes straight at you
+  spitter:  { name: 'Goo Spitter', hp: 3, speed: 1.2, r: 1.0,  points: 40 }, // keeps its distance and spits goo balls
+  rockback: { name: 'Rockback',    hp: 6, speed: 1.6, r: 1.5,  points: 60 }, // big, slow and tough; drops a heart fruit
+};
+const MAP_LETTER = { g: 'gloom', z: 'zapbug', s: 'spitter', r: 'rockback' };
+// Underground dungeons. # wall, . floor, S stairs (where you arrive), E egg, X exit portal,
+// g z s r = monsters waiting there. Kids can redraw these; keep a path from S to E.
+const DUNGEONS = [
+  { name: 'the Crystal Caves', map: [
+    '###############',
+    '#S..#.........#',
+    '###.#.#######.#',
+    '#...#.#...g.#.#',
+    '#.###.#.###.#.#',
+    '#..z....#...#.#',
+    '#####.###.###.#',
+    '#.....#...#...#',
+    '#.#####.###.#.#',
+    '#.s.....#...#r#',
+    '#.#######.###.#',
+    '#EX.......#...#',
+    '###############'] },
+  { name: 'the Gloom Tunnels', map: [
+    '#############',
+    '#.....#....S#',
+    '#.###.#.###.#',
+    '#.#g..#...#.#',
+    '#.#.#####.#.#',
+    '#.#...z...#.#',
+    '#.###.#####.#',
+    '#...#.....s.#',
+    '###.#####.###',
+    '#r..#...#...#',
+    '#.###.#.#.###',
+    '#.....#...EX#',
+    '#############'] },
+];
+const EGGS_TOTAL = CFG.SURFACE_EGGS + DUNGEONS.length;
 const STEP = 1 / CFG.STEPS_PER_SECOND;
 const $ = id => document.getElementById(id);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const EGG_COLORS = ['#7dffd0', '#ff8ad8', '#ffd36b', '#8ab4ff', '#b7ff6b', '#ff9a6b', '#d59bff', '#6bf3ff'];
-const BUDDY_NAMES = ['Pip', 'Zuzu', 'Blink', 'Mopo', 'Fizz', 'Noodle', 'Tock', 'Wiggy']; // made-up alien names
+const EGG_COLORS = ['#7dffd0', '#ff8ad8', '#ffd36b', '#8ab4ff', '#b7ff6b', '#ff9a6b', '#d59bff', '#6bf3ff', '#ffef6b', '#ff6b9a'];
+const BUDDY_NAMES = ['Pip', 'Zuzu', 'Blink', 'Mopo', 'Fizz', 'Noodle', 'Tock', 'Wiggy', 'Bop', 'Lumo']; // made-up alien names
 
 // ---------- SEEDED RANDOM NUMBERS ----------
 // Use rand() for anything that changes the game (where things appear, which way they move), so the
@@ -223,7 +267,7 @@ const Scores = { // top-10 table: [{ initials, score, detail, date }], highest f
 const Sound = {
   ctx: null, muted: false,
   unlock() { if (this.ctx || Hook.mode === 'bot') return; try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { /* no sound */ } },
-  // one note: start pitch, end pitch (a slide), length, wave shape, loudness
+  // one note: start pitch, end pitch (a slide), length, wave shape, loudness, delay
   tone(f1, f2 = f1, seconds = 0.12, type = 'square', vol = 0.1, delay = 0) {
     if (!this.ctx || this.muted || Hook.mode === 'bot') return;
     const o = this.ctx.createOscillator(), g = this.ctx.createGain(), t = this.ctx.currentTime + delay;
@@ -236,8 +280,15 @@ const Sound = {
   egg() { [660, 880, 1100].forEach((f, i) => this.tone(f, f, 0.12, 'triangle', 0.1, i * 0.07)); },
   hatch() { this.tone(500, 1600, 0.25, 'sine', 0.12, 0.3); this.tone(1600, 2200, 0.1, 'triangle', 0.08, 0.55); },
   pop() { this.tone(300, 60, 0.2, 'sawtooth', 0.08); },
+  spit() { this.tone(220, 500, 0.15, 'sine', 0.07); },
+  dash() { this.tone(900, 1800, 0.2, 'sawtooth', 0.05); },
+  heart() { [784, 988, 1318].forEach((f, i) => this.tone(f, f, 0.1, 'sine', 0.1, i * 0.06)); },
   hurt() { this.tone(200, 50, 0.4, 'sawtooth', 0.14); },
+  stairs() { [520, 440, 370, 300, 250].forEach((f, i) => this.tone(f, f, 0.08, 'triangle', 0.08, i * 0.07)); },
+  portal() { this.tone(300, 1500, 0.5, 'sine', 0.1); },
   roar() { this.tone(90, 40, 1.2, 'sawtooth', 0.18); this.tone(140, 50, 1.0, 'square', 0.08, 0.1); },
+  zap() { this.tone(1800, 200, 0.4, 'sawtooth', 0.08); },
+  boom() { this.tone(120, 30, 0.5, 'sawtooth', 0.14); },
   bossHit() { this.tone(180, 120, 0.08, 'square', 0.05); },
   win() { [523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(f, f, 0.25, 'triangle', 0.12, i * 0.13)); },
   lose() { [400, 300, 200, 120].forEach((f, i) => this.tone(f, f * 0.9, 0.3, 'sawtooth', 0.1, i * 0.2)); },
@@ -312,62 +363,189 @@ for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => drags
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) fire.addEventListener(ev, e => { e.preventDefault(); Input.fireTouch = false; });
 })();
 
-// ---------- THE GAME ----------
-// The world is flat ground seen from above as x (east-west) and z (north-south); y is up.
+// ---------- THE WORLD ----------
+// The planet is seen from above as x (east-west) and z (north-south); y is up. Hills only change
+// how things look (everything walks on the same flat map underneath), so the rules stay simple.
 // The player faces "yaw": forward is (sin yaw, cos yaw). Turning right makes yaw smaller.
-// state: 'title' | 'play' | 'paused' | 'won' | 'lost'
 const dirOf = yaw => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
+function ground(x, z) { // height of the hills (looks only)
+  if (x > 500) return 0; // dungeons are far away and flat
+  const flat = clamp((Math.hypot(x, z) - 8) / 20, 0, 1); // flat near your ship
+  return flat * (2.4 * Math.sin(x * 0.045 + 1) * Math.cos(z * 0.05) + 1.4 * Math.sin(x * 0.1 + z * 0.07) + 0.6 * Math.sin(z * 0.17));
+}
 // Where something is compared with where you face: angle (+ = to your right) and distance.
 function bearing(p, x, z) {
   const dx = x - p.x, dz = z - p.z, f = dirOf(p.yaw);
   const ahead = dx * f.x + dz * f.z, right = -dx * f.z + dz * f.x;
   return { angle: Math.atan2(right, ahead), dist: Math.hypot(dx, dz) };
 }
+const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
+// Dungeons live far east of the planet (x from 1000), each in its own spot. Each square is CFG.CELL meters.
+const Dun = {
+  make(i) {
+    const def = DUNGEONS[i], g = def.map, H = g.length, W = g[0].length, C = CFG.CELL;
+    const d = { i, name: def.name, g, W, H, ox: 1000 + i * 300, oz: 0, spawned: false, guards: [] };
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+      const ch = g[r][c], pos = this.center(d, c, r);
+      if (ch === 'S') d.start = pos; else if (ch === 'E') d.egg = pos; else if (ch === 'X') d.exit = pos;
+      else if (MAP_LETTER[ch]) d.guards.push({ kind: MAP_LETTER[ch], ...pos });
+    }
+    // face the open floor next to the stairs
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!this.solidCell(d, this.cellOf(d, d.start.x, d.start.z)[0] + dc, this.cellOf(d, d.start.x, d.start.z)[1] + dr)) { d.startYaw = Math.atan2(dc, dr); break; }
+    d.toEgg = this.field(d, d.egg); d.toExit = this.field(d, d.exit);
+    return d;
+  },
+  center(d, c, r) { return { x: d.ox + c * CFG.CELL + CFG.CELL / 2, z: d.oz + r * CFG.CELL + CFG.CELL / 2 }; },
+  cellOf(d, x, z) { return [Math.floor((x - d.ox) / CFG.CELL), Math.floor((z - d.oz) / CFG.CELL)]; },
+  solidCell(d, c, r) { return c < 0 || r < 0 || c >= d.W || r >= d.H || d.g[r][c] === '#'; },
+  solidAt(d, x, z) { const [c, r] = this.cellOf(d, x, z); return this.solidCell(d, c, r); },
+  // How many squares from every square to the target (a "distance map" that goes around walls).
+  field(d, target) {
+    const f = new Int16Array(d.W * d.H).fill(-1), q = [this.cellOf(d, target.x, target.z)];
+    f[q[0][1] * d.W + q[0][0]] = 0;
+    while (q.length) {
+      const [c, r] = q.shift();
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nc = c + dc, nr = r + dr;
+        if (!this.solidCell(d, nc, nr) && f[nr * d.W + nc] < 0) { f[nr * d.W + nc] = f[r * d.W + c] + 1; q.push([nc, nr]); }
+      }
+    }
+    return f;
+  },
+  // Walking distance (around walls) from (x, z) to the field's target, plus the next square to head for.
+  path(d, f, x, z, target) {
+    const [c, r] = this.cellOf(d, x, z), v = this.solidCell(d, c, r) ? -1 : f[r * d.W + c];
+    if (v <= 0) return { dist: Math.hypot(target.x - x, target.z - z), next: target };
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nc = c + dc, nr = r + dr;
+      if (!this.solidCell(d, nc, nr) && f[nr * d.W + nc] === v - 1) {
+        const n = this.center(d, nc, nr), next = v - 1 === 0 ? target : n;
+        return { dist: (v - 1) * CFG.CELL + Math.hypot(n.x - x, n.z - z), next };
+      }
+    }
+    return { dist: Math.hypot(target.x - x, target.z - z), next: target };
+  },
+  // Push a round thing (radius rad) out of any wall it overlaps.
+  pushOut(d, o, rad) {
+    let [c0, r0] = this.cellOf(d, o.x, o.z); const C = CFG.CELL;
+    if (this.solidCell(d, c0, r0)) { // inside a wall: hop into the nearest open square
+      let best = null, bd = 1e9;
+      for (let r = r0 - 1; r <= r0 + 1; r++) for (let c = c0 - 1; c <= c0 + 1; c++) {
+        if (this.solidCell(d, c, r)) continue;
+        const x0 = d.ox + c * C, z0 = d.oz + r * C, dd = Math.hypot(o.x - clamp(o.x, x0, x0 + C), o.z - clamp(o.z, z0, z0 + C));
+        if (dd < bd) { bd = dd; best = [c, r]; }
+      }
+      if (!best) return;
+      const x0 = d.ox + best[0] * C, z0 = d.oz + best[1] * C;
+      o.x = clamp(o.x, x0 + rad, x0 + C - rad); o.z = clamp(o.z, z0 + rad, z0 + C - rad); [c0, r0] = best;
+    }
+    for (let r = r0 - 1; r <= r0 + 1; r++) for (let c = c0 - 1; c <= c0 + 1; c++) {
+      if (!this.solidCell(d, c, r)) continue;
+      const x0 = d.ox + c * C, z0 = d.oz + r * C;
+      const nx = clamp(o.x, x0, x0 + C), nz = clamp(o.z, z0, z0 + C), dx = o.x - nx, dz = o.z - nz, dd = Math.hypot(dx, dz);
+      if (dd < rad) {
+        if (dd > 1e-6) { o.x = nx + dx / dd * rad; o.z = nz + dz / dd * rad; }
+      }
+    }
+  },
+};
+
+// ---------- THE GAME ----------
+// state: 'title' | 'play' | 'paused' | 'won' | 'lost'
 const Game = {
   state: 'title', score: 0, hearts: CFG.HEARTS, time: 0,
-  player: null, eggs: [], buddies: [], glooms: [], shots: [], orbs: [], rocks: [], boss: null,
-  eggsFound: 0, spawnTimer: 0, fireTimer: 0, nextEggDist: 1, msg: null, fx: [], flash: 0, recoil: 0,
+  player: null, eggs: [], buddies: [], enemies: [], shots: [], orbs: [], bombs: [], waves: [], pickups: [],
+  rocks: [], trees: [], mountains: [], dungeons: [], boss: null, bossPending: false,
+  eggsFound: 0, spawnTimer: 0, fireTimer: 0, nav: null, msg: null, fx: [], flash: 0, recoil: 0,
 
   start(seed = (Date.now() >>> 0)) {
     seedRandom(seed);
     this.score = 0; this.hearts = CFG.HEARTS; this.time = 0; this.eggsFound = 0;
-    this.player = { x: 0, z: 0, yaw: 0, safe: 0, walked: 0 };
-    this.buddies = []; this.glooms = []; this.shots = []; this.orbs = []; this.fx = []; this.boss = null;
-    this.spawnTimer = CFG.GLOOM_FIRST; this.fireTimer = 0; this.flash = 0; this.msg = null;
+    this.player = { x: 0, z: 0, yaw: 0, safe: 0, walked: 0, zone: -1 };
+    this.buddies = []; this.enemies = []; this.shots = []; this.orbs = []; this.bombs = []; this.waves = []; this.pickups = []; this.fx = [];
+    this.boss = null; this.bossPending = false;
+    this.spawnTimer = CFG.ENEMY_FIRST; this.fireTimer = 0; this.flash = 0; this.msg = null;
     this.makeWorld();
-    this.resetEggDistance();
+    this.resetNav();
     this.state = 'play';
     this.say('Find the glowing eggs!');
     UI.show(null);
     World.dirty = true;
   },
 
-  // Rocks and eggs are placed from the seed, so every seed is its own planet.
+  // Everything you can bump into is placed from the seed, so every seed is its own planet.
   makeWorld() {
-    this.rocks = [];
+    const W = CFG.WORLD_R, free = (x, z, room) =>   // is this spot clear of the big things?
+      Math.hypot(x, z) > 14 && Math.hypot(x, z) < W - 6 &&
+      !this.mountains.some(m => Math.hypot(m.x - x, m.z - z) < m.r + room) &&
+      !this.dungeons.some(d => Math.hypot(d.door.x - x, d.door.z - z) < 6 + room);
+    const spot = (minD, maxD) => { const a = rand() * Math.PI * 2, d = minD + rand() * (maxD - minD); return { x: Math.sin(a) * d, z: Math.cos(a) * d }; };
+    this.mountains = []; this.dungeons = []; this.rocks = []; this.trees = [];
+    for (let tries = 0; this.mountains.length < CFG.MOUNTAINS && tries < 500; tries++) {
+      const s = spot(30, W - 18), r = 9 + rand() * 7;
+      if (this.mountains.some(m => Math.hypot(m.x - s.x, m.z - s.z) < m.r + r + 14)) continue;
+      this.mountains.push({ ...s, r, h: 22 + rand() * 18, spin: rand() * 6 });
+    }
+    for (let i = 0; i < DUNGEONS.length; i++) { // the stairs down into each dungeon
+      for (let tries = 0; tries < 500; tries++) {
+        const s = spot(40, W - 15);
+        if (!free(s.x, s.z, 6) || this.dungeons.some(d => Math.hypot(d.door.x - s.x, d.door.z - s.z) < 50)) continue;
+        const d = Dun.make(i); d.door = s; this.dungeons.push(d); break;
+      }
+    }
     while (this.rocks.length < CFG.ROCKS) {
-      const a = rand() * Math.PI * 2, d = 9 + rand() * (CFG.WORLD_R - 12);
-      this.rocks.push({ x: Math.sin(a) * d, z: Math.cos(a) * d, r: 0.9 + rand() * 1.5, h: 0.8 + rand() * 2.2, spin: rand() * 6 });
+      const s = spot(12, W - 4);
+      if (free(s.x, s.z, 3)) this.rocks.push({ ...s, r: 0.9 + rand() * 1.6, h: 0.8 + rand() * 2.4, spin: rand() * 6 });
+      else rand(); // keep the random numbers in step either way
+    }
+    for (let tries = 0; this.trees.length < CFG.TREES && tries < 2000; tries++) {
+      const s = spot(12, W - 4);
+      if (!free(s.x, s.z, 2) || this.rocks.some(r => Math.hypot(r.x - s.x, r.z - s.z) < r.r + 2)) continue;
+      this.trees.push({ ...s, r: 0.6, h: 7 + rand() * 7, hue: Math.floor(rand() * 4), kind: rand() < 0.6 ? 'bloom' : 'spiral', spin: rand() * 6 });
     }
     this.eggs = [];
-    for (let tries = 0; this.eggs.length < CFG.EGGS && tries < 2000; tries++) {
-      const a = rand() * Math.PI * 2, d = 12 + rand() * (CFG.WORLD_R - 18);
-      const x = Math.sin(a) * d, z = Math.cos(a) * d;
-      const sep = tries < 1500 ? 12 : 6; // ask for a lot of space first, then settle for less
-      if (this.eggs.some(e => Math.hypot(e.x - x, e.z - z) < sep)) continue;
-      if (this.rocks.some(r => Math.hypot(r.x - x, r.z - z) < r.r + 2.5)) continue;
-      this.eggs.push({ x, z, color: EGG_COLORS[this.eggs.length], found: false, wobble: rand() * 6 });
+    for (let tries = 0; this.eggs.length < CFG.SURFACE_EGGS && tries < 3000; tries++) {
+      const s = spot(16, W - 10), sep = tries < 2200 ? 22 : 10; // ask for a lot of space first, then settle for less
+      if (!free(s.x, s.z, 4) || this.eggs.some(e => dist(e, s) < sep)) continue;
+      if (this.rocks.some(r => dist(r, s) < r.r + 2.5) || this.trees.some(t => dist(t, s) < 2.5)) continue;
+      this.eggs.push({ ...s, zone: -1 });
     }
+    for (const d of this.dungeons) this.eggs.push({ x: d.egg.x, z: d.egg.z, zone: d.i });
+    this.eggs.forEach((e, i) => { e.color = EGG_COLORS[i % EGG_COLORS.length]; e.found = false; e.wobble = i * 1.7; });
   },
+  zoneOf() { return this.player.zone >= 0 ? this.dungeons[this.player.zone] : null; },
+  // things you bump into on the surface: rocks, tree trunks and mountains
+  solids() { return [...this.rocks, ...this.trees, ...this.mountains.map(m => ({ x: m.x, z: m.z, r: m.r * 0.85 }))]; },
 
-  // The bots use "how close is the nearest egg" to tell they are getting warmer.
-  nearestEgg() {
-    let best = null, bd = 1e9;
-    for (const e of this.eggs) if (!e.found) { const d = Math.hypot(e.x - this.player.x, e.z - this.player.z); if (d < bd) { bd = d; best = e; } }
-    return best ? { egg: best, dist: bd } : null;
+  // --- Where to go next (the radar arrow, and what the bots chase) ---
+  // nav = { x, z, label, base, span }: progress toward the next egg counts from base to base + span.
+  navigate() {
+    const p = this.player, d = this.zoneOf();
+    if (d) { // underground: the egg if you still need it, else the exit portal
+      const eggHere = this.eggs.find(e => e.zone === d.i && !e.found);
+      if (eggHere) { const r = Dun.path(d, d.toEgg, p.x, p.z, d.egg); return { x: d.egg.x, z: d.egg.z, next: r.next, dist: r.dist, label: 'egg', base: 0.45, span: 0.45 }; }
+      const r = Dun.path(d, d.toExit, p.x, p.z, d.exit);
+      return { x: d.exit.x, z: d.exit.z, next: r.next, dist: r.dist, label: 'exit portal', base: 0, span: this.eggsFound >= EGGS_TOTAL ? 0 : 0.3 };
+    }
+    const e = this.nav && this.nav.egg && !this.nav.egg.found ? this.nav.egg : null;
+    if (!e) return null;
+    const at = e.zone >= 0 ? this.dungeons[e.zone].door : e;
+    return { x: at.x, z: at.z, next: at, dist: dist(p, at), label: e.zone >= 0 ? 'dungeon stairs' : 'egg', base: 0, span: e.zone >= 0 ? 0.45 : 0.9, egg: e };
   },
-  resetEggDistance() { const n = this.nearestEgg(); this.nextEggDist = n ? Math.max(4, n.dist) : 1; },
+  // Pick the nearest egg still out there (counting a dungeon egg at its stairs) and remember how far it was.
+  resetNav() {
+    const p = this.player;
+    let best = null, bd = 1e9;
+    if (p.zone < 0) for (const e of this.eggs) {
+      if (e.found) continue;
+      const at = e.zone >= 0 ? this.dungeons[e.zone].door : e, d = dist(p, at);
+      if (d < bd) { bd = d; best = e; }
+    }
+    this.nav = { egg: best };
+    const n = this.navigate();
+    this.nav.from = n ? Math.max(4, n.dist) : 1;
+  },
 
   say(text, seconds = 2.5) { this.msg = { text, t: seconds }; },
   sparkle(x, y, z, color, n = 14, speed = 4) { // looks only: never in bot mode, never uses rand()
@@ -380,10 +558,45 @@ const Game = {
 
   hurt() {
     const p = this.player;
-    if (p.safe > 0) return false;
+    if (p.safe > 0 || this.state !== 'play') return false;
     this.hearts--; p.safe = CFG.SAFE_SECONDS; this.flash = 0.5; Sound.hurt();
     if (this.hearts <= 0) this.end(false);
     return true;
+  },
+
+  addEnemy(kind, x, z, zone) {
+    const k = KINDS[kind];
+    this.enemies.push({ kind, x, z, zone, hp: k.hp, phase: rand() * 6, t: 1.5 + rand() * 2, dash: 0, dx: 0, dz: 0, hit: 0 });
+  },
+
+  // Go down the stairs into dungeon i, or back up.
+  enterDungeon(d) {
+    const p = this.player;
+    p.zone = d.i; p.x = d.start.x; p.z = d.start.z; p.yaw = d.startYaw;
+    this.enemies = this.enemies.filter(e => e.zone !== -1); // the surface monsters can't follow you
+    this.shots = []; this.orbs = []; this.bombs = []; this.waves = [];
+    if (!d.spawned) { d.spawned = true; for (const g of d.guards) this.addEnemy(g.kind, g.x, g.z, d.i); }
+    this.buddies.forEach((b, i) => { b.x = p.x - Math.sin(p.yaw) * (1 + i * 0.4); b.z = p.z - Math.cos(p.yaw) * (1 + i * 0.4); });
+    Sound.stairs(); this.say(`You climbed down into ${d.name}!`);
+    this.resetNav();
+  },
+  leaveDungeon(d) {
+    const p = this.player, out = Math.atan2(-d.door.x, -d.door.z); // step out toward the middle of the map
+    p.zone = -1; p.x = d.door.x + Math.sin(out) * 4.5; p.z = d.door.z + Math.cos(out) * 4.5; p.yaw = out;
+    this.enemies = this.enemies.filter(e => e.zone === -1); this.shots = []; this.orbs = [];
+    this.buddies.forEach((b, i) => { b.x = p.x - Math.sin(out) * (2 + i * 0.5); b.z = p.z - Math.cos(out) * (2 + i * 0.5); });
+    Sound.portal(); this.say('Back up on the surface!');
+    this.spawnTimer = 3;
+    if (this.bossPending) this.callBoss();
+    this.resetNav();
+  },
+  callBoss() {
+    const p = this.player, f = dirOf(p.yaw);
+    let bx = p.x + f.x * 16, bz = p.z + f.z * 16;
+    const bd = Math.hypot(bx, bz), keep = Math.min(1, (CFG.WORLD_R - 8) / (bd || 1)); bx *= keep; bz *= keep;
+    this.boss = { x: bx, z: bz, y: 40, hp: CFG.BOSS_HP, landed: false, cd: 2, hitFlash: 0, mode: 'walk', modeT: 0, flyA: 0, bombT: 0, phase: 1 };
+    this.bossPending = false;
+    this.say('MEGA GLOOM is coming down!', 3.5); Sound.roar();
   },
 
   // One fixed step of the simulation. No drawing and no real clock in here: the test hook calls
@@ -391,7 +604,7 @@ const Game = {
   update(dt) {
     if (this.state !== 'play') return;
     this.time += dt;
-    const p = this.player;
+    const p = this.player, dun = this.zoneOf();
     p.safe = Math.max(0, p.safe - dt);
     this.flash = Math.max(0, this.flash - dt);
     this.recoil = Math.max(0, this.recoil - dt * 6);
@@ -404,123 +617,144 @@ const Game = {
     const len = Math.hypot(vx, vz); if (len > 1) { vx /= len; vz /= len; }
     p.x += vx * CFG.WALK * dt; p.z += vz * CFG.WALK * dt;
     if (len > 0.01) p.walked += len * CFG.WALK * dt;
-    for (const r of this.rocks) { // rocks push you out (you slide around them)
-      const dx = p.x - r.x, dz = p.z - r.z, d = Math.hypot(dx, dz), min = r.r + 0.5;
-      if (d < min && d > 0.0001) { p.x = r.x + dx / d * min; p.z = r.z + dz / d * min; }
+    if (dun) Dun.pushOut(dun, p, 0.45);
+    else {
+      for (const r of this.solids()) { // rocks, trees and mountains push you out (you slide around them)
+        const dx = p.x - r.x, dz = p.z - r.z, d = Math.hypot(dx, dz), min = r.r + 0.5;
+        if (d < min && d > 0.0001) { p.x = r.x + dx / d * min; p.z = r.z + dz / d * min; }
+      }
+      const pd = Math.hypot(p.x, p.z);
+      if (pd > CFG.WORLD_R) { p.x *= CFG.WORLD_R / pd; p.z *= CFG.WORLD_R / pd; }
     }
-    const pd = Math.hypot(p.x, p.z);
-    if (pd > CFG.WORLD_R) { p.x *= CFG.WORLD_R / pd; p.z *= CFG.WORLD_R / pd; }
+
+    // --- stairs down and portals up ---
+    if (!dun) {
+      for (const d of this.dungeons) if (dist(p, d.door) < 2.4 && this.eggs.some(e => e.zone === d.i && !e.found)) return this.enterDungeon(d);
+    } else if (dist(p, dun.exit) < 1.6) return this.leaveDungeon(dun);
 
     // --- your blaster (auto-aim helps on phones) ---
     this.fireTimer -= dt;
+    const B = this.boss && p.zone === -1 ? this.boss : null;
     if (Input.fire() && this.fireTimer <= 0) {
       this.fireTimer = CFG.FIRE_EVERY; this.recoil = 1; Sound.pew();
-      let aim = { x: f.x, z: f.z }, bestA = CFG.AIM_HELP;
-      const targets = this.glooms.map(g => g);
-      if (this.boss && this.boss.landed) targets.push(this.boss);
+      let aim = { x: f.x, z: f.z }, bestA = CFG.AIM_HELP, ty = 1.3;
+      const targets = this.enemies.filter(e => e.zone === p.zone);
+      if (B && B.landed && B.mode !== 'tele') targets.push(B);
       for (const t of targets) {
-        const b = bearing(p, t.x, t.z), a = Math.abs(b.angle) - (t === this.boss ? 0.15 : 0);
-        if (b.dist < 40 && a < bestA) { bestA = a; aim = { x: (t.x - p.x) / b.dist, z: (t.z - p.z) / b.dist }; }
+        const b = bearing(p, t.x, t.z), a = Math.abs(b.angle) - (t === B ? 0.15 : 0);
+        if (b.dist < 40 && a < bestA) { bestA = a; aim = { x: (t.x - p.x) / b.dist, z: (t.z - p.z) / b.dist }; ty = t === B ? B.y : 1; }
       }
-      this.shots.push({ x: p.x + aim.x * 0.8, z: p.z + aim.z * 0.8, y: 1.3, vx: aim.x * CFG.SHOT_SPEED, vz: aim.z * CFG.SHOT_SPEED, life: CFG.SHOT_LIFE, buddy: false });
+      this.shots.push({ x: p.x + aim.x * 0.8, z: p.z + aim.z * 0.8, y: 1.3, vy: (ty - 1.3) / 1.0, vx: aim.x * CFG.SHOT_SPEED, vz: aim.z * CFG.SHOT_SPEED, life: CFG.SHOT_LIFE, buddy: false, zone: p.zone });
     }
 
     // --- eggs: walk into one to pick it up; it hatches into a buddy ---
     for (const e of this.eggs) {
-      if (e.found || Math.hypot(e.x - p.x, e.z - p.z) > CFG.EGG_REACH) continue;
+      if (e.found || e.zone !== p.zone || dist(e, p) > CFG.EGG_REACH) continue;
       e.found = true; this.eggsFound++; this.score += CFG.POINTS.egg;
       const name = BUDDY_NAMES[this.buddies.length % BUDDY_NAMES.length];
       this.buddies.push({ x: e.x, z: e.z, color: e.color, name, cd: 0.6, born: this.time });
       Sound.egg(); Sound.hatch();
-      this.sparkle(e.x, 0.8, e.z, e.color, 24, 5);
-      if (this.eggsFound >= CFG.EGGS) {
-        this.say('All eggs found! MEGA GLOOM is coming!', 3.5);
-        const bx0 = p.x + f.x * 16, bz0 = p.z + f.z * 16, bd0 = Math.hypot(bx0, bz0), keep = Math.min(1, (CFG.WORLD_R - 6) / (bd0 || 1));
-        this.boss = { x: bx0 * keep, z: bz0 * keep, y: 40, hp: CFG.BOSS_HP, landed: false, cd: 2, hitFlash: 0, spawnCd: 6 };
-        Sound.roar();
-      } else this.say(`An egg hatched! Meet ${name}! (${this.eggsFound} of ${CFG.EGGS})`);
-      this.resetEggDistance();
+      this.sparkle(e.x, 0.8 + ground(e.x, e.z), e.z, e.color, 24, 5);
+      if (this.eggsFound >= EGGS_TOTAL) {
+        this.say(`All ${EGGS_TOTAL} eggs found! ${dun ? 'Get back up top: ' : ''}MEGA GLOOM is coming!`, 3.5);
+        if (dun) this.bossPending = true; else this.callBoss();
+      } else this.say(`An egg hatched! Meet ${name}! (${this.eggsFound} of ${EGGS_TOTAL})${dun ? ' Take the portal back up.' : ''}`);
+      this.resetNav();
     }
 
-    // --- buddies follow you in a line and zap nearby Gloomlings (and the boss) ---
+    // --- heart fruit (Rockbacks drop them) ---
+    for (const h of this.pickups) if (h.zone === p.zone && !h.taken && dist(h, p) < 1.6) {
+      h.taken = true; this.hearts = Math.min(CFG.HEARTS, this.hearts + 1); Sound.heart(); this.say('Heart fruit! +1 heart');
+    }
+    this.pickups = this.pickups.filter(h => !h.taken);
+
+    // --- buddies follow you in a line and zap nearby monsters (and the boss) ---
     this.buddies.forEach((b, i) => {
-      const lead = i === 0 ? p : this.buddies[i - 1], gap = i === 0 ? 2.4 : 1.7;
+      const lead = i === 0 ? p : this.buddies[i - 1], gap = i === 0 ? 2.4 : 1.6;
       const dx = lead.x - b.x, dz = lead.z - b.z, d = Math.hypot(dx, dz);
-      if (d > gap) { const s = Math.min(11, (d - gap) * 5) * dt; b.x += dx / d * s; b.z += dz / d * s; }
+      if (d > 25) { b.x = p.x; b.z = p.z; } // fell way behind: catch up
+      else if (d > gap) { const s = Math.min(12, (d - gap) * 5) * dt; b.x += dx / d * s; b.z += dz / d * s; }
       const px = b.x - p.x, pz = b.z - p.z, pd2 = Math.hypot(px, pz); // never crowd your face
       if (pd2 < 2 && pd2 > 0.001) { b.x = p.x + px / pd2 * 2; b.z = p.z + pz / pd2 * 2; }
+      if (dun) Dun.pushOut(dun, b, 0.3);
       b.cd -= dt;
       if (b.cd > 0) return;
       let tx = null, tz = null, bd = CFG.BUDDY_RANGE;
-      for (const g of this.glooms) { const gd = Math.hypot(g.x - b.x, g.z - b.z); if (gd < bd) { bd = gd; tx = g.x; tz = g.z; } }
-      if (tx === null && this.boss && this.boss.landed && Math.hypot(this.boss.x - b.x, this.boss.z - b.z) < 26) { tx = this.boss.x; tz = this.boss.z; }
+      for (const e of this.enemies) { if (e.zone !== p.zone) continue; const ed = dist(e, b); if (ed < bd) { bd = ed; tx = e.x; tz = e.z; } }
+      if (tx === null && B && B.landed && B.mode !== 'tele' && dist(B, b) < 28) { tx = B.x; tz = B.z; }
       if (tx === null) { b.cd = 0.1; return; }
       const dd = Math.hypot(tx - b.x, tz - b.z) || 1;
-      this.shots.push({ x: b.x, z: b.z, y: 0.7, vx: (tx - b.x) / dd * CFG.BUDDY_SHOT_SPEED, vz: (tz - b.z) / dd * CFG.BUDDY_SHOT_SPEED, life: 1.4, buddy: true, color: b.color });
+      this.shots.push({ x: b.x, z: b.z, y: 0.7, vy: 0, vx: (tx - b.x) / dd * CFG.BUDDY_SHOT_SPEED, vz: (tz - b.z) / dd * CFG.BUDDY_SHOT_SPEED, life: 1.4, buddy: true, color: b.color, zone: p.zone });
       b.cd = CFG.BUDDY_FIRE_EVERY; if (i < 2) Sound.buddyPew();
     });
 
-    // --- Gloomlings: grumpy floating blobs that drift toward you ---
-    const maxGlooms = this.boss ? 3 : Math.min(8, 2 + Math.floor(this.eggsFound * 0.75));
-    this.spawnTimer -= dt;
-    if (this.spawnTimer <= 0) {
-      this.spawnTimer = Math.max(1.6, 3.2 - this.eggsFound * 0.15);
-      if (this.glooms.length < maxGlooms) {
-        const a = rand() * Math.PI * 2, d = 24 + rand() * 8;
-        let x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d;
-        const od = Math.hypot(x, z); if (od > CFG.WORLD_R) { x *= CFG.WORLD_R / od; z *= CFG.WORLD_R / od; }
-        this.glooms.push({ x, z, hp: CFG.GLOOM_HP, phase: rand() * 6, hit: 0 });
+    // --- new monsters on the surface: more and different kinds as you find eggs ---
+    if (!dun) {
+      const here = this.enemies.length, max = B || this.bossPending ? 4 : Math.min(12, 3 + this.eggsFound);
+      this.spawnTimer -= dt;
+      if (this.spawnTimer <= 0) {
+        this.spawnTimer = Math.max(1.4, 3 - this.eggsFound * 0.15);
+        if (here < max && !B) {
+          const a = rand() * Math.PI * 2, d = 26 + rand() * 8, pick = rand(), n = this.eggsFound;
+          const kind = n >= 4 && pick < 0.15 ? 'rockback' : n >= 2 && pick < 0.35 ? 'spitter' : n >= 1 && pick < 0.6 ? 'zapbug' : 'gloom';
+          let x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d;
+          const od = Math.hypot(x, z); if (od > CFG.WORLD_R) { x *= CFG.WORLD_R / od; z *= CFG.WORLD_R / od; }
+          this.addEnemy(kind, x, z, -1);
+        }
       }
     }
-    const gSpeed = CFG.GLOOM_SPEED + CFG.GLOOM_SPEEDUP * this.eggsFound;
-    for (const g of this.glooms) {
-      g.phase += dt; g.hit = Math.max(0, g.hit - dt);
-      const dx = p.x - g.x, dz = p.z - g.z, d = Math.hypot(dx, dz) || 1;
-      const wob = Math.sin(g.phase * 2) * 0.6; // a wiggly path
-      g.x += (dx / d + -dz / d * wob) * gSpeed * dt; g.z += (dz / d + dx / d * wob) * gSpeed * dt;
-      if (d < 1.2) {
-        if (this.hurt()) { g.hp = 0; this.sparkle(g.x, 1, g.z, '#b45cff'); }
-        else { g.x -= dx / d * 1.5; g.z -= dz / d * 1.5; } // bounce off while you're safe
+
+    // --- monsters ---
+    for (const e of this.enemies) {
+      if (e.zone !== p.zone || e.hp <= 0) continue;
+      const k = KINDS[e.kind];
+      e.phase += dt; e.hit = Math.max(0, e.hit - dt); e.t -= dt;
+      const dx = p.x - e.x, dz = p.z - e.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+      if (e.kind === 'gloom' || e.kind === 'rockback') { // drift toward you (Gloomlings wiggle)
+        const wob = e.kind === 'gloom' ? Math.sin(e.phase * 2) * 0.6 : 0, s = k.speed + 0.1 * this.eggsFound;
+        e.x += (ux - uz * wob) * s * dt; e.z += (uz + ux * wob) * s * dt;
+      } else if (e.kind === 'zapbug') { // circle around, then dash straight at you
+        if (e.dash > 0) { e.dash -= dt; e.x += e.dx * 15 * dt; e.z += e.dz * 15 * dt; }
+        else {
+          const side = d < 9 ? 1 : 0.4, toward = d > 9 ? 1 : 0;
+          e.x += (ux * toward - uz * side) * k.speed * dt; e.z += (uz * toward + ux * side) * k.speed * dt;
+          if (e.t <= 0 && d < 22) { e.dash = 0.6; e.dx = ux; e.dz = uz; e.t = 2.6 + rand() * 1.2; Sound.dash(); }
+        }
+      } else if (e.kind === 'spitter') { // keeps 10 to 16 m away and spits goo
+        const want = d > 16 ? 1 : d < 10 ? -1 : 0;
+        e.x += ux * want * k.speed * dt; e.z += uz * want * k.speed * dt;
+        if (e.t <= 0 && d < 24) { e.t = 2.6; Sound.spit(); this.orbs.push({ x: e.x, z: e.z, vx: ux * 10, vz: uz * 10, life: 3, zone: e.zone, r: 0.8, goo: true }); }
+      }
+      if (dun) Dun.pushOut(dun, e, 0.5);
+      if (d < k.r + 0.35) {
+        if (this.hurt()) {
+          this.sparkle(e.x, 1 + ground(e.x, e.z), e.z, '#b45cff');
+          if (e.kind === 'rockback') { p.x -= ux * 3; p.z -= uz * 3; if (dun) Dun.pushOut(dun, p, 0.45); } else e.hp = 0;
+        } else { e.x -= ux * 1.5; e.z -= uz * 1.5; e.dash = 0; } // bounce off while you're safe
         if (this.state !== 'play') return;
       }
     }
 
     // --- MEGA GLOOM, the boss ---
-    const B = this.boss;
-    if (B) {
-      B.hitFlash = Math.max(0, B.hitFlash - dt);
-      if (!B.landed) { B.y = Math.max(CFG.BOSS_R + 0.5, B.y - 18 * dt); if (B.y <= CFG.BOSS_R + 0.5) { B.landed = true; this.say('Blast MEGA GLOOM!'); } }
-      else {
-        const dx = p.x - B.x, dz = p.z - B.z, d = Math.hypot(dx, dz) || 1;
-        const want = d > 14 ? 1 : d < 8 ? -1 : 0; // stays a medium distance away
-        B.x += dx / d * want * 2.2 * dt; B.z += dz / d * want * 2.2 * dt;
-        B.cd -= dt;
-        if (B.cd <= 0) { // throws three slow gloom orbs at you
-          B.cd = CFG.BOSS_FIRE_EVERY - (1 - B.hp / CFG.BOSS_HP) * 0.8;
-          for (const spread of [-0.25, 0, 0.25]) {
-            const a = Math.atan2(dx, dz) + spread;
-            this.orbs.push({ x: B.x + Math.sin(a) * CFG.BOSS_R, z: B.z + Math.cos(a) * CFG.BOSS_R, vx: Math.sin(a) * CFG.ORB_SPEED, vz: Math.cos(a) * CFG.ORB_SPEED, life: 5 });
+    if (B) this.updateBoss(B, dt);
+    if (this.state !== 'play') return;
+
+    // --- flying things: shots, goo and orbs, goo bombs, shockwaves ---
+    for (const s of this.shots) {
+      s.x += s.vx * dt; s.z += s.vz * dt; s.y += s.vy * dt; s.life -= dt;
+      if (dun && Dun.solidAt(dun, s.x, s.z)) { s.life = 0; continue; }
+      for (const e of this.enemies) {
+        if (e.hp > 0 && e.zone === s.zone && s.life > 0 && Math.hypot(e.x - s.x, e.z - s.z) < KINDS[e.kind].r) {
+          s.life = 0; e.hp--; e.hit = 0.15;
+          if (e.hp <= 0) {
+            this.score += KINDS[e.kind].points; Sound.pop(); this.sparkle(e.x, 1 + ground(e.x, e.z), e.z, '#b45cff');
+            if (e.kind === 'rockback') this.pickups.push({ x: e.x, z: e.z, zone: e.zone });
           }
         }
-        B.spawnCd -= dt;
-        if (B.spawnCd <= 0) { B.spawnCd = 7; this.spawnTimer = 0; } // calls a Gloomling for help now and then
-        if (d < CFG.BOSS_R + 0.6 && this.hurt()) { p.x = B.x + dx / d * (CFG.BOSS_R + 2.5); p.z = B.z + dz / d * (CFG.BOSS_R + 2.5); }
-        if (this.state !== 'play') return;
       }
-    }
-
-    // --- flying things: your shots, buddy shots, boss orbs ---
-    for (const s of this.shots) {
-      s.x += s.vx * dt; s.z += s.vz * dt; s.life -= dt;
-      for (const g of this.glooms) {
-        if (g.hp > 0 && s.life > 0 && Math.hypot(g.x - s.x, g.z - s.z) < 0.95) {
-          s.life = 0; g.hp--; g.hit = 0.15;
-          if (g.hp <= 0) { this.score += CFG.POINTS.gloom; Sound.pop(); this.sparkle(g.x, 1, g.z, '#b45cff'); }
-        }
-      }
-      if (B && B.landed && s.life > 0 && Math.hypot(B.x - s.x, B.z - s.z) < CFG.BOSS_R + 0.3) {
+      if (B && B.landed && B.mode !== 'tele' && s.life > 0 && s.zone === -1 && Math.hypot(B.x - s.x, B.z - s.z) < CFG.BOSS_R + 0.3) {
         s.life = 0; B.hp--; B.hitFlash = 0.12; this.score += CFG.POINTS.bossHit; Sound.bossHit();
-        this.sparkle(s.x, 2, s.z, '#ffb03d', 5, 3);
+        this.sparkle(s.x, B.y + ground(B.x, B.z), s.z, '#ffb03d', 5, 3);
         if (B.hp <= 0) {
           this.score += CFG.POINTS.boss + CFG.POINTS.heart * this.hearts;
           this.sparkle(B.x, 3, B.z, '#ffd36b', 60, 9);
@@ -529,25 +763,106 @@ const Game = {
       }
     }
     for (const o of this.orbs) {
+      if (o.zone !== p.zone) { o.life = 0; continue; }
       o.x += o.vx * dt; o.z += o.vz * dt; o.life -= dt;
-      if (o.life > 0 && Math.hypot(o.x - p.x, o.z - p.z) < 0.9) { o.life = 0; if (this.hurt() && this.state !== 'play') return; }
+      if (dun && Dun.solidAt(dun, o.x, o.z)) o.life = 0;
+      if (o.life > 0 && Math.hypot(o.x - p.x, o.z - p.z) < o.r + 0.2) { o.life = 0; if (this.hurt() && this.state !== 'play') return; }
+    }
+    for (const b of this.bombs) {
+      b.t -= dt;
+      if (b.t <= 0) { b.done = true; Sound.boom(); this.sparkle(b.x, ground(b.x, b.z) + 0.5, b.z, '#c03cff', 20, 6); if (dist(b, p) < 2.6 && this.hurt() && this.state !== 'play') return; }
+    }
+    for (const w of this.waves) {
+      w.r += 12 * dt;
+      if (!w.hit && Math.abs(dist(w, p) - w.r) < 0.8) { w.hit = true; if (this.hurt() && this.state !== 'play') return; }
     }
     this.shots = this.shots.filter(s => s.life > 0);
     this.orbs = this.orbs.filter(o => o.life > 0);
-    this.glooms = this.glooms.filter(g => g.hp > 0);
+    this.bombs = this.bombs.filter(b => !b.done);
+    this.waves = this.waves.filter(w => w.r < w.max);
+    this.enemies = this.enemies.filter(e => e.hp > 0);
+  },
+
+  // MEGA GLOOM gets angrier as it loses health: phase 1, 2 and 3 each add new tricks.
+  updateBoss(B, dt) {
+    const p = this.player, landedY = CFG.BOSS_R + 0.5;
+    B.hitFlash = Math.max(0, B.hitFlash - dt);
+    if (!B.landed) {
+      B.y = Math.max(landedY, B.y - 18 * dt);
+      if (B.y <= landedY) { B.landed = true; this.say('Blast MEGA GLOOM!'); }
+      return;
+    }
+    const frac = B.hp / CFG.BOSS_HP, phase = frac > 2 / 3 ? 1 : frac > 1 / 3 ? 2 : 3;
+    if (phase !== B.phase) { B.phase = phase; Sound.roar(); this.say(phase === 2 ? 'MEGA GLOOM is getting angry! It can teleport now!' : 'MEGA GLOOM is FURIOUS! It can fly!', 3); }
+    const dx = p.x - B.x, dz = p.z - B.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+    const shoot = (n, spreadEach, ring) => {
+      const a0 = Math.atan2(dx, dz);
+      for (let i = 0; i < n; i++) {
+        const a = ring ? i / n * Math.PI * 2 : a0 + (i - (n - 1) / 2) * spreadEach;
+        this.orbs.push({ x: B.x + Math.sin(a) * CFG.BOSS_R, z: B.z + Math.cos(a) * CFG.BOSS_R, vx: Math.sin(a) * CFG.ORB_SPEED, vz: Math.cos(a) * CFG.ORB_SPEED, life: 5, zone: -1, r: 0.7 });
+      }
+    };
+
+    if (B.mode === 'tele') { // vanished: reappear somewhere around you
+      B.modeT -= dt;
+      if (B.modeT <= 0) {
+        const a = rand() * Math.PI * 2, r = 13 + rand() * 5;
+        let x = p.x + Math.sin(a) * r, z = p.z + Math.cos(a) * r;
+        const od = Math.hypot(x, z); if (od > CFG.WORLD_R - 6) { x *= (CFG.WORLD_R - 6) / od; z *= (CFG.WORLD_R - 6) / od; }
+        B.x = x; B.z = z; B.mode = 'walk'; B.cd = 1.2; Sound.zap();
+        this.sparkle(B.x, 3, B.z, '#c03cff', 30, 6);
+        shoot(10, 0, true);
+      }
+      return;
+    }
+    if (B.mode === 'fly') { // circles over you and drops goo bombs where you stand
+      B.modeT -= dt; B.flyA += 0.55 * dt; B.y = Math.min(7.5, B.y + 8 * dt);
+      const tx = p.x + Math.sin(B.flyA) * 14, tz = p.z + Math.cos(B.flyA) * 14, fx = tx - B.x, fz = tz - B.z, fd = Math.hypot(fx, fz);
+      if (fd > 0.1) { const s = Math.min(fd, 10 * dt); B.x += fx / fd * s; B.z += fz / fd * s; }
+      B.bombT -= dt;
+      if (B.bombT <= 0) { B.bombT = 1.0; this.bombs.push({ x: p.x, z: p.z, t: 1.3 }); }
+      if (B.modeT <= 0) { B.mode = 'land'; }
+      return;
+    }
+    if (B.mode === 'land') { B.y = Math.max(landedY, B.y - 10 * dt); if (B.y <= landedY) { B.mode = 'walk'; B.cd = 1; this.waves.push({ x: B.x, z: B.z, r: 0, max: 14, hit: false }); Sound.boom(); } return; }
+    if (B.mode === 'slam') { // hops up and slams down, sending out a shockwave ring
+      B.modeT -= dt; B.y = landedY + Math.sin(clamp(1 - B.modeT / 0.7, 0, 1) * Math.PI) * 4;
+      if (B.modeT <= 0) { B.mode = 'walk'; B.y = landedY; Sound.boom(); this.waves.push({ x: B.x, z: B.z, r: 0, max: 18, hit: false }); }
+      return;
+    }
+
+    // walking: stay a medium distance away, then pick an attack
+    const want = d > 15 ? 1 : d < 8 ? -1 : 0;
+    B.x += ux * want * 2.4 * dt; B.z += uz * want * 2.4 * dt;
+    const od = Math.hypot(B.x, B.z); if (od > CFG.WORLD_R - 6) { B.x *= (CFG.WORLD_R - 6) / od; B.z *= (CFG.WORLD_R - 6) / od; }
+    if (d < CFG.BOSS_R + 0.6 && this.hurt()) { p.x = B.x + ux * (CFG.BOSS_R + 2.5); p.z = B.z + uz * (CFG.BOSS_R + 2.5); }
+    B.cd -= dt;
+    if (B.cd > 0) return;
+    const moves = phase === 1 ? ['orbs', 'orbs', 'ring', 'summon'] : phase === 2 ? ['orbs', 'ring', 'teleport', 'slam', 'summon'] : ['orbs', 'teleport', 'slam', 'fly', 'fly', 'ring'];
+    const move = moves[Math.floor(rand() * moves.length)];
+    B.cd = phase === 1 ? 2.4 : phase === 2 ? 2.0 : 1.7;
+    if (move === 'orbs') shoot(phase === 1 ? 3 : 5, 0.25, false);
+    else if (move === 'ring') shoot(12, 0, true);
+    else if (move === 'summon') { // calls two helpers
+      for (let i = 0; i < 2; i++) { const a = rand() * Math.PI * 2; this.addEnemy(rand() < 0.5 ? 'gloom' : 'zapbug', B.x + Math.sin(a) * 5, B.z + Math.cos(a) * 5, -1); }
+      this.say('MEGA GLOOM called for help!', 1.5);
+    }
+    else if (move === 'teleport') { B.mode = 'tele'; B.modeT = 0.9; Sound.zap(); this.sparkle(B.x, 3, B.z, '#c03cff', 30, 6); }
+    else if (move === 'slam') { B.mode = 'slam'; B.modeT = 0.7; }
+    else if (move === 'fly') { B.mode = 'fly'; B.modeT = 6; B.flyA = Math.atan2(B.x - p.x, B.z - p.z); B.bombT = 0.8; this.say('MEGA GLOOM takes off! Watch for goo bombs!', 2); }
   },
 
   // How close the player is to winning, from 0 to 1. Bots chase this number, so it grows with every
-  // real step forward: eggs found (and getting closer to the next one) fill 60%, boss damage the rest.
+  // real step forward: eggs (and getting closer to the next one, around walls in a dungeon) fill 60%,
+  // getting out once all eggs are found adds a little, and boss damage fills the rest.
   progress() {
     if (this.state === 'won') return 1;
     if (!this.player) return 0;
-    const EGG_PART = 0.6;
-    if (!this.boss) {
-      const n = this.nearestEgg(), near = n ? 1 - clamp(n.dist / this.nextEggDist, 0, 1) : 0;
-      return EGG_PART * (this.eggsFound + 0.9 * near) / CFG.EGGS;
-    }
-    return Math.min(0.999, EGG_PART + (1 - EGG_PART) * (1 - this.boss.hp / CFG.BOSS_HP));
+    const EGG_PART = 0.6, n = this.navigate();
+    const near = n ? 1 - clamp(n.dist / this.nav.from, 0, 1) : 0;
+    if (this.boss) return Math.min(0.999, 0.62 + 0.38 * (1 - this.boss.hp / CFG.BOSS_HP));
+    if (this.eggsFound >= EGGS_TOTAL) return EGG_PART + 0.02 * near; // heading for the exit portal
+    return EGG_PART * (this.eggsFound + (n ? n.base + n.span * near : 0)) / EGGS_TOTAL;
   },
 
   end(won) {
@@ -565,23 +880,22 @@ const Game = {
 // Everything is made of flat-shaded triangles. Each object is a small "mesh" (sphere, spike ball,
 // box, cone) that gets stretched, turned and moved into place, then all triangles are drawn at once.
 const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
-const R = { prog: null, buf: null, sbuf: null, sCount: 0, u: {}, w: 1, h: 1 };
+const R = { prog: null, buf: null, sbuf: null, dbuf: null, sCount: 0, dCount: 0, u: {} };
 function initGL() {
   const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
   R.prog = gl.createProgram();
   gl.attachShader(R.prog, sh(gl.VERTEX_SHADER, `
-    attribute vec3 p; attribute vec4 c; uniform mat4 m; uniform vec3 fogColor; uniform float fogAmt; varying vec4 v;
+    attribute vec3 p; attribute vec4 c; uniform mat4 m; uniform vec3 fogColor; uniform vec2 fogRange; uniform float fogAmt; varying vec4 v;
     void main(){ gl_Position = m * vec4(p, 1.0);
-      float f = clamp((gl_Position.w - 18.0) / 55.0, 0.0, 1.0) * fogAmt;   // far things fade into the haze
+      float f = clamp((gl_Position.w - fogRange.x) / (fogRange.y - fogRange.x), 0.0, 1.0) * fogAmt;   // far things fade into the haze
       v = vec4(mix(c.rgb, fogColor, f), c.a); }`));
   gl.attachShader(R.prog, sh(gl.FRAGMENT_SHADER, 'precision mediump float; varying vec4 v; void main(){ gl_FragColor = v; }'));
   gl.linkProgram(R.prog); gl.useProgram(R.prog);
   R.attrP = gl.getAttribLocation(R.prog, 'p'); R.attrC = gl.getAttribLocation(R.prog, 'c');
-  for (const n of ['m', 'fogColor', 'fogAmt']) R.u[n] = gl.getUniformLocation(R.prog, n);
-  R.buf = gl.createBuffer(); R.sbuf = gl.createBuffer();
+  for (const n of ['m', 'fogColor', 'fogRange', 'fogAmt']) R.u[n] = gl.getUniformLocation(R.prog, n);
+  R.buf = gl.createBuffer(); R.sbuf = gl.createBuffer(); R.dbuf = gl.createBuffer();
   gl.enableVertexAttribArray(R.attrP); gl.enableVertexAttribArray(R.attrC);
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  gl.clearColor(0.07, 0.04, 0.16, 1);
 }
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
@@ -607,10 +921,10 @@ const M4 = {
 // Unit meshes: lists of triangles, each a list of three [x, y, z] corners.
 const MESH = (() => {
   const t = (1 + Math.sqrt(5)) / 2;
-  let v = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]];
+  const v = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]];
   const f = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
   const norm = p => { const l = Math.hypot(...p); return p.map(c => c / l); };
-  let ico = f.map(tr => tr.map(i => norm(v[i])));
+  const ico = f.map(tr => tr.map(i => norm(v[i])));
   const mid = (a, b) => norm([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]);
   const sphere = []; // split each triangle into 4 for a rounder ball
   for (const [a, b, c] of ico) { const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a); sphere.push([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]); }
@@ -634,8 +948,8 @@ function put(out, mesh, x, y, z, sx, sy, sz, ry, color, glow = 0) {
     const tri = mesh[i], P = [];
     for (const [a, b, c] of tri) { const px = a * sx, pz = c * sz; P.push([x + px * cs + pz * sn, y + b * sy, z - px * sn + pz * cs]); }
     const ux = P[1][0] - P[0][0], uy = P[1][1] - P[0][1], uz = P[1][2] - P[0][2], vx = P[2][0] - P[0][0], vy = P[2][1] - P[0][1], vz = P[2][2] - P[0][2];
-    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const nl = Math.hypot(nx, ny, nz) || 1;
-    const lit = Math.max(0, (nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]) / nl);
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, nl = Math.hypot(nx, ny, nz) || 1;
+    const lit = Math.abs(nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]) / nl;
     const shade = Math.min(1.25, (0.42 + 0.58 * lit) * (0.94 + 0.06 * ((i * 7) % 5) / 4) + glow);
     const r = color[0] * shade, g = color[1] * shade, b = color[2] * shade, al = color[3];
     for (const q of P) out.push(q[0], q[1], q[2], r, g, b, al);
@@ -643,46 +957,77 @@ function put(out, mesh, x, y, z, sx, sy, sz, ry, color, glow = 0) {
 }
 function quad(out, a, b, c, d, color) { for (const q of [a, b, c, a, c, d]) out.push(q[0], q[1], q[2], ...color); }
 
-// The parts of the world that never move (ground, hills, rocks, plants, your ship) are built once per run.
-const World = { dirty: true, sky: [] };
-const DECOR = Array.from({ length: 70 }, () => { // looks only
-  const a = Math.random() * Math.PI * 2, d = 5 + Math.random() * 50;
+// The parts of the world that never move are built once per run: the surface and the dungeons.
+const World = { dirty: true };
+const HUES = ['#7dffd0', '#ff8ad8', '#ffd36b', '#8ab4ff'];
+const DECOR = Array.from({ length: 160 }, () => { // looks only: small mushrooms and crystals you walk through
+  const a = Math.random() * Math.PI * 2, d = 5 + Math.random() * (CFG.WORLD_R - 5);
   return { x: Math.sin(a) * d, z: Math.cos(a) * d, kind: Math.random() < 0.6 ? 'shroom' : 'crystal', s: 0.6 + Math.random() * 0.9, hue: Math.floor(Math.random() * 4), rot: Math.random() * 6 };
 });
-const STARS = Array.from({ length: 160 }, () => { const a = Math.random() * Math.PI * 2, e = 0.08 + Math.random() * 1.3; return [Math.cos(e) * Math.sin(a), Math.sin(e), Math.cos(e) * Math.cos(a), 0.3 + Math.random() * 0.7]; });
-function buildWorld() {
-  const v = [];
-  // ground: rings of triangles in mottled purples with patches of teal moss
-  const RINGS = 16, SEG = 48, OUT = 90;
-  const groundCol = (x, z) => {
+const STARS = Array.from({ length: 180 }, () => { const a = Math.random() * Math.PI * 2, e = 0.08 + Math.random() * 1.3; return [Math.cos(e) * Math.sin(a), Math.sin(e), Math.cos(e) * Math.cos(a), 0.3 + Math.random() * 0.7]; });
+function buildSurface() {
+  const v = [], G = 5, OUT = CFG.WORLD_R + 50;
+  // ground: a grid of hills in mottled purples, lighter on the hilltops, with teal moss
+  const groundCol = (x, z, h) => {
     const n = Math.sin(x * 0.21) * Math.cos(z * 0.17) + Math.sin((x + z) * 0.07) * 0.8;
-    return n > 1.1 ? hex('#2f8a7a') : mix(hex('#3a1f63'), hex('#563084'), (n + 1.8) / 3.6);
+    return n > 1.1 ? hex('#2f8a7a') : mix(mix(hex('#3a1f63'), hex('#563084'), (n + 1.8) / 3.6), hex('#7a4aa8'), clamp(h / 5, 0, 0.6));
   };
-  for (let r = 0; r < RINGS; r++) {
-    const r0 = OUT * Math.pow(r / RINGS, 1.4), r1 = OUT * Math.pow((r + 1) / RINGS, 1.4);
-    for (let s = 0; s < SEG; s++) {
-      const a0 = s / SEG * Math.PI * 2, a1 = (s + 1) / SEG * Math.PI * 2;
-      const P = [[Math.sin(a0) * r0, 0, Math.cos(a0) * r0], [Math.sin(a1) * r0, 0, Math.cos(a1) * r0], [Math.sin(a1) * r1, 0, Math.cos(a1) * r1], [Math.sin(a0) * r1, 0, Math.cos(a0) * r1]];
-      const cx = Math.sin((a0 + a1) / 2) * (r0 + r1) / 2, cz = Math.cos((a0 + a1) / 2) * (r0 + r1) / 2;
-      quad(v, P[0], P[2], P[1], P[3], groundCol(cx, cz)); // wound so both triangles face up
-    }
+  for (let gx = -OUT; gx < OUT; gx += G) for (let gz = -OUT; gz < OUT; gz += G) {
+    if (Math.hypot(gx + G / 2, gz + G / 2) > OUT) continue;
+    const P = [[gx, gz], [gx + G, gz], [gx + G, gz + G], [gx, gz + G]].map(([x, z]) => [x, ground(x, z), z]);
+    const h = ground(gx + G / 2, gz + G / 2);
+    put(v, [[P[0], P[1], P[2]]], 0, 0, 0, 1, 1, 1, 0, groundCol(gx, gz, h));
+    put(v, [[P[0], P[2], P[3]]], 0, 0, 0, 1, 1, 1, 0, groundCol(gx + 2, gz + 3, h));
   }
   // the edge of the map: a ring of tall alien mountains
-  for (let i = 0; i < 40; i++) {
-    const a = i / 40 * Math.PI * 2 + (i % 3) * 0.05, d = CFG.WORLD_R + 6 + (i % 4) * 3;
-    put(v, MESH.cone, Math.sin(a) * d, 0, Math.cos(a) * d, 5 + (i % 5), 9 + ((i * 7) % 11), 5 + (i % 3), i, hex(i % 2 ? '#2a1650' : '#3b2070'));
-    if (i % 3 === 0) put(v, MESH.cone, Math.sin(a) * d, 9 + ((i * 7) % 11) * 0.62, Math.cos(a) * d, 1.8, 3, 1.8, i, hex('#c9b8ff'));
+  for (let i = 0; i < 70; i++) {
+    const a = i / 70 * Math.PI * 2 + (i % 3) * 0.03, d = CFG.WORLD_R + 10 + (i % 4) * 5, h = 16 + ((i * 7) % 15);
+    put(v, MESH.cone, Math.sin(a) * d, -1, Math.cos(a) * d, 9 + (i % 5) * 2, h, 9 + (i % 3) * 2, i, hex(i % 2 ? '#2a1650' : '#3b2070'));
+    if (i % 3 === 0) put(v, MESH.cone, Math.sin(a) * d, h * 0.62 - 1, Math.cos(a) * d, 3, h * 0.38, 3, i, hex('#c9b8ff'));
+  }
+  // big mountains inside the map (walk around them)
+  for (const m of Game.mountains) {
+    const y = ground(m.x, m.z) - 1;
+    put(v, MESH.cone, m.x, y, m.z, m.r, m.h, m.r, m.spin, hex('#4a2d7a'));
+    put(v, MESH.cone, m.x + m.r * 0.4, y, m.z - m.r * 0.3, m.r * 0.7, m.h * 0.7, m.r * 0.7, m.spin + 1, hex('#5a3a8c'));
+    put(v, MESH.cone, m.x, y + m.h * 0.68, m.z, m.r * 0.33, m.h * 0.32, m.r * 0.33, m.spin, hex('#e8e0ff'));
+    put(v, MESH.octa, m.x - m.r * 0.6, y + 2, m.z + m.r * 0.5, 1.2, 3, 1.2, m.spin, hex(HUES[(m.spin * 10 | 0) % 4]), 0.35); // a glowing crystal at its foot
   }
   // rocks (they block you)
-  for (const r of Game.rocks) put(v, MESH.ico, r.x, r.h * 0.35, r.z, r.r, r.h * 0.6, r.r * 0.9, r.spin, hex('#6a5a8c'));
+  for (const r of Game.rocks) put(v, MESH.ico, r.x, ground(r.x, r.z) + r.h * 0.3, r.z, r.r, r.h * 0.6, r.r * 0.9, r.spin, hex('#6a5a8c'));
+  // alien trees (their trunks block you)
+  for (const t of Game.trees) {
+    const y = ground(t.x, t.z), c = hex(HUES[t.hue]);
+    if (t.kind === 'bloom') { // a tall stalk with a puffy glowing top and hanging pods
+      put(v, MESH.box, t.x, y + t.h / 2, t.z, 0.35, t.h / 2, 0.35, t.spin, hex('#c8b6e8'));
+      put(v, MESH.sphere, t.x, y + t.h, t.z, 3.2, 1.3, 3.2, t.spin, c, 0.2);
+      put(v, MESH.sphere, t.x + 1.2, y + t.h + 1, t.z - 0.8, 1.8, 1, 1.8, t.spin, c, 0.28);
+      for (let k = 0; k < 4; k++) {
+        const a = k / 4 * Math.PI * 2 + t.spin, px = t.x + Math.sin(a) * 2.2, pz = t.z + Math.cos(a) * 2.2;
+        put(v, MESH.box, px, y + t.h - 1.6, pz, 0.04, 1.2, 0.04, 0, hex('#9be8c8'));
+        put(v, MESH.sphere, px, y + t.h - 2.9, pz, 0.28, 0.35, 0.28, 0, hex('#fff6b0'), 0.5);
+      }
+    } else { // a twisty spire of stacked cones
+      for (let k = 0; k < 4; k++) put(v, MESH.cone, t.x + Math.sin(t.spin + k) * 0.4, y + k * t.h / 4, t.z + Math.cos(t.spin + k) * 0.4, 1.6 - k * 0.3, t.h / 3, 1.6 - k * 0.3, t.spin + k, k % 2 ? c : hex('#3a6a8a'), 0.15);
+    }
+  }
   // glowing mushrooms and crystals (just for looks; walk right through them)
-  const HUES = ['#7dffd0', '#ff8ad8', '#ffd36b', '#8ab4ff'];
   for (const d of DECOR) {
-    if (Game.rocks.some(r => Math.hypot(r.x - d.x, r.z - d.z) < r.r + 1)) continue;
+    const y = ground(d.x, d.z);
+    if (Game.solids().some(r => Math.hypot(r.x - d.x, r.z - d.z) < r.r + 1)) continue;
     if (d.kind === 'shroom') {
-      put(v, MESH.box, d.x, d.s * 0.7, d.z, 0.12 * d.s, 0.7 * d.s, 0.12 * d.s, d.rot, hex('#e8dcff'));
-      put(v, MESH.sphere, d.x, d.s * 1.45, d.z, 0.7 * d.s, 0.3 * d.s, 0.7 * d.s, d.rot, hex(HUES[d.hue]), 0.25);
-    } else put(v, MESH.octa, d.x, d.s * 0.8, d.z, 0.3 * d.s, 0.9 * d.s, 0.3 * d.s, d.rot, hex(HUES[d.hue]), 0.3);
+      put(v, MESH.box, d.x, y + d.s * 0.7, d.z, 0.12 * d.s, 0.7 * d.s, 0.12 * d.s, d.rot, hex('#e8dcff'));
+      put(v, MESH.sphere, d.x, y + d.s * 1.45, d.z, 0.7 * d.s, 0.3 * d.s, 0.7 * d.s, d.rot, hex(HUES[d.hue]), 0.25);
+    } else put(v, MESH.octa, d.x, y + d.s * 0.8, d.z, 0.3 * d.s, 0.9 * d.s, 0.3 * d.s, d.rot, hex(HUES[d.hue]), 0.3);
+  }
+  // the stone stairways down to the dungeons
+  for (const d of Game.dungeons) {
+    const y = ground(d.door.x, d.door.z);
+    for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; put(v, MESH.box, d.door.x + Math.sin(a) * 3, y + 0.4, d.door.z + Math.cos(a) * 3, 0.7, 0.6, 0.5, a, hex('#8a7f9c')); }
+    for (const s of [-1, 1]) put(v, MESH.box, d.door.x + s * 2.6, y + 3, d.door.z, 0.45, 3, 0.45, 0, hex('#9a8fb0'));
+    put(v, MESH.box, d.door.x, y + 6.2, d.door.z, 3.2, 0.4, 0.6, 0, hex('#9a8fb0'));
+    put(v, MESH.cone, d.door.x, y + 0.05, d.door.z, 2.6, 0.02, 2.6, 0, hex('#05020c'));
+    for (let k = 0; k < 4; k++) put(v, MESH.box, d.door.x, y - k * 0.4, d.door.z + 1.4 - k * 0.8, 1.4, 0.15, 0.35, 0, hex('#5a5070'));
   }
   // your landed ship, just behind where you start
   put(v, MESH.sphere, 0, 1.3, -6, 2.6, 1.0, 3.6, 0, hex('#d8d8e8'));
@@ -690,7 +1035,27 @@ function buildWorld() {
   for (const s of [-1, 1]) put(v, MESH.box, s * 2.6, 0.6, -7, 0.25, 0.6, 1.2, 0, hex('#ff8a3d'));
   R.sCount = v.length / 7;
   gl.bindBuffer(gl.ARRAY_BUFFER, R.sbuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
-  World.dirty = false;
+}
+function buildDungeons() {
+  const v = [], C = CFG.CELL, HT = 4.2;
+  for (const d of Game.dungeons) for (let r = 0; r < d.H; r++) for (let c = 0; c < d.W; c++) {
+    const x0 = d.ox + c * C, z0 = d.oz + r * C, cx = x0 + C / 2, cz = z0 + C / 2;
+    if (Dun.solidCell(d, c, r)) {
+      const shade = 0.85 + 0.15 * (((c * 7 + r * 13) % 5) / 4);
+      put(v, MESH.box, cx, HT / 2, cz, C / 2, HT / 2, C / 2, 0, mix(hex('#6a5a8c'), hex('#8a78b0'), (shade - 0.85) / 0.15));
+      if ((c * 3 + r * 5) % 4 === 0) // a glowing crystal torch on some walls
+        for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!Dun.solidCell(d, c + dc, r + dr)) { put(v, MESH.octa, cx + dc * (C / 2 + 0.1), 2.6, cz + dr * (C / 2 + 0.1), 0.18, 0.4, 0.18, 0, hex(HUES[(c + r) % 4]), 0.6); break; }
+    } else {
+      const chk = (c + r) % 2 ? hex('#3a2c52') : hex('#46365f');
+      quad(v, [x0, 0, z0], [x0 + C, 0, z0], [x0 + C, 0, z0 + C], [x0, 0, z0 + C], chk);
+      quad(v, [x0, HT, z0], [x0 + C, HT, z0], [x0 + C, HT, z0 + C], [x0, HT, z0 + C], hex('#221836'));
+    }
+  }
+  for (const d of Game.dungeons) { // stairs back up where you arrive (they only look like an exit; use the portal)
+    for (let k = 0; k < 5; k++) put(v, MESH.box, d.start.x - Math.sin(d.startYaw) * (1.2 - k * 0.1), 0.2 + k * 0.45, d.start.z - Math.cos(d.startYaw) * (1.2 - k * 0.1), 1.5, 0.2, 0.25, d.startYaw, hex('#6a6080'));
+  }
+  R.dCount = v.length / 7;
+  gl.bindBuffer(gl.ARRAY_BUFFER, R.dbuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
 }
 
 function drawList(buf, data, count, matrix, fogAmt) {
@@ -705,85 +1070,131 @@ function drawList(buf, data, count, matrix, fogAmt) {
 function draw(now) {
   const t = now / 1000, W = canvas.width, H = canvas.height;
   gl.viewport(0, 0, W, H);
+  const P = Game.player, under = !!(P && P.zone >= 0 && Game.state !== 'title');
+  if (under) { gl.clearColor(0.03, 0.02, 0.06, 1); gl.uniform3f(R.u.fogColor, 0.06, 0.04, 0.1); gl.uniform2f(R.u.fogRange, 8, 40); }
+  else { gl.clearColor(0.07, 0.04, 0.16, 1); gl.uniform3f(R.u.fogColor, 0.36, 0.2, 0.5); gl.uniform2f(R.u.fogRange, 30, 150); }
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.uniform3f(R.u.fogColor, 0.36, 0.2, 0.5);
-  const p = Game.player || { x: 0, z: 0, yaw: t * 0.1, walked: 0 };  // on the title screen the camera slowly turns
-  const yaw = Game.player && Game.state !== 'title' ? p.yaw : t * 0.12;
-  const bob = Math.sin(p.walked * 1.6) * 0.07;
-  const f = dirOf(yaw), eyeY = 1.6 + bob;
-  const proj = M4.persp(1.2, W / H, 0.1, 220);
+  const p = P && Game.state !== 'title' ? P : { x: 0, z: 0, yaw: t * 0.12, walked: 0, zone: -1 };  // on the title screen the camera slowly turns
+  const bob = Math.sin(p.walked * 1.6) * 0.07, gy = p.zone >= 0 ? 0 : ground(p.x, p.z);
+  const f = dirOf(p.yaw), eyeY = gy + 1.6 + bob;
+  const proj = M4.persp(1.2, W / H, 0.1, 400);
   const view = M4.look(p.x, eyeY, p.z, f.x, -0.06, f.z);
   const world = M4.mul(proj, view);
-  const skyView = M4.mul(proj, M4.look(0, 0, 0, f.x, -0.06, f.z)); // the sky turns with you but never gets closer
+  if (World.dirty) { buildSurface(); buildDungeons(); World.dirty = false; }
 
-  // 1. sky: a gradient, stars, and a big ringed planet
-  gl.disable(gl.DEPTH_TEST);
-  const sky = [];
-  const top = hex('#0b0628'), hor = hex('#7a3a8a');
-  for (const q of [[-1, 1, top], [1, 1, top], [1, -0.2, hor], [-1, 1, top], [1, -0.2, hor], [-1, -0.2, hor], [-1, -0.2, hor], [1, -0.2, hor], [1, -1, hor], [-1, -0.2, hor], [1, -1, hor], [-1, -1, hor]]) sky.push(q[0], q[1], 0, ...q[2]);
-  drawList(R.buf, sky, sky.length / 7, M4.ident, 0);
-  const sk = [];
-  for (const s of STARS) { const d = 100, x = s[0] * d, y = s[1] * d, z = s[2] * d, k = 0.35; quad(sk, [x - k, y, z], [x, y + k, z], [x + k, y, z], [x, y - k, z], [1, 1, 1, s[3] * (0.75 + 0.25 * Math.sin(t * 2 + x))]); }
-  put(sk, MESH.sphere, 50, 38, 70, 13, 13, 13, 0.4, hex('#ff9a6b'));
-  put(sk, MESH.sphere, 50, 38, 70, 21, 0.3, 21, 0.4, hex('#ffd9b8', 0.45));
-  put(sk, MESH.sphere, -60, 22, 40, 4, 4, 4, 0, hex('#8ab4ff'));
-  drawList(R.buf, sk, sk.length / 7, skyView, 0);
+  // 1. sky: a gradient, stars, and a big ringed planet (not underground)
+  if (!under) {
+    gl.disable(gl.DEPTH_TEST);
+    const sky = [], top = hex('#0b0628'), hor = hex('#7a3a8a');
+    for (const q of [[-1, 1, top], [1, 1, top], [1, -0.2, hor], [-1, 1, top], [1, -0.2, hor], [-1, -0.2, hor], [-1, -0.2, hor], [1, -0.2, hor], [1, -1, hor], [-1, -0.2, hor], [1, -1, hor], [-1, -1, hor]]) sky.push(q[0], q[1], 0, ...q[2]);
+    drawList(R.buf, sky, sky.length / 7, M4.ident, 0);
+    const sk = [], skyView = M4.mul(proj, M4.look(0, 0, 0, f.x, -0.06, f.z)); // the sky turns with you but never gets closer
+    for (const s of STARS) { const d = 100, x = s[0] * d, y = s[1] * d, z = s[2] * d, k = 0.35; quad(sk, [x - k, y, z], [x, y + k, z], [x + k, y, z], [x, y - k, z], [1, 1, 1, s[3] * (0.75 + 0.25 * Math.sin(t * 2 + x))]); }
+    put(sk, MESH.sphere, 50, 38, 70, 13, 13, 13, 0.4, hex('#ff9a6b'));
+    put(sk, MESH.sphere, 50, 38, 70, 21, 0.3, 21, 0.4, hex('#ffd9b8', 0.45));
+    put(sk, MESH.sphere, -60, 22, 40, 4, 4, 4, 0, hex('#8ab4ff'));
+    drawList(R.buf, sk, sk.length / 7, skyView, 0);
+  }
 
-  // 2. the ground, mountains, rocks and plants
+  // 2. the world that never moves
   gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
-  if (World.dirty) buildWorld();
-  if (R.sCount) drawList(R.sbuf, null, R.sCount, world, 1);
+  if (under) { if (R.dCount) drawList(R.dbuf, null, R.dCount, world, 1); }
+  else if (R.sCount) drawList(R.sbuf, null, R.sCount, world, 1);
 
-  // 3. everything that moves
-  const v = [], glow = [];
+  // 3. everything that moves (only what is in the same place as you: surface or this dungeon)
+  const zone = p.zone, v = [], glow = [], gh = (x, z) => zone >= 0 ? 0 : ground(x, z);
   for (const e of Game.eggs) {
-    if (e.found) continue;
-    const c = hex(e.color), hop = Math.abs(Math.sin(t * 2.2 + e.wobble)) * 0.15;
-    put(v, MESH.sphere, e.x, 0.75 + hop, e.z, 0.55, 0.75, 0.55, 0, c, 0.25 + 0.15 * Math.sin(t * 4 + e.wobble));
-    for (let k = 0; k < 3; k++) put(v, MESH.sphere, e.x + Math.sin(k * 2.1) * 0.42, 0.9 + hop + k * 0.18, e.z + Math.cos(k * 2.1) * 0.42, 0.12, 0.12, 0.12, 0, hex('#ffffff'), 0.3);
-    put(v, MESH.cone, e.x, 0, e.z, 0.9, 0.25, 0.9, 0, hex('#1d1040'));
-    put(glow, MESH.cone, e.x, 0, e.z, 0.5, 40, 0.5, t, [...c.slice(0, 3), 0.18]); // a light beam you can see from far away
+    if (e.found || e.zone !== zone) continue;
+    const c = hex(e.color), hop = Math.abs(Math.sin(t * 2.2 + e.wobble)) * 0.15, y = gh(e.x, e.z);
+    put(v, MESH.sphere, e.x, y + 0.75 + hop, e.z, 0.55, 0.75, 0.55, 0, c, 0.25 + 0.15 * Math.sin(t * 4 + e.wobble));
+    for (let k = 0; k < 3; k++) put(v, MESH.sphere, e.x + Math.sin(k * 2.1) * 0.42, y + 0.9 + hop + k * 0.18, e.z + Math.cos(k * 2.1) * 0.42, 0.12, 0.12, 0.12, 0, hex('#ffffff'), 0.3);
+    put(v, MESH.cone, e.x, y, e.z, 0.9, 0.25, 0.9, 0, hex('#1d1040'));
   }
+  if (zone < 0) for (const d of Game.dungeons) { // a stone lid seals each stairway once its egg is found
+    const egg = Game.eggs.find(e => e.zone === d.i), y = ground(d.door.x, d.door.z);
+    if (egg && egg.found) put(v, MESH.cone, d.door.x, y + 0.1, d.door.z, 2.7, 0.15, 2.7, 0, hex('#8a7f9c'));
+  }
+  if (zone >= 0) { // the exit portal: a spinning ring of light
+    const d = Game.dungeons[zone];
+    for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2 + t * 2; put(glow, MESH.octa, d.exit.x + Math.sin(a) * 1.1, 1.4 + Math.cos(a) * 1.1, d.exit.z, 0.18, 0.18, 0.18, 0, hex('#6bf3ff', 0.9), 0.5); }
+    put(glow, MESH.sphere, d.exit.x, 1.4, d.exit.z, 0.8, 0.8, 0.15, 0, hex('#6bf3ff', 0.35), 0.4);
+  }
+  for (const h of Game.pickups) if (h.zone === zone) { const y = gh(h.x, h.z) + 0.8 + Math.sin(t * 3) * 0.15; put(v, MESH.sphere, h.x - 0.18, y, h.z, 0.28, 0.28, 0.28, 0, hex('#ff5d7a'), 0.4); put(v, MESH.sphere, h.x + 0.18, y, h.z, 0.28, 0.28, 0.28, 0, hex('#ff5d7a'), 0.4); put(v, MESH.cone, h.x, y + 0.2, h.z, 0.08, 0.3, 0.08, 0, hex('#7dffa0')); }
   for (const b of Game.buddies) {
-    const c = hex(b.color), age = Game.time - b.born, s = 0.75 * Math.min(1, age * 3), hop = Math.abs(Math.sin(t * 7 + b.born * 3)) * 0.35;
+    const c = hex(b.color), age = Game.time - b.born, s = 0.75 * Math.min(1, age * 3), hop = Math.abs(Math.sin(t * 7 + b.born * 3)) * 0.35, y = gh(b.x, b.z);
     const toP = Math.atan2(p.x - b.x, p.z - b.z);
-    put(v, MESH.sphere, b.x, 0.45 * s + hop, b.z, 0.45 * s, 0.45 * s, 0.45 * s, 0, c, 0.15);
-    put(v, MESH.sphere, b.x, (0.3 + 0.18) * s + hop, b.z, 0.47 * s, 0.22 * s, 0.47 * s, 0, hex('#fff6e0')); // a pale belly
+    put(v, MESH.sphere, b.x, y + 0.45 * s + hop, b.z, 0.45 * s, 0.45 * s, 0.45 * s, 0, c, 0.15);
+    put(v, MESH.sphere, b.x, y + 0.48 * s + hop, b.z, 0.47 * s, 0.22 * s, 0.47 * s, 0, hex('#fff6e0')); // a pale belly
     const ex = b.x + Math.sin(toP) * 0.38 * s, ez = b.z + Math.cos(toP) * 0.38 * s;
-    put(v, MESH.sphere, ex, 0.62 * s + hop, ez, 0.2 * s, 0.2 * s, 0.2 * s, 0, hex('#ffffff'));
-    put(v, MESH.sphere, ex + Math.sin(toP) * 0.12 * s, 0.62 * s + hop, ez + Math.cos(toP) * 0.12 * s, 0.1 * s, 0.1 * s, 0.1 * s, 0, hex('#111122'));
-    put(v, MESH.box, b.x, 1.0 * s + hop, b.z, 0.03, 0.22 * s, 0.03, 0, c);
-    put(v, MESH.sphere, b.x, 1.25 * s + hop, b.z, 0.09, 0.09, 0.09, 0, hex('#ffffff'), 0.4);
+    put(v, MESH.sphere, ex, y + 0.62 * s + hop, ez, 0.2 * s, 0.2 * s, 0.2 * s, 0, hex('#ffffff'));
+    put(v, MESH.sphere, ex + Math.sin(toP) * 0.12 * s, y + 0.62 * s + hop, ez + Math.cos(toP) * 0.12 * s, 0.1 * s, 0.1 * s, 0.1 * s, 0, hex('#111122'));
+    put(v, MESH.box, b.x, y + 1.0 * s + hop, b.z, 0.03, 0.22 * s, 0.03, 0, c);
+    put(v, MESH.sphere, b.x, y + 1.25 * s + hop, b.z, 0.09, 0.09, 0.09, 0, hex('#ffffff'), 0.4);
   }
-  for (const g of Game.glooms) {
-    const fl = 1.0 + Math.sin(g.phase * 3) * 0.25, toP = Math.atan2(p.x - g.x, p.z - g.z), col = g.hit > 0 ? hex('#ffffff') : hex('#4a1f78');
-    put(v, MESH.octa, g.x, fl, g.z, 0.75, 0.75, 0.75, g.phase * 2, col);
-    put(v, MESH.sphere, g.x, fl, g.z, 0.55, 0.55, 0.55, 0, hex('#6d33a8'));
-    for (const side of [-1, 1]) {
-      const ex = g.x + Math.sin(toP) * 0.5 + Math.cos(toP) * side * 0.2, ez = g.z + Math.cos(toP) * 0.5 - Math.sin(toP) * side * 0.2;
-      put(v, MESH.sphere, ex, fl + 0.15, ez, 0.12, 0.08, 0.12, 0, hex('#ff3b5c'), 0.5);
+  const eyes = (x, y, z, toP, apart, fwd, size, color) => { for (const side of [-1, 1]) put(v, MESH.sphere, x + Math.sin(toP) * fwd + Math.cos(toP) * side * apart, y, z + Math.cos(toP) * fwd - Math.sin(toP) * side * apart, size, size * 0.7, size, 0, hex(color), 0.5); };
+  for (const e of Game.enemies) {
+    if (e.zone !== zone) continue;
+    const toP = Math.atan2(p.x - e.x, p.z - e.z), y = gh(e.x, e.z), white = e.hit > 0;
+    if (e.kind === 'gloom') {
+      const fl = y + 1.0 + Math.sin(e.phase * 3) * 0.25;
+      put(v, MESH.octa, e.x, fl, e.z, 0.75, 0.75, 0.75, e.phase * 2, white ? hex('#ffffff') : hex('#4a1f78'));
+      put(v, MESH.sphere, e.x, fl, e.z, 0.55, 0.55, 0.55, 0, hex('#6d33a8'));
+      eyes(e.x, fl + 0.15, e.z, toP, 0.2, 0.5, 0.12, '#ff3b5c');
+    } else if (e.kind === 'zapbug') { // a buzzing yellow bug with wings
+      const fl = y + 1.3 + Math.sin(e.phase * 9) * 0.1, col = white ? hex('#ffffff') : e.dash > 0 ? hex('#fff38a') : hex('#e0c030');
+      put(v, MESH.sphere, e.x, fl, e.z, 0.5, 0.35, 0.5, toP, col);
+      put(v, MESH.cone, e.x + Math.sin(toP) * 0.4, fl, e.z + Math.cos(toP) * 0.4, 0.1, 0.5, 0.1, 0, hex('#222222'));
+      for (const side of [-1, 1]) put(v, MESH.sphere, e.x + Math.cos(toP) * side * 0.55, fl + 0.3 + Math.sin(e.phase * 40) * 0.1, e.z - Math.sin(toP) * side * 0.55, 0.45, 0.04, 0.25, toP, hex('#e8f8ff', 0.7), 0.4);
+      eyes(e.x, fl + 0.1, e.z, toP, 0.18, 0.42, 0.1, '#ff3b5c');
+    } else if (e.kind === 'spitter') { // a grumpy green mushroom that spits goo
+      put(v, MESH.box, e.x, y + 0.6, e.z, 0.4, 0.6, 0.4, toP, white ? hex('#ffffff') : hex('#5aa04a'));
+      put(v, MESH.sphere, e.x, y + 1.4, e.z, 1.0, 0.5, 1.0, e.phase, white ? hex('#ffffff') : hex('#3ad06a'), 0.1);
+      for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2; put(v, MESH.sphere, e.x + Math.sin(a) * 0.6, y + 1.7, e.z + Math.cos(a) * 0.6, 0.14, 0.1, 0.14, 0, hex('#d6ff6b'), 0.3); }
+      eyes(e.x, y + 0.9, e.z, toP, 0.18, 0.42, 0.11, '#ffef6b');
+    } else { // Rockback: a big rocky beetle
+      const col = white ? hex('#ffffff') : hex('#7a6a5a');
+      put(v, MESH.sphere, e.x, y + 0.9, e.z, 1.4, 0.9, 1.6, toP, col);
+      for (let k = 0; k < 5; k++) put(v, MESH.cone, e.x + Math.sin(toP + 3.14) * (k - 2) * 0.35, y + 1.5, e.z + Math.cos(toP + 3.14) * (k - 2) * 0.35, 0.3, 0.7, 0.3, 0, hex('#a08a70'));
+      eyes(e.x, y + 1.0, e.z, toP, 0.4, 1.3, 0.16, '#ff8a3d');
     }
   }
   const B = Game.boss;
-  if (B) {
-    const toP = Math.atan2(p.x - B.x, p.z - B.z), pulse = 1 + Math.sin(t * 3) * 0.04, col = B.hitFlash > 0 ? hex('#ffffff') : hex('#5a1f8c');
-    put(v, MESH.sphere, B.x, B.y, B.z, CFG.BOSS_R * pulse, CFG.BOSS_R * 0.9, CFG.BOSS_R * pulse, 0, col);
-    put(v, MESH.octa, B.x, B.y, B.z, CFG.BOSS_R * 1.35, CFG.BOSS_R * 1.2, CFG.BOSS_R * 1.35, t * 0.8, hex('#3a1060'));
-    for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 + t; put(v, MESH.cone, B.x + Math.sin(a) * 1.6, B.y + CFG.BOSS_R * 0.75, B.z + Math.cos(a) * 1.6, 0.5, 1.6, 0.5, 0, hex('#ffb03d')); } // crown
+  if (B && zone === -1 && !(B.mode === 'tele' && Math.floor(t * 20) % 2)) { // flickers while teleporting
+    const by = gh(B.x, B.z) + B.y, toP = Math.atan2(p.x - B.x, p.z - B.z), pulse = 1 + Math.sin(t * 3) * 0.04;
+    const angry = B.phase === 3 ? '#8c1f4a' : B.phase === 2 ? '#701f8c' : '#5a1f8c', col = B.hitFlash > 0 ? hex('#ffffff') : hex(angry);
+    put(v, MESH.sphere, B.x, by, B.z, CFG.BOSS_R * pulse, CFG.BOSS_R * 0.9, CFG.BOSS_R * pulse, 0, col);
+    put(v, MESH.octa, B.x, by, B.z, CFG.BOSS_R * 1.35, CFG.BOSS_R * 1.2, CFG.BOSS_R * 1.35, t * 0.8, hex('#3a1060'));
+    for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 + t; put(v, MESH.cone, B.x + Math.sin(a) * 1.6, by + CFG.BOSS_R * 0.75, B.z + Math.cos(a) * 1.6, 0.5, 1.6, 0.5, 0, hex('#ffb03d')); } // crown
+    const flap = B.mode === 'fly' || B.mode === 'land' ? Math.sin(t * 10) * 0.6 : 0.2;
+    for (const side of [-1, 1]) { // bat wings
+      const wx = B.x + Math.cos(toP) * side * (CFG.BOSS_R + 1.8), wz = B.z - Math.sin(toP) * side * (CFG.BOSS_R + 1.8);
+      put(v, MESH.sphere, wx, by + 0.6 + flap * side * side, wz, 2.6, 0.2 + Math.abs(flap) * 0.3, 1.3, toP + Math.PI / 2, hex('#2a0a40'));
+    }
     for (const side of [-1, 0, 1]) {
       const ex = B.x + Math.sin(toP) * CFG.BOSS_R * 0.95 + Math.cos(toP) * side * 1.1, ez = B.z + Math.cos(toP) * CFG.BOSS_R * 0.95 - Math.sin(toP) * side * 1.1;
-      put(v, MESH.sphere, ex, B.y + 0.6 - Math.abs(side) * 0.3, ez, 0.42, 0.32, 0.42, 0, hex('#ff3b5c'), 0.5);
+      put(v, MESH.sphere, ex, by + 0.6 - Math.abs(side) * 0.3, ez, 0.42, 0.32, 0.42, 0, hex('#ff3b5c'), 0.5);
     }
-    put(v, MESH.sphere, B.x + Math.sin(toP) * CFG.BOSS_R * 0.92, B.y - 0.9, B.z + Math.cos(toP) * CFG.BOSS_R * 0.92, 1.2, 0.35, 0.4, toP, hex('#1a0024')); // grumpy mouth
+    put(v, MESH.sphere, B.x + Math.sin(toP) * CFG.BOSS_R * 0.92, by - 0.9, B.z + Math.cos(toP) * CFG.BOSS_R * 0.92, 1.2, 0.35, 0.4, toP, hex('#1a0024')); // grumpy mouth
   }
-  for (const s of Game.shots) put(glow, MESH.ico, s.x, s.y, s.z, 0.18, 0.18, 0.18, 0, s.buddy ? [...hex(s.color).slice(0, 3), 0.95] : hex('#fff38a', 0.95), 0.5);
-  for (const o of Game.orbs) { put(glow, MESH.ico, o.x, 1.2, o.z, 0.5, 0.5, 0.5, t * 5, hex('#c03cff', 0.85), 0.4); put(glow, MESH.ico, o.x, 1.2, o.z, 0.3, 0.3, 0.3, 0, hex('#ffffff', 0.9), 0.4); }
+  for (const s of Game.shots) if (s.zone === zone) put(glow, MESH.ico, s.x, s.y + gh(s.x, s.z), s.z, 0.18, 0.18, 0.18, 0, s.buddy ? [...hex(s.color).slice(0, 3), 0.95] : hex('#fff38a', 0.95), 0.5);
+  for (const o of Game.orbs) if (o.zone === zone) { const y = gh(o.x, o.z) + 1.2, c = o.goo ? '#9aff3a' : '#c03cff'; put(glow, MESH.ico, o.x, y, o.z, o.r * 0.7, o.r * 0.7, o.r * 0.7, t * 5, hex(c, 0.85), 0.4); put(glow, MESH.ico, o.x, y, o.z, o.r * 0.4, o.r * 0.4, o.r * 0.4, 0, hex('#ffffff', 0.9), 0.4); }
+  if (zone === -1) {
+    for (const b of Game.bombs) { // a red warning circle where a goo bomb will land, and the bomb falling
+      const y = ground(b.x, b.z);
+      put(glow, MESH.cone, b.x, y + 0.08, b.z, 2.6, 0.02, 2.6, 0, hex('#ff3b5c', 0.25 + 0.25 * Math.sin(t * 20)));
+      put(glow, MESH.ico, b.x, y + b.t * 8, b.z, 0.6, 0.6, 0.6, t * 4, hex('#c03cff', 0.9), 0.4);
+    }
+    for (const w of Game.waves) { // a shockwave: a ring of glowing spikes rushing outward
+      const n = 28;
+      for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2, x = w.x + Math.sin(a) * w.r, z = w.z + Math.cos(a) * w.r; put(glow, MESH.cone, x, ground(x, z), z, 0.35, 1.1, 0.35, 0, hex('#ff8ad8', 0.85), 0.4); }
+    }
+  }
   for (const s of Game.fx) put(glow, MESH.octa, s.x, s.y, s.z, 0.1, 0.1, 0.1, 0, hex(s.color, Math.min(1, s.life * 2)), 0.4);
   if (v.length) drawList(R.buf, v, v.length / 7, world, 1);
   if (glow.length) { gl.depthMask(false); drawList(R.buf, glow, glow.length / 7, world, 0.4); gl.depthMask(true); }
 
   // 4. your blaster, drawn on top in the lower right
-  if (Game.player && Game.state !== 'title') {
+  if (P && Game.state !== 'title') {
     gl.disable(gl.DEPTH_TEST);
     const g = [], a = W / H, kick = Game.recoil * 0.05, sway = bob * 0.4;
     const box2 = (x, y, w, h, c) => quad(g, [x, y, 0], [x + w, y, 0], [x + w, y - h, 0], [x, y - h, 0], c);
@@ -796,7 +1207,7 @@ function draw(now) {
 }
 // sparkles drift and fade (real time only, looks only)
 function updateFx(dt) {
-  for (const s of Game.fx) { s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt; s.vy -= 9 * dt; s.life -= dt; if (s.y < 0.05) { s.y = 0.05; s.vy *= -0.4; } }
+  for (const s of Game.fx) { s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt; s.vy -= 9 * dt; s.life -= dt; }
   Game.fx = Game.fx.filter(s => s.life > 0);
 }
 
@@ -821,23 +1232,28 @@ const UI = {
     const G = Game, p = G.player;
     if (!p) return;
     $('hudHearts').textContent = '♥'.repeat(Math.max(0, G.hearts)) + '♡'.repeat(Math.max(0, CFG.HEARTS - G.hearts));
-    $('hudEggs').textContent = `Eggs: ${G.eggsFound} of ${CFG.EGGS}`;
+    $('hudEggs').textContent = `Eggs: ${G.eggsFound} of ${EGGS_TOTAL}`;
     $('hudBuddies').textContent = `Buddies: ${G.buddies.length}`;
     $('hudScore').textContent = `Score: ${G.score}`;
     $('flash').style.opacity = (G.flash * 0.8).toFixed(2);
     $('toast').hidden = !G.msg || Hook.mode === 'bot'; if (G.msg) $('toast').textContent = G.msg.text;
-    const B = G.boss, bossOn = !!(B && B.landed);
+    const B = p.zone === -1 ? G.boss : null, bossOn = !!(B && B.landed);
     $('bossBar').hidden = !bossOn || $('hud').hidden; if (bossOn) $('bossFill').style.width = `${Math.max(0, B.hp / CFG.BOSS_HP) * 100}%`;
-    // the radar arrow points at the nearest egg, or at the boss
-    const n = G.nearestEgg(), target = n ? n.egg : B;
-    if (target && !$('hud').hidden) {
-      const b = bearing(p, target.x, target.z);
-      $('radar').hidden = bossOn && Math.abs(b.angle) < 0.6;
-      $('radarArrow').style.transform = `rotate(${b.angle}rad)`;
-      $('radarArrow').style.borderBottomColor = n ? n.egg.color : '#ff5d7a';
-      $('radarText').textContent = n ? `egg ${Math.round(b.dist)} m` : 'MEGA GLOOM';
-      if (bossOn) $('radar').style.top = 'calc(max(8px, env(safe-area-inset-top)) + 80px)'; else $('radar').style.top = '';
+    // the radar arrow points the way to go: the next egg, the dungeon stairs, the exit portal, or the boss
+    if ($('hud').hidden) return;
+    const n = G.navigate(), target = n ? n.next : B;
+    if (!target) { $('radar').hidden = true; return; }
+    // On the surface the egg sensor only picks up an egg (or dungeon stairs) closer than SENSOR_RANGE meters.
+    if (n && p.zone < 0 && n.dist > CFG.SENSOR_RANGE) {
+      $('radar').hidden = false; $('radarArrow').style.visibility = 'hidden'; $('radarText').textContent = 'Egg sensor: nothing close. Explore!'; $('radar').style.top = ''; return;
     }
+    $('radarArrow').style.visibility = '';
+    const b = bearing(p, target.x, target.z);
+    $('radar').hidden = !n && Math.abs(b.angle) < 0.6;
+    $('radarArrow').style.transform = `rotate(${b.angle}rad)`;
+    $('radarArrow').style.borderBottomColor = n ? (n.egg ? n.egg.color : '#6bf3ff') : '#ff5d7a';
+    $('radarText').textContent = n ? `${n.label} ${Math.round(n.dist)} m` : 'MEGA GLOOM';
+    $('radar').style.top = bossOn ? 'calc(max(8px, env(safe-area-inset-top)) + 80px)' : '';
   },
   table(newRow = -1) { // newRow: which row to highlight
     const l = Scores.list();
@@ -917,7 +1333,7 @@ if (/\/games\/[^/]+\/?(index\.html)?$/.test(location.pathname)) {
   $('allGames').hidden = false; onTap('allGames', () => { location.href = '../../'; });
   if ('serviceWorker' in navigator && window.isSecureContext && location.protocol.startsWith('http')) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
-window.__game = { Game, Input, Scores, UI, Full, CFG, store, bearing }; // for test_game.py
+window.__game = { Game, Input, Scores, UI, Full, CFG, KINDS, Dun, store, bearing, EGGS_TOTAL }; // for test_game.py
 
 // ---------- TEST HOOK (spec v1) ----------
 // Lets the test harness and its bots play the game. See test-harness/GAME_TEST_HOOK_SPEC.md.
@@ -944,7 +1360,7 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, store, bearing }; // for t
       spec: 1, title: TITLE, stepsPerSecond: CFG.STEPS_PER_SECOND, levelCount: 1, scoreName: SCORE_NAME,
       maxSteps: MAX_STEPS, actions: ACTIONS.map(a => ({ ...a })),
       keys: { forward: ['ArrowUp'], turnleft: ['ArrowLeft'], turnright: ['ArrowRight'], fire: ['Space'] }, smokeAction: 'forward',
-      stallSeconds: 5,
+      stallSeconds: 6,
     }),
     reset({ seed = 1, level = 0, realtime = false } = {}) {
       Input.clear(); UI.pending = null;
@@ -965,46 +1381,63 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, store, bearing }; // for t
       return {
         status: status(), score: Game.score, lives: Game.hearts, livesLost: CFG.HEARTS - Game.hearts,
         level: 0, levelsCompleted: Game.state === 'won' ? 1 : 0, progress: Game.progress(), steps: Hook.steps,
-        player: p ? { x: +p.x.toFixed(3), y: +p.z.toFixed(3), yaw: +p.yaw.toFixed(3), safeSeconds: +p.safe.toFixed(2) } : null,
+        player: p ? { x: +p.x.toFixed(3), y: +p.z.toFixed(3), yaw: +p.yaw.toFixed(3), safeSeconds: +p.safe.toFixed(2), zone: p.zone } : null,
         eggs: Game.eggsFound, buddies: Game.buddies.length, bossHp: Game.boss ? Game.boss.hp : null,
       };
     },
     observe() { // what a bot "sees": a small map turned so you always face up, plus a few facts
       const p = Game.player;
       if (!p) return { text: 'Game not started.', facts: {} };
-      const COLS = 21, ROWS = 13, CELL = 3, cx = 10, cy = 9;
+      const COLS = 21, ROWS = 13, CELL = 3, cx = 10, cy = 9, d = Game.zoneOf();
       const grid = Array.from({ length: ROWS }, () => Array(COLS).fill('.'));
+      const f = dirOf(p.yaw), worldAt = (c, r) => { const right = (c - cx) * CELL, ahead = (cy - r) * CELL; return { x: p.x + f.x * ahead - f.z * right, z: p.z + f.z * ahead + f.x * right }; };
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { // walls and mountains fill whole squares
+        const w = worldAt(c, r);
+        if (d ? Dun.solidAt(d, w.x, w.z) : Game.mountains.some(m => dist(m, w) < m.r * 0.85)) grid[r][c] = d ? '#' : 'M';
+      }
       const mark = (x, z, ch) => {
         const b = bearing(p, x, z), right = Math.sin(b.angle) * b.dist, ahead = Math.cos(b.angle) * b.dist;
         const c = cx + Math.round(right / CELL), r = cy - Math.round(ahead / CELL);
         if (r >= 0 && r < ROWS && c >= 0 && c < COLS) grid[r][c] = ch;
       };
-      for (const r of Game.rocks) mark(r.x, r.z, '#');
+      if (!d) { for (const r of Game.rocks) mark(r.x, r.z, '#'); for (const t of Game.trees) mark(t.x, t.z, 'T'); for (const dd of Game.dungeons) mark(dd.door.x, dd.door.z, 'D'); }
+      else mark(d.exit.x, d.exit.z, 'X');
       for (const b of Game.buddies) mark(b.x, b.z, 'b');
-      for (const e of Game.eggs) if (!e.found) mark(e.x, e.z, 'E');
-      for (const g of Game.glooms) mark(g.x, g.z, 'g');
-      for (const o of Game.orbs) mark(o.x, o.z, 'o');
-      if (Game.boss) mark(Game.boss.x, Game.boss.z, 'B');
+      for (const e of Game.eggs) if (!e.found && e.zone === p.zone) mark(e.x, e.z, 'E');
+      for (const h of Game.pickups) if (h.zone === p.zone) mark(h.x, h.z, 'h');
+      for (const e of Game.enemies) if (e.zone === p.zone) mark(e.x, e.z, { gloom: 'g', zapbug: 'z', spitter: 's', rockback: 'r' }[e.kind]);
+      for (const o of Game.orbs) if (o.zone === p.zone) mark(o.x, o.z, 'o');
+      if (!d) for (const b of Game.bombs) mark(b.x, b.z, '*');
+      if (Game.boss && !d) mark(Game.boss.x, Game.boss.z, 'B');
       grid[cy][cx] = '@';
       const describe = (x, z) => { const b = bearing(p, x, z), deg = Math.round(b.angle * 180 / Math.PI); return `${Math.round(b.dist)} m, ${Math.abs(deg) < 10 ? 'straight ahead' : `${Math.abs(deg)} degrees to your ${deg > 0 ? 'right' : 'left'}`}`; };
-      const n = Game.nearestEgg();
-      let closest = null, cd = 1e9; for (const g of Game.glooms) { const d = Math.hypot(g.x - p.x, g.z - p.z); if (d < cd) { cd = d; closest = g; } }
+      const n = Game.navigate();
+      let closest = null, cd = 1e9; for (const e of Game.enemies) { if (e.zone !== p.zone) continue; const dd = dist(e, p); if (dd < cd) { cd = dd; closest = e; } }
       return {
-        text: `Map seen from above, you (@) face UP, each cell is ${CELL} m.\nLegend: E egg (walk into it), b your buddy, g Gloomling (blast it), B MEGA GLOOM boss, o boss orb (dodge), # rock, . ground\n` + grid.map(r => r.join('')).join('\n'),
+        text: `${d ? 'Underground in ' + d.name : 'On the surface'}. Map seen from above, you (@) face UP, each cell is ${CELL} m.\n` +
+          'Legend: E egg (walk into it), D stairs down to a dungeon, X exit portal, b buddy, h heart fruit, g Gloomling, z Zapbug (dashes), s Goo Spitter, r Rockback (tough), B MEGA GLOOM, o orb or goo (dodge), * goo bomb landing spot, # rock or wall, M mountain, T tree\n' +
+          grid.map(r => r.join('')).join('\n'),
         facts: {
-          hearts: Game.hearts, eggs: `${Game.eggsFound} of ${CFG.EGGS}`, buddies: Game.buddies.length,
-          nearestEgg: n ? describe(n.egg.x, n.egg.z) : 'all found',
-          nearestGloomling: closest ? describe(closest.x, closest.z) : 'none',
-          boss: Game.boss ? (Game.boss.landed ? `${describe(Game.boss.x, Game.boss.z)}, health ${Game.boss.hp} of ${CFG.BOSS_HP}` : 'landing') : 'not here yet',
+          hearts: Game.hearts, eggs: `${Game.eggsFound} of ${EGGS_TOTAL}`, buddies: Game.buddies.length,
+          goTo: n ? `${n.label}: walk toward ${describe(n.next.x, n.next.z)}` : 'fight MEGA GLOOM',
+          nearestMonster: closest ? `${KINDS[closest.kind].name}, ${describe(closest.x, closest.z)}` : 'none',
+          boss: Game.boss ? (Game.boss.landed ? `${describe(Game.boss.x, Game.boss.z)}, health ${Game.boss.hp} of ${CFG.BOSS_HP}, ${Game.boss.mode === 'fly' ? 'flying' : Game.boss.mode === 'tele' ? 'teleporting' : 'on the ground'}` : 'landing') : 'not here yet',
         },
       };
     },
     selfCheck() { // design problems the game can spot by itself
       const out = [];
-      if (Game.eggs.length < CFG.EGGS) out.push({ level: 0, severity: 'error', message: `Only ${Game.eggs.length} of ${CFG.EGGS} eggs could be placed.` });
+      if (Game.eggs.length < EGGS_TOTAL) out.push({ level: 0, severity: 'error', message: `Only ${Game.eggs.length} of ${EGGS_TOTAL} eggs could be placed.` });
+      if (Game.dungeons.length < DUNGEONS.length) out.push({ level: 0, severity: 'error', message: `Only ${Game.dungeons.length} of ${DUNGEONS.length} dungeon stairways could be placed.` });
+      for (const d of Game.dungeons) {
+        const [sc, sr] = Dun.cellOf(d, d.start.x, d.start.z);
+        if (d.toEgg[sr * d.W + sc] < 0) out.push({ level: 0, severity: 'error', message: `In ${d.name} the egg can't be reached from the stairs.` });
+        if (d.toExit[sr * d.W + sc] < 0) out.push({ level: 0, severity: 'error', message: `In ${d.name} the exit portal can't be reached.` });
+      }
       for (const e of Game.eggs) {
-        if (Math.hypot(e.x, e.z) > CFG.WORLD_R - CFG.EGG_REACH) out.push({ level: 0, severity: 'error', message: `An egg is outside the walkable area.` });
-        for (const r of Game.rocks) if (Math.hypot(r.x - e.x, r.z - e.z) < r.r + 0.5 + CFG.EGG_REACH * 0.5) out.push({ level: 0, severity: 'warn', message: `An egg at (${e.x.toFixed(0)}, ${e.z.toFixed(0)}) is tucked against a rock.` });
+        if (e.zone >= 0) continue;
+        if (Math.hypot(e.x, e.z) > CFG.WORLD_R - CFG.EGG_REACH) out.push({ level: 0, severity: 'error', message: 'An egg is outside the walkable area.' });
+        for (const s of Game.solids()) if (dist(s, e) < s.r + 0.5 + CFG.EGG_REACH * 0.5) out.push({ level: 0, severity: 'warn', message: `An egg at (${e.x.toFixed(0)}, ${e.z.toFixed(0)}) is tucked against something solid.` });
       }
       return out;
     },
