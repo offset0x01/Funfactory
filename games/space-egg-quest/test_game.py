@@ -35,100 +35,169 @@ with GameSession(str(GAME)) as g:
     check(pg.is_visible("#scrTitle") and pg.is_visible("#btnScores"), "title screen shows with a High scores button")
     pg.keyboard.press("Enter")
     check(js("__game.Game.state") == "play" and pg.is_visible("#hud") and pg.is_visible("#cross"), "Enter starts the game and shows the HUD and crosshair")
-    check(js("__game.Game.eggs.length") == 10 and js("__game.Game.dungeons.length") == 2, "the planet has 10 eggs and 2 dungeons")
+    check(js("__game.Game.eggs.length") == 0 and js("__game.Game.dungeons.length") == 3, "no eggs lying around at the start, and 3 weapon caves")
 
-    # walking: forward moves you the way you face; turning changes which way that is
-    r = js(f"""() => {{ const {{ Game, Input }} = __game; const p = Game.player; p.x = 0; p.z = 0; p.yaw = 0;
-              Input.keys.add('ArrowUp'); for (let i = 0; i < 30; i++) Game.update({STEP}); Input.keys.delete('ArrowUp');
+    # walking (W), turning, looking up and down (arrows), jumping
+    r = js(f"""() => {{ const {{ Game, Input }} = __game; const p = Game.player; p.x = 0; p.z = 0; p.yaw = 0; p.pitch = 0;
+              Input.keys.add('KeyW'); for (let i = 0; i < 30; i++) Game.update({STEP}); Input.keys.delete('KeyW');
               const z = p.z; Input.keys.add('ArrowRight'); for (let i = 0; i < 30; i++) Game.update({STEP}); Input.keys.delete('ArrowRight');
-              return {{ x: p.x, z, yaw: p.yaw }}; }}""")
-    check(r["z"] > 3 and abs(r["x"]) < 0.01 and r["yaw"] < -1, f"Up walks forward and Right turns right ({r})")
+              Input.keys.add('ArrowUp'); for (let i = 0; i < 20; i++) Game.update({STEP}); Input.keys.delete('ArrowUp'); const up = p.pitch;
+              Input.keys.add('ArrowDown'); for (let i = 0; i < 200; i++) Game.update({STEP}); Input.keys.delete('ArrowDown'); const down = p.pitch;
+              p.pitch = 0; Input.keys.add('KeyJ'); Game.update({STEP}); Input.keys.delete('KeyJ'); let top = 0, air = 0;
+              for (let i = 0; i < 90; i++) {{ Game.update({STEP}); top = Math.max(top, p.h); if (p.h > 0) air++; }}
+              return {{ x: p.x, z, yaw: p.yaw, up, down, top, air, landed: p.h }}; }}""")
+    check(r["z"] > 3 and abs(r["x"]) < 0.01 and r["yaw"] < -1, f"W walks forward and Right turns right ({r})")
+    check(r["up"] > 0.4 and abs(r["down"] + 1.25) < 0.01, f"Up and Down arrows look up and down, as far as {r['down']:.2f} radians")
+    check(1.0 < r["top"] < 1.5 and 30 < r["air"] < 60 and r["landed"] == 0, f"J jumps about 1.2 m and lands ({r['top']:.2f} m, {r['air']} steps in the air)")
 
-    # mountains, trees and rocks block you
+    # mountains, trees and rocks block you; a jump clears a small rock
     r = js(f"""() => {{ const {{ Game }} = __game; const out = [];
               for (const o of [Game.mountains[0], Game.trees[0], Game.rocks[0]]) {{ const r = o.r * (o === Game.mountains[0] ? 0.85 : 1);
-                Game.player.x = o.x; Game.player.z = o.z + 0.1; Game.update({STEP}); out.push(Math.hypot(Game.player.x - o.x, Game.player.z - o.z) >= r + 0.49); }}
-              return out; }}""")
-    check(r == [True, True, True], f"mountains, tree trunks and rocks push you out ({r})")
+                Game.player.x = o.x; Game.player.z = o.z + 0.1; Game.player.h = 0; Game.update({STEP}); out.push(Math.hypot(Game.player.x - o.x, Game.player.z - o.z) >= r + 0.49); }}
+              const small = Game.rocks.reduce((a, b) => b.h < a.h ? b : a); const p = Game.player;
+              p.x = small.x; p.z = small.z - small.r - 0.6; p.yaw = 0; p.h = 1.2; p.vy = 0; Game.update({STEP}); p.x = small.x; p.z = small.z; Game.update({STEP});
+              out.push(Math.hypot(p.x - small.x, p.z - small.z) < 0.5); return out; }}""")
+    check(r == [True, True, True, True], f"mountains, tree trunks and rocks push you out, but you can jump over a small rock ({r})")
 
-    # eggs hatch into buddies
-    r = js(f"""() => {{ const {{ Game }} = __game; const e = Game.eggs[0]; Game.player.x = e.x; Game.player.z = e.z; Game.update({STEP});
-              return {{ found: Game.eggsFound, buddies: Game.buddies.length, score: Game.score }}; }}""")
-    check(r == {"found": 1, "buddies": 1, "score": 100}, f"walking into an egg hatches a buddy and scores 100 ({r})")
-    r = js(f"""() => {{ const {{ Game }} = __game; const p = Game.player; p.x += 10; for (let i = 0; i < 180; i++) Game.update({STEP});
-              const b = Game.buddies[0]; return Math.hypot(b.x - p.x, b.z - p.z); }}""")
-    check(r < 3.5, f"the buddy follows you ({r:.1f} m away)")
+    # no aim assist: a shot aimed a little to the side of a monster misses; aimed right at it, hits
+    r = js(f"""() => {{ const {{ Game, Input, KINDS }} = __game; const p = Game.player; Game.buddies = []; Game.spawnTimer = 999;
+              const shoot = (yawOff) => {{ Game.enemies = []; Game.shots = []; p.x = 0; p.z = 0; p.h = 0; Game.addEnemy('gloom', 0, 9, -1); const e = Game.enemies[0]; e.phase = 0;
+                const ey = Game.enemyY(e), eye = Game.eye(); p.yaw = yawOff; p.pitch = Math.atan2(ey - eye.y + 0.15, 9);
+                Game.fireTimer = 0; Input.keys.add('Space'); Game.update({STEP}); Input.keys.delete('Space'); for (let i = 0; i < 40; i++) Game.update({STEP}); return e.hp; }};
+              return {{ aside: shoot(0.14), straight: shoot(0) }}; }}""")
+    check(r == {"aside": 2, "straight": 1}, f"no aim help: a shot 8 degrees to the side misses, one right on target hits ({r})")
 
-    # no beams in the sky: the egg sensor only points at eggs within its range
-    r = js("""() => { const { Game, CFG, UI } = __game; const p = Game.player; const e = Game.eggs.find(e => !e.found && e.zone < 0);
-              p.x = e.x + CFG.SENSOR_RANGE + 30; p.z = e.z; Game.resetNav(); UI.syncHud(); const far = document.getElementById('radarArrow').style.visibility;
-              p.x = e.x + 10; Game.resetNav(); UI.syncHud(); return { far, near: document.getElementById('radarArrow').style.visibility }; }""")
-    check(r == {"far": "hidden", "near": ""}, f"the egg sensor only shows the way when an egg is close ({r})")
+    # a shot needs to be aimed up to hit something above you
+    r = js(f"""() => {{ const {{ Game }} = __game; const o = Game.eye(); Game.enemies = []; Game.addEnemy('gloom', 0, 10, -1); const e = Game.enemies[0];
+              const level = Game.ray(o, {{ x: 0, y: 0, z: 1 }}, 50).hit === e; e.x = 0; e.z = 6; const ey = Game.enemyY(e) + 5; e.phase = 0;
+              const saved = Game.enemyY; Game.enemyY = () => ey; const flat = Game.ray(o, {{ x: 0, y: 0, z: 1 }}, 50).hit === e;
+              const a = Math.atan2(ey - o.y, 6), up = Game.ray(o, {{ x: 0, y: Math.sin(a), z: Math.cos(a) }}, 50).hit === e; Game.enemyY = saved;
+              return {{ level, flat, up }}; }}""")
+    check(r == {"level": True, "flat": False, "up": True}, f"aiming in 3D: something high up is only hit by aiming up at it ({r})")
 
-    # the blaster beats a Gloomling in front of you (two hits)
-    r = js(f"""() => {{ const {{ Game, Input }} = __game; const p = Game.player; Game.buddies = []; Game.enemies = []; Game.spawnTimer = 99;
-              p.x = 0; p.z = 0; p.yaw = 0; Game.addEnemy('gloom', 0, 8, -1);
-              const s0 = Game.score; Input.keys.add('Space'); for (let i = 0; i < 40; i++) Game.update({STEP}); Input.keys.delete('Space');
-              return {{ left: Game.enemies.length, gained: Game.score - s0 }}; }}""")
-    check(r["left"] == 0 and r["gained"] == 25, f"two blaster hits pop a Gloomling for 25 ({r})")
+    # eggs only come from beaten monsters, about 1 in 10, and hatch into buddies
+    r = js(f"""() => {{ const {{ Game, CFG }} = __game; let drops = 0; const p = Game.player; p.x = 0; p.z = 0;
+              for (let i = 0; i < 400; i++) {{ Game.enemies = []; Game.addEnemy('zapbug', 20, 20, -1); const before = Game.eggs.length; Game.damage(Game.enemies[0], 5); if (Game.eggs.length > before) drops++;
+                if (Game.eggs.length >= CFG.EGGS - 1) Game.eggs = []; }}
+              Game.eggs = []; Game.enemies = []; Game.addEnemy('gloom', 5, 5, -1); let n = 0; while (!Game.eggs.length && n++ < 500) {{ Game.addEnemy('gloom', 5, 5, -1); Game.damage(Game.enemies[Game.enemies.length - 1], 9); }}
+              const e = Game.eggs[0], s0 = Game.score; p.x = e.x; p.z = e.z; Game.update({STEP});
+              return {{ drops, found: Game.eggsFound, buddies: Game.buddies.length, eggScore: Game.score - s0 >= 100 }}; }}""")
+    check(25 <= r["drops"] <= 60 and r["found"] == 1 and r["buddies"] == 1 and r["eggScore"], f"about 10% of beaten monsters drop an egg ({r['drops']} of 400), and an egg hatches a buddy ({r})")
 
-    # buddies zap monsters on their own
-    r = js(f"""() => {{ const {{ Game }} = __game; const p = Game.player; Game.buddies = [{{ x: p.x, z: p.z - 2.4, color: '#7dffd0', name: 'Pip', cd: 0, born: 0 }}];
-              Game.enemies = []; Game.addEnemy('gloom', p.x - 9, p.z - 2.4, -1); Game.spawnTimer = 99; p.safe = 99;
-              for (let i = 0; i < 240; i++) Game.update({STEP}); Game.buddies = []; return Game.enemies.length; }}""")
-    check(r == 0, "a buddy zaps a nearby Gloomling by itself")
+    # a dropped egg never lands inside a rock, tree or mountain
+    r = js("""() => { const { Game } = __game; const bad = [];
+              for (const s of Game.solids()) { Game.enemies = []; Game.addEnemy('gloom', s.x, s.z, -1); const e = { x: s.x, z: s.z }; Game.unstick(e, 1.2, -1); if (Math.hypot(e.x - s.x, e.z - s.z) < s.r) bad.push(s); }
+              return bad.length; }""")
+    check(r == 0, "an egg dropped inside something solid is moved out where you can reach it")
+
+    # buddies do a quarter of the damage of your blaster
+    r = js(f"""() => {{ const {{ Game, CFG }} = __game; const p = Game.player; p.x = 0; p.z = 0; Game.buddies = [{{ x: 0, z: -2.4, color: '#7dffd0', name: 'Pip', cd: 0, born: 0 }}];
+              Game.enemies = []; Game.shots = []; Game.addEnemy('rockback', -8, -2.4, -1); const e = Game.enemies[0]; e.x = -8; Game.spawnTimer = 999; p.safe = 99;
+              let shots = 0; for (let i = 0; i < 200; i++) {{ const before = Game.shots.filter(s => s.buddy).length; Game.update({STEP}); }}
+              const dmg = 6 - e.hp; Game.buddies = []; return {{ each: CFG.BUDDY_DAMAGE, dmg }}; }}""")
+    check(r["each"] == 0.25 and 0 < r["dmg"] <= 1.5, f"buddy shots do 0.25 damage each ({r})")
 
     # the four kinds of monsters each do their own thing
-    r = js(f"""() => {{ const {{ Game }} = __game; const p = Game.player; p.x = 0; p.z = 0; p.safe = 99; Game.spawnTimer = 99;
+    r = js(f"""() => {{ const {{ Game }} = __game; const p = Game.player; p.x = 0; p.z = 0; p.safe = 99; Game.spawnTimer = 999; Game.buddies = [];
               Game.enemies = []; Game.orbs = []; Game.addEnemy('spitter', 0, 14, -1); Game.enemies[0].t = 0; Game.update({STEP});
               const spits = Game.orbs.filter(o => o.goo).length;
               Game.enemies = []; Game.addEnemy('zapbug', 0, 15, -1); Game.enemies[0].t = 0; Game.update({STEP}); const z0 = Game.enemies[0].z;
               for (let i = 0; i < 12; i++) Game.update({STEP}); const dashed = z0 - Game.enemies[0].z;
-              Game.enemies = []; Game.addEnemy('rockback', 0, 30, -1); const rb = Game.enemies[0], hp = rb.hp;
-              for (let i = 0; i < hp; i++) Game.shots.push({{ x: rb.x, z: rb.z, y: 1, vy: 0, vx: 0, vz: 0, life: 1, buddy: false, zone: -1 }});
-              Game.update({STEP}); const fruit = Game.pickups.length; Game.hearts = 3; p.x = Game.pickups[0].x; p.z = Game.pickups[0].z; Game.update({STEP});
-              return {{ spits, dashed: dashed > 2.5, rockbackHp: hp, fruit, hearts: Game.hearts }}; }}""")
-    check(r == {"spits": 1, "dashed": True, "rockbackHp": 6, "fruit": 1, "hearts": 4},
+              Game.enemies = []; Game.pickups = []; Game.addEnemy('rockback', 0, 30, -1); const rb = Game.enemies[0], hp = rb.hp;
+              for (let i = 0; i < hp - 1; i++) Game.damage(rb, 1); const alive = rb.hp > 0; Game.damage(rb, 1);
+              const fruit = Game.pickups.length; Game.hearts = 3; p.x = Game.pickups[0].x; p.z = Game.pickups[0].z; Game.update({STEP});
+              return {{ spits, dashed: dashed > 2.5, rockbackHp: hp, alive, fruit, hearts: Game.hearts }}; }}""")
+    check(r == {"spits": 1, "dashed": True, "rockbackHp": 6, "alive": True, "fruit": 1, "hearts": 4},
           f"Goo Spitters spit, Zapbugs dash, Rockbacks take 6 hits and drop a heart fruit worth +1 heart ({r})")
 
     # getting touched costs a heart, then you're safe for a moment
-    r = js(f"""() => {{ const {{ Game }} = __game; const p = Game.player; Game.hearts = 5; p.safe = 0; Game.enemies = []; Game.addEnemy('gloom', p.x + 0.5, p.z, -1);
+    r = js(f"""() => {{ const {{ Game }} = __game; const p = Game.player; Game.hearts = 5; p.safe = 0; p.h = 0; Game.enemies = []; Game.addEnemy('gloom', p.x + 0.5, p.z, -1);
               Game.update({STEP}); const h = Game.hearts; Game.addEnemy('gloom', p.x + 0.5, p.z, -1); Game.update({STEP});
               return {{ h, after: Game.hearts }}; }}""")
     check(r["h"] == 4 and r["after"] == 4, f"a Gloomling bump costs one heart, then you're safe ({r})")
 
-    # dungeons: walk onto the stairs, walls block you, the egg is inside, the portal takes you back up
-    r = js(f"""() => {{ const {{ Game, Dun }} = __game; const p = Game.player, d = Game.dungeons[0]; Game.enemies = [];
-              p.x = d.door.x; p.z = d.door.z; Game.update({STEP}); const inside = p.zone === 0, guards = Game.enemies.filter(e => e.zone === 0).length;
-              p.safe = 99; const wall = [...Array(d.W).keys()].map(c => c).find(c => Dun.solidCell(d, c, 0)); const w = Dun.center(d, 1, 0);
-              p.x = w.x; p.z = w.z + 0.3; Game.update({STEP}); const blocked = !Dun.solidAt(d, p.x, p.z);
-              const before = Game.progress(); p.x = d.egg.x; p.z = d.egg.z; Game.update({STEP}); const gotEgg = Game.eggsFound;
-              const n = Game.navigate(); p.x = d.exit.x; p.z = d.exit.z; Game.update({STEP});
-              const back = p.zone === -1; p.x = d.door.x; p.z = d.door.z; Game.update({STEP});
-              return {{ inside, guards: guards > 0, blocked, gotEgg, nextIs: n.label, back, sealed: p.zone === -1 }}; }}""")
-    check(r == {"inside": True, "guards": True, "blocked": True, "gotEgg": 2, "nextIs": "exit portal", "back": True, "sealed": True},
-          f"stairs lead into a dungeon with guards and walls; its egg sends you to the exit portal; the stairs seal after ({r})")
+    # caves: new ones every game, bigger, with loops; walls block you; the weapon is at the far end; the portal takes you back up
+    r = js("""() => { const { Game } = __game;
+              const maps = Game.dungeons.map(d => d.g.join('\\n')); const W = Game.dungeons[0].W, H = Game.dungeons[0].H;
+              const open = Game.dungeons[0].g.join('').split('').filter(c => c !== '#').length;
+              return { different: new Set(maps).size === 3, W, H, open }; }""")
+    check(r["different"] and r["W"] >= 25 and r["H"] >= 19 and r["open"] > 250, f"three different, bigger caves ({r})")
+    r = js("""() => { const h = window.GAME_TEST_HOOK; h.reset({ seed: 5 }); const a = __game.Game.dungeons.map(d => d.g.join('')).join('|');
+              h.reset({ seed: 6 }); const b = __game.Game.dungeons.map(d => d.g.join('')).join('|'); h.reset({ seed: 5 }); const c = __game.Game.dungeons.map(d => d.g.join('')).join('|');
+              return { newEachGame: a !== b, sameSeedSame: a === c }; }""")
+    check(r == {"newEachGame": True, "sameSeedSame": True}, f"the caves change every game (and the same seed gives the same caves) ({r})")
+    js("() => { __game.Game.play(); }")  # back to a normal player game (bot mode ignores the keyboard)
+    r = js("""() => { const { Game } = __game; const h = window.GAME_TEST_HOOK; let loops = 0;
+              for (const d of Game.dungeons) { let edges = 0, cells = 0;
+                for (let r = 0; r < d.H; r++) for (let c = 0; c < d.W; c++) { if (d.g[r][c] === '#') continue; cells++; if (c + 1 < d.W && d.g[r][c + 1] !== '#') edges++; if (r + 1 < d.H && d.g[r + 1][c] !== '#') edges++; }
+                if (edges > cells) loops++; }
+              return { loops, problems: h.selfCheck().filter(x => x.severity === 'error').length }; }""")
+    check(r == {"loops": 3, "problems": 0}, f"every cave has loops, and the self-check finds every weapon and portal reachable ({r})")
+    r = js(f"""() => {{ const {{ Game, Dun, CFG }} = __game; const p = Game.player, d = Game.dungeons[1]; Game.enemies = []; Game.hearts = 5;
+              p.x = d.door.x; p.z = d.door.z; Game.update({STEP}); const inside = p.zone === 1, guards = Game.enemies.filter(e => e.zone === 1).length;
+              p.safe = 99; const w = Dun.center(d, 1, 0); p.x = w.x; p.z = w.z + 0.3; Game.update({STEP}); const blocked = !Dun.solidAt(d, p.x, p.z);
+              const [sc, sr] = Dun.cellOf(d, d.start.x, d.start.z), far = d.toWeapon[sr * d.W + sc];
+              p.x = d.exit.x; p.z = d.exit.z; Game.update({STEP}); const portalShutTillWeapon = p.zone === 1;
+              p.x = d.weapon.x; p.z = d.weapon.z; Game.update({STEP}); const got = Game.weapon, owned = Game.owned.slice();
+              p.x = d.exit.x; p.z = d.exit.z; Game.update({STEP}); const back = p.zone === -1;
+              p.x = d.door.x; p.z = d.door.z; Game.update({STEP});
+              return {{ inside, guards, blocked, far, portalShutTillWeapon, got, owned, back, sealed: p.zone === -1 }}; }}""")
+    check(r["inside"] and r["guards"] >= 8 and r["blocked"] and r["far"] >= 20 and r["portalShutTillWeapon"] and r["got"] == "grenade"
+          and r["owned"] == ["blaster", "grenade"] and r["back"] and r["sealed"],
+          f"cave stairs lead to a maze with guards; the weapon is far in; the portal opens once you have it; the stairs seal after ({r})")
 
-    # the last egg brings MEGA GLOOM, which lands and can be beaten
-    r = js(f"""() => {{ const {{ Game }} = __game; const p = Game.player; Game.enemies = []; p.safe = 999;
-              for (const e of Game.eggs) if (!e.found) {{
-                if (e.zone >= 0) {{ const d = Game.dungeons[e.zone]; p.x = d.door.x; p.z = d.door.z; Game.update({STEP}); }}
-                p.x = e.x; p.z = e.z; Game.update({STEP});
-                if (p.zone >= 0) {{ const d = Game.zoneOf(); p.x = d.exit.x; p.z = d.exit.z; Game.update({STEP}); }} }}
+    # the weapons: switch with keys; the Big Laser burns while held, grenades blow up a crowd, the Sniper hits hard far away
+    r = js(f"""() => {{ const {{ Game, Input }} = __game; const p = Game.player; Game.owned = ['blaster', 'laser', 'grenade', 'sniper']; Game.buddies = []; Game.spawnTimer = 999; p.safe = 999; p.h = 0;
+              const face = (e) => {{ const o = Game.eye(), ey = Game.enemyY(e), d = Math.hypot(e.x - p.x, e.z - p.z); p.yaw = Math.atan2(e.x - p.x, e.z - p.z); p.pitch = Math.atan2(ey - o.y, d); }};
+              const out = {{}};
+              Input.weaponPick = 2; Game.update({STEP}); out.key2 = Game.weapon;
+              Input.weaponPick = 'next'; Game.update({STEP}); out.next = Game.weapon;
+              Input.weaponPick = 2; Game.update({STEP}); let rb = null, rx = 0, rz = 0;
+              for (let k = 0; k < 72 && !rb; k++) {{ const a = k / 72 * Math.PI * 2; rx = p.x + Math.sin(a) * 15; rz = p.z + Math.cos(a) * 15; Game.enemies = []; Game.addEnemy('rockback', rx, rz, -1);
+                const e = Game.enemies[0]; face(e); if (Game.ray(Game.eye(), Game.aim(), 45).hit === e) rb = e; }} // a direction with no hill in the way
+              Input.keys.add('Space'); let t = 0; while (rb.hp > 0 && t < 300) {{ rb.x = rx; rb.z = rz; face(rb); Game.update({STEP}); t++; }} Input.keys.delete('Space');
+              out.laserSeconds = +(t / 60).toFixed(2);
+              Input.weaponPick = 4; Game.update({STEP}); Game.fireTimer = 0; Game.enemies = [];
+              let sp = null; for (let k = 0; k < 72 && !sp; k++) {{ const a = k / 72 * Math.PI * 2; Game.enemies = []; Game.addEnemy('spitter', p.x + Math.sin(a) * 80, p.z + Math.cos(a) * 80, -1);
+                const e = Game.enemies[0]; face(e); if (Game.ray(Game.eye(), Game.aim(), 140).hit === e) sp = e; }} // a direction with no hill in the way
+              Input.keys.add('Space'); Game.update({STEP}); Input.keys.delete('Space'); out.sniperFar = !!sp && sp.hp <= 0;
+              Input.weaponPick = 3; Game.update({STEP}); Game.fireTimer = 0; let ang = 0;
+              for (let k = 0; k < 72; k++) {{ ang = k / 72 * Math.PI * 2; Game.enemies = []; Game.addEnemy('gloom', p.x + Math.sin(ang) * 9, p.z + Math.cos(ang) * 9, -1);
+                const e = Game.enemies[0]; e.phase = 0; face(e); if (Game.ray(Game.eye(), Game.aim(), 20).hit === e) break; }} // a flat-ish direction
+              const aimPitch = p.pitch; Game.enemies = [];
+              for (let k = -1; k <= 1; k++) Game.addEnemy('gloom', p.x + Math.sin(ang) * 9 + Math.cos(ang) * k * 1.2, p.z + Math.cos(ang) * 9 - Math.sin(ang) * k * 1.2, -1);
+              for (const e of Game.enemies) e.phase = 0; p.yaw = ang; p.pitch = aimPitch - 0.2; // grenades arc, so aim a little low
+              Input.keys.add('Space'); Game.update({STEP}); Input.keys.delete('Space'); for (let i = 0; i < 120; i++) {{ for (const e of Game.enemies) {{ e.x = e.x; }} Game.update({STEP}); }}
+              out.grenadeLeft = Game.enemies.length; return out; }}""")
+    check(r["key2"] == "laser" and r["next"] == "grenade", f"keys 1 to 4 and X switch weapons ({r})")
+    check(0.5 < r["laserSeconds"] < 1.5, f"the Big Laser melts a Rockback in about a second while you hold fire ({r['laserSeconds']} s)")
+    check(r["sniperFar"], "the Sniper takes out a Goo Spitter 80 m away in one shot")
+    check(r["grenadeLeft"] == 0, f"one grenade takes out a group of three Gloomlings ({r['grenadeLeft']} left)")
+
+    # 20 eggs bring MEGA GLOOM down; a shockwave can be jumped over
+    r = js(f"""() => {{ const {{ Game, CFG }} = __game; const p = Game.player; Game.enemies = []; Game.eggs = []; p.safe = 999; p.h = 0; Game.eggsFound = CFG.EGGS - 1;
+              Game.eggs.push({{ x: p.x + 1, z: p.z, zone: -1, color: '#ffffff', found: false, wobble: 0 }}); Game.update({STEP});
               const came = !!Game.boss; for (let i = 0; i < 180; i++) Game.update({STEP});
               return {{ came, landed: Game.boss && Game.boss.landed, eggs: Game.eggsFound, hp: Game.boss && Game.boss.hp, progress: Game.progress() }}; }}""")
-    check(r["came"] and r["landed"] and r["eggs"] == 10 and r["hp"] > 200 and 0.62 <= r["progress"] < 0.75, f"all 10 eggs bring MEGA GLOOM down with lots of health ({r})")
+    check(r["came"] and r["landed"] and r["eggs"] == 20 and r["hp"] > 200 and 0.62 <= r["progress"] < 0.75, f"20 eggs bring MEGA GLOOM down with lots of health ({r})")
     check(pg.is_visible("#bossBar"), "the boss health bar shows")
+    r = js(f"""() => {{ const {{ Game }} = __game; const p = Game.player, B = Game.boss; Game.waves = []; Game.orbs = []; B.cd = 999; B.x = p.x + 30; B.z = p.z;
+              const run = (jump) => {{ p.safe = 0; Game.hearts = 5; p.h = 0; p.vy = 0; Game.waves = [{{ x: p.x + 5, z: p.z, r: 0, max: 18, hit: false }}]; let jumped = false;
+                for (let i = 0; i < 60; i++) {{ if (jump && !jumped && Game.waves[0] && Game.waves[0].r > 2.4) {{ p.vy = 7; p.h = 0.001; jumped = true; }} Game.update({STEP}); }} return Game.hearts; }};
+              return {{ stood: run(false), jumped: run(true) }}; }}""")
+    check(r == {"stood": 4, "jumped": 5}, f"MEGA GLOOM's shockwave hurts you unless you jump over it ({r})")
     # MEGA GLOOM's tricks: teleporting, the shockwave slam, flying with goo bombs, and getting angrier
-    r = js(f"""() => {{ const {{ Game, CFG }} = __game; const B = Game.boss, p = Game.player; p.safe = 999; Game.buddies = [];
+    r = js(f"""() => {{ const {{ Game, CFG }} = __game; const B = Game.boss, p = Game.player; p.safe = 999; Game.buddies = []; B.cd = 0;
               B.mode = 'tele'; B.modeT = 0.01; const x0 = B.x; Game.update({STEP}); const teleported = B.x !== x0 && B.mode === 'walk';
               B.mode = 'slam'; B.modeT = 0.01; Game.update({STEP}); const wave = Game.waves.length > 0;
               B.mode = 'fly'; B.modeT = 3; B.bombT = 0; for (let i = 0; i < 30; i++) Game.update({STEP}); const flying = B.y > 4, bombs = Game.bombs.length > 0;
               B.hp = Math.floor(CFG.BOSS_HP * 0.3); B.mode = 'walk'; Game.update({STEP});
               return {{ teleported, wave, flying, bombs, phase: B.phase }}; }}""")
     check(r == {"teleported": True, "wave": True, "flying": True, "bombs": True, "phase": 3}, f"MEGA GLOOM teleports, slams a shockwave, flies and drops goo bombs, and reaches phase 3 ({r})")
-    r = js(f"""() => {{ const {{ Game }} = __game; const B = Game.boss; B.hp = 1; B.mode = 'walk'; B.y = 3.7; Game.player.safe = 99;
-              Game.shots.push({{ x: B.x, z: B.z, y: 2, vy: 0, vx: 0, vz: 0, life: 1, buddy: false, zone: -1 }}); Game.update({STEP});
+    r = js(f"""() => {{ const {{ Game, Input, ground }} = __game; const B = Game.boss, p = Game.player; B.hp = 1; B.mode = 'walk'; B.y = 3.7; B.cd = 99; p.safe = 99;
+              Game.weapon = 'blaster'; Game.waves = []; Game.orbs = []; Game.bombs = []; Game.enemies = []; B.x = p.x; B.z = p.z + 12;
+              const aim = () => {{ const o = Game.eye(); p.yaw = Math.atan2(B.x - p.x, B.z - p.z); p.pitch = Math.atan2(ground(B.x, B.z) + B.y - o.y, Math.hypot(B.x - p.x, B.z - p.z)); }};
+              Game.fireTimer = 0; for (let i = 0; i < 60 && Game.state === 'play'; i++) {{ aim(); B.x = p.x; B.z = p.z + 12; Input.keys.add('Space'); Game.update({STEP}); }} Input.keys.delete('Space');
               return {{ state: Game.state, progress: Game.progress() }}; }}""")
     check(r == {"state": "won", "progress": 1}, f"the last hit on MEGA GLOOM wins ({r})")
     check(pg.is_visible("#scrEnd") and "win" in pg.inner_text("#endTitle").lower(), "the win screen shows")
@@ -165,9 +234,29 @@ with GameSession(str(GAME)) as g:
     shots = pg.evaluate("__game.Game.shots.length")
     pg.dispatch_event("#tFire", "pointerup")
     check(shots >= 1, f"the FIRE button shoots ({shots} shots)")
+    check(not pg.is_visible("#tSwap"), "SWAP only shows once you have a second weapon")
+    pg.dispatch_event("#tJump", "pointerdown")
+    pg.wait_for_timeout(150)
+    h = pg.evaluate("__game.Game.player.h")
+    pg.dispatch_event("#tJump", "pointerup")
+    check(h > 0.2, f"the JUMP button jumps ({h:.2f} m up)")
+    pg.evaluate("() => { __game.Game.owned = ['blaster', 'laser']; }")
+    pg.wait_for_timeout(100)
+    pg.dispatch_event("#tSwap", "pointerdown")
+    pg.wait_for_timeout(100)
+    check(pg.evaluate("__game.Game.weapon") == "laser", "SWAP switches to the next weapon")
     pg.tap("#btnPause")
     check(pg.evaluate("__game.Game.state") == "paused", "the pause button pauses on a touch screen")
     check(not g.errors, f"no console errors on the touch screen ({g.errors[:2]})")
+
+# Proof the game can be won: autopilot.js plays whole games through the test hook, using only the bot's
+# own actions (walk, turn, look up and down, jump, fire) and only the starting Blaster (the caves are
+# optional). No aim help. It takes about 7 to 10 minutes of game time per win, simulated in seconds.
+with GameSession(str(GAME)) as g:
+    script = (HERE / "autopilot.js").read_text()
+    for seed in (1, 3):
+        r = g.page.evaluate(script, seed)
+        check(r["status"] == "won", f"autopilot wins seed {seed} with the Blaster alone ({r['status']} after {r['seconds']} s: {r['log'][-2]})")
 
 print("\nRESULT:", "ALL PASS" if not fails else f"{len(fails)} FAILED")
 sys.exit(1 if fails else 0)
