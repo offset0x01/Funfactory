@@ -1,8 +1,9 @@
 """Headless browser test for Lost Luggage of the Cosmos.
 Usage: python3 test_game.py [path/to/index.html] [screenshot_dir]
 Checks: loads with no console errors, movement, scoring, Fizzy Jet, gravity zone,
-getting hurt, game over + restart, level completion, and that a simple bot can
-finish every level (terrain reachability)."""
+getting hurt, game over + restart, level completion, power-ups (Bubble Shield, Mega Fuzz),
+new monsters (snail, flare, hopper, drone), ice and hot sauce, the Baggage Beast boss,
+and that a simple bot can finish every level (terrain reachability)."""
 import sys, pathlib
 from playwright.sync_api import sync_playwright
 
@@ -17,6 +18,7 @@ BOT = r"""
 (levelIdx) => {
   const { Game, Input } = window.__game;
   Game.levelIdx = levelIdx; Game.showIntro(); Game.beginLevel();
+  if (Game.level.boss) { Game.level.boss.alive = false; Game.level.boss.hp = 0; } // terrain only: the boss is tested separately
   const L = Game.level, p = Game.player, STEP = 1/120;
   let held = false, maxX = 0, stuck = 0, lastX = -1;
   const origAxis = Input.axis, origHeld = Input.jumpHeld;
@@ -24,7 +26,7 @@ BOT = r"""
   Input.jumpHeld = () => held;
   try {
   const solid = (x, y) => { const t = (x < 0 || x >= L.W) ? '#' : (y < 0 || y >= L.H) ? ' ' : L.grid[y][x]; return '#=<>'.includes(t); };
-  const hazard = (x, y) => (y >= 0 && y < L.H && x >= 0 && x < L.W) && '^v'.includes(L.grid[y][x]);
+  const hazard = (x, y) => (y >= 0 && y < L.H && x >= 0 && x < L.W) && '^v%'.includes(L.grid[y][x]);
   for (let i = 0; i < 120 * 90; i++) {
     p.invuln = 99; // ignore enemies so we only test the terrain
     if (Game.state !== 'play') break;
@@ -39,6 +41,14 @@ BOT = r"""
     if (!p.onGround && p.hasFizz && !p.burpUsed && p.vy * gs > -1 && (wall || !groundAhead)) { Input.jumpQueued = true; held = true; }
     if (p.onGround && !wall && groundAhead && !spikeAhead) held = false;
     Game.update(STEP);
+    // enemies are ignored, but hot sauce counts, and spikes too from level 4 on (this simple bot can't
+    // dodge the ceiling spikes in level 3's gravity zone; the Evolution Bot in the harness proves that one)
+    const pb = { x: p.x + 0.08, y: p.y + 0.05, w: p.w - 0.16, h: p.h - 0.1 };
+    for (let r = Math.floor(pb.y); r <= Math.floor(pb.y + pb.h); r++) for (let c = Math.floor(pb.x); c <= Math.floor(pb.x + pb.w); c++) {
+      const t = (c >= 0 && c < L.W && r >= 0 && r < L.H) ? L.grid[r][c] : ' ';
+      const sp = levelIdx >= 3, box = t === '^' && sp ? { y: r + 0.45, h: 0.55 } : t === 'v' && sp ? { y: r, h: 0.55 } : t === '%' ? { y: r + 0.35, h: 0.65 } : null;
+      if (box && pb.y < box.y + box.h && pb.y + pb.h > box.y) return { done: false, reason: 'hazard ' + t, x: p.x, y: p.y, maxX };
+    }
     maxX = Math.max(maxX, p.x);
     if (i % 240 === 0) { if (Math.abs(p.x - lastX) < 0.05) stuck++; else stuck = 0; lastX = p.x; if (stuck > 3) break; }
     if (p.y > L.H + 1 || p.y < -2) return { done: false, reason: 'fell', x: p.x, maxX };
@@ -117,8 +127,63 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(100)
     check(pg.is_visible('#scrComplete'), 'reaching the Delivery Pad completes the level')
 
+    # ---- power-ups, new monsters, ice, hot sauce (level-agnostic set-ups) ----
+    def lvl(i): pg.evaluate(f"() => {{ const {{Game}}=__game; Game.lives=5; Game.levelIdx={i}; Game.showIntro(); Game.beginLevel(); }}")
+    lvl(3)
+    r = pg.evaluate("""() => { const {Game}=__game, p=Game.player, it=Game.level.items.find(i=>i.type==='shield');
+      p.x=it.x; p.y=it.y; Game.update(1/120); const got=p.shield; p.invuln=0;
+      const e=Game.level.enemies.find(e=>e.type==='robot'&&e.alive); p.x=e.x; p.y=e.y; p.vy=-3; Game.update(1/120);
+      return {got, shieldAfter:p.shield, lives:Game.lives}; }""")
+    check(r['got'] and not r['shieldAfter'] and r['lives'] == 5, f'Bubble Shield is collected and blocks one hit ({r})')
+    r = pg.evaluate("""() => { const {Game}=__game, p=Game.player; p.invuln=0; p.x=8; p.y=12.099; p.vx=7.2; p.vy=0; p.standTile='~'; p.onGround=true;
+      Game.update(1/120); const v0=p.vx; for(let i=0;i<12;i++) Game.update(1/120); return {v0, v1:p.vx, tile:p.standTile}; }""")
+    check(r['tile'] == '~' and r['v1'] > 4, f'ice is slippery: you keep sliding with no input ({r})')
+    lvl(5)
+    r = pg.evaluate("""() => { const {Game}=__game, p=Game.player, it=Game.level.items.find(i=>i.type==='mega');
+      p.x=it.x; p.y=it.y; Game.update(1/120); const mega=p.mega; const e=Game.level.enemies.find(e=>e.type==='snail'&&e.alive);
+      p.x=e.x; p.y=e.y; p.vy=-2; p.invuln=0; const s=Game.score; Game.update(1/120); return {mega, snailAlive:e.alive, lives:Game.lives, gained:Game.score-s}; }""")
+    check(r['mega'] > 7 and not r['snailAlive'] and r['lives'] == 5 and r['gained'] >= 50, f'Mega Fuzz smashes a spiky snail without getting hurt ({r})')
+    r = pg.evaluate("""() => { const {Game, CFG}=__game, p=Game.player; p.mega=0; p.invuln=0; p.shield=false; const e=Game.level.enemies.find(e=>e.type==='snail'&&e.alive);
+      p.x=e.x; p.y=e.y-p.h+0.2; p.vy=5; Game.update(1/120); return {snailAlive:e.alive, lives:Game.lives}; }""")
+    check(r['snailAlive'] and r['lives'] == 4, f'stomping a spiky snail hurts you instead ({r})')
+    r = pg.evaluate("""() => { const {Game}=__game, p=Game.player; p.invuln=0; const L=Game.level; let c=-1;
+      for (let x=0;x<L.W;x++) if (L.grid[13][x]==='%' && !L.enemies.some(e=>e.type==='flare'&&Math.abs(e.x-x)<2)) { c=x; break; }
+      p.x=c+0.15; p.y=12.6; p.vy=1; const l=Game.lives; Game.update(1/120); return {c, lost:l-Game.lives}; }""")
+    check(r['lost'] == 1, f'hot sauce costs a slipper ({r})')
+    r = pg.evaluate("""() => { const {Game}=__game; const e=Game.level.enemies.find(e=>e.type==='flare'); let outs=0, ins=0;
+      for (let i=0;i<120*3;i++){ Game.player.invuln=99; Game.update(1/120); if (e.out) outs++; else ins++; } return {outs, ins, top:e.baseY}; }""")
+    check(r['outs'] > 60 and r['ins'] > 60, f'fire flares leap out of the sauce and drop back in ({r})')
+    lvl(4)
+    r = pg.evaluate("""() => { const {Game}=__game, p=Game.player; const d=Game.level.enemies.find(e=>e.type==='drone'); const x0=d.x;
+      let minX=x0, maxX=x0; for(let i=0;i<120*6;i++){ p.invuln=99; Game.update(1/120); minX=Math.min(minX,d.x); maxX=Math.max(maxX,d.x); }
+      const h=Game.level.enemies.find(e=>e.type==='hopper'&&e.alive); p.x=h.x-3; p.y=h.y-0.2; const hy=h.y; let minY=hy;
+      for(let i=0;i<120*3;i++){ p.invuln=99; p.x=h.x-3; Game.update(1/120); minY=Math.min(minY,h.y); }
+      return {span:maxX-minX, hop:hy-minY}; }""")
+    check(r['span'] > 4 and r['hop'] > 1, f'drones patrol and hoppers jump toward the courier ({r})')
+
+    # ---- the boss ----
+    lvl(9)
+    r = pg.evaluate("""() => { const {Game}=__game, L=Game.level, p=Game.player, B=L.boss, g=L.goal;
+      p.x=g.x; p.y=g.y-0.5; Game.update(1/120); const lockedState=Game.state;
+      p.x=L.fenceX+3; p.y=12; Game.update(1/120); const awake=B.awake; let hits=0;
+      for (let k=0;k<20 && B.alive;k++) { B.inv=0; p.invuln=0; p.x=B.x+B.w/2-p.w/2; p.y=B.y-p.h+0.3; p.vy=6; p.gs=1; const hp=B.hp; Game.update(1/120); if (B.hp<hp) hits++; }
+      p.x=g.x; p.y=g.y-0.5; p.vy=0; p.invuln=99; L.shots=[]; Game.update(1/120);
+      return {lockedState, awake, hits, alive:B.alive, state:Game.state}; }""")
+    check(r['lockedState'] == 'play', f'the Delivery Pad is locked while the Baggage Beast stands ({r})')
+    check(r['awake'] and r['hits'] == 5 and not r['alive'], f'the Beast wakes in the arena and goes down after 5 stomps ({r})')
+    check(r['state'] == 'win', f'beating the Beast unlocks the pad and wins the game ({r})')
+    lvl(9)
+    r = pg.evaluate("""() => { const {Game}=__game, L=Game.level, p=Game.player, B=L.boss; p.x=L.fenceX+3; p.y=12;
+      let thrown=0, hurt=false; for (let i=0;i<120*20;i++){ Game.update(1/120); thrown=Math.max(thrown, L.shots.length); if (Game.lives<5) { hurt=true; break; } }
+      return {thrown, hurt, awakeAfter:B.awake, bossBack: Math.abs(B.x-B.home.x)<0.01}; }""")
+    check(r['thrown'] >= 1 and r['hurt'] and not r['awakeAfter'] and r['bossBack'], f'the Beast throws suitcases, and after a hit it resets and waits ({r})')
+    if SHOTS:
+        pg.evaluate("""() => { const {Game}=__game; Game.lives=5; Game.levelIdx=9; Game.showIntro(); Game.beginLevel(); const p=Game.player; p.x=Game.level.fenceX+6; p.y=12; p.invuln=99;
+          for(let i=0;i<120*2.2;i++) Game.update(1/120); }""")
+        pg.wait_for_timeout(300); pg.screenshot(path=str(SHOTS / 'boss.png'))
+
     # bot playthroughs
-    for i in range(3):
+    for i in range(pg.evaluate('__game.LEVELS.length')):
         r = pg.evaluate(BOT, i)
         check(r.get('done'), f'bot can finish level {i+1} terrain ({r})')
         if i == 2 and SHOTS:
@@ -182,7 +247,7 @@ with sync_playwright() as pw:
     KEY = 'lost-luggage-of-the-cosmos.scores'
     def end_run(pg, score, win=False):
         pg.evaluate(f"""() => {{ const {{Game}}=__game; Game.startRun(); Game.beginLevel(); Game.score={score};
-          {'Game.levelIdx=2; Game.completeLevel();' if win else 'Game.lives=1; Game.player.invuln=0; Game.hurt();'} }}""")
+          {'Game.levelIdx=__game.LEVELS.length-1; Game.completeLevel();' if win else 'Game.lives=1; Game.player.invuln=0; Game.hurt();'} }}""")
         pg.wait_for_timeout(150)
 
     hctx = b.new_context(viewport={'width': 1024, 'height': 768})

@@ -1,6 +1,6 @@
 # Test report: Lost Luggage of the Cosmos
 
-Run at 2026-11-14 18:12:13 · seed 1
+Run at 2026-11-14 19:31:19 · seed 1
 
 ## Smoke tests
 
@@ -14,8 +14,8 @@ Run at 2026-11-14 18:12:13 · seed 1
 | PASS | info.spec is 1 | spec=1 |
 | PASS | info.title present | 'Lost Luggage of the Cosmos' |
 | PASS | info.stepsPerSecond present | 120 |
-| PASS | info.levelCount present | 3 |
-| PASS | info.maxSteps present | 28800 |
+| PASS | info.levelCount present | 10 |
+| PASS | info.maxSteps present | 86400 |
 | PASS | info.actions present | [{'id': 'idle', 'desc': 'Do nothing'}, {'id': 'right', 'desc': 'Walk right'}, {' |
 | PASS | info.keys present | {'right': ['ArrowRight'], 'left': ['ArrowLeft'], 'jump': ['Space']} |
 | PASS | 3 to 10 actions | 6 actions |
@@ -34,11 +34,11 @@ Run at 2026-11-14 18:12:13 · seed 1
 | PASS | after step: status is valid | status=playing |
 | PASS | after step: progress in 0..1 | progress=0 |
 | PASS | unknown action is rejected |  |
-| PASS | observe() gives text | 528 chars |
-| PASS | same seed + same inputs = same run | run A 100/0.055 vs B 100/0.055 |
-| PASS | full-length run simulates in < 5 s | 0.07 s for 28800 steps |
-| PASS | real keyboard works (right) | idle player {'x': 2.15, 'y': 12.099, 'vx': 0, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none'} vs keys {'x': 9.282, 'y': 12.099, 'vx': 5.7, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none'} |
-| PASS | game screen is drawn (not blank) | pixel std 32.6, ~638 colors |
+| PASS | observe() gives text | 769 chars |
+| PASS | same seed + same inputs = same run | run A 100/0.017 vs B 100/0.017 |
+| PASS | full-length run simulates in < 5 s | 0.22 s for 86400 steps |
+| PASS | real keyboard works (right) | idle player {'x': 2.15, 'y': 12.099, 'vx': 0, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none', 'shield': False, 'megaSeconds': 0} vs keys {'x': 9.757, 'y': 12.099, 'vx': 3.2, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none', 'shield': False, 'megaSeconds': 0} |
+| PASS | game screen is drawn (not blank) | pixel std 32.6, ~642 colors |
 | PASS | no console errors while playing |  |
 | PASS | title screen shows the bot's best | set window.BOT_SCORES and the number did not appear |
 
@@ -46,7 +46,7 @@ Run at 2026-11-14 18:12:13 · seed 1
 
 | Bot | Start | Mid | Best | Won? | Passes |
 | --- | --- | --- | --- | --- | --- |
-| Evolution Bot | 760 | 1165 | 1375 | yes | 760 (stopped, 59%), 1165 (stopped, 88%), 1375 (won, 100%) |
+| Evolution Bot | 895 | 3080 | 6045 | yes | 895 (stopped, 22%), 975 (stopped, 24%), 1940 (stopped, 47%), 2440 (stopped, 57%), 3080 (stopped, 69%), 4055 (stopped, 84%), 4525 (stopped, 88%), 4860 (stopped, 92%), 4885 (stopped, 92%), 6045 (won, 100%) |
 
 
 ## Fairness
@@ -57,11 +57,11 @@ Run at 2026-11-14 18:12:13 · seed 1
 | PASS | doing nothing does not win | after 30 s of standing still: playing, progress 0% |
 | PASS | random button mashing does not win | 0/5 random runs won |
 | PASS | game self-check | no problems |
-| PASS | a human-speed bot can win | won with score 1375, lives lost 0 |
-| PASS | timing tolerance (40 ms nudges) | 33/47 nudged replays still did as well (70%); tight moments at 6.1s, 26.1s, 38.1s, 38.1s, 39.1s, 39.1s |
+| PASS | a human-speed bot can win | won with score 6045, lives lost 0 |
+| PASS | timing tolerance (40 ms nudges) | 26/46 nudged replays still did as well (57%); tight moments at 11.1s, 24.9s, 24.9s, 44.4s, 87.1s, 98.8s |
 
 ## Scoreboard
 
-Bot to beat: **Evolution Bot with 1375**
+Bot to beat: **Evolution Bot with 6045**
 
 **Overall: PASS**

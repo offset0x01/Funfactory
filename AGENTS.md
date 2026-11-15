@@ -93,12 +93,13 @@ New games must expose the test hook in `test-harness/GAME_TEST_HOOK_SPEC.md` (`w
 - Route **all input** through one input object, so keyboard, touch, tilt and the hook's actions all feed the same place.
 - Use a **seeded random number generator** for anything that affects gameplay.
 - Give the game a clear **win condition** and a `progress` measure from 0 to 1.
+- Make `progress` grow with every real step forward, not only distance. In a boss fight or arena, count hits on the boss, because the harness treats 4 seconds without progress as stuck. Set `maxSteps` long enough for a good player to finish every level.
 - Put the `BOT-SCORES` markers before the main script, and show "Bot's best: N. Can you beat it?" on the title screen when `window.BOT_SCORES` is set.
 
 The harness lives in `test-harness/` (setup and flags in `test-harness/README.md`; `pip install -r test-harness/requirements.txt` once). Run it from the repo root, as well as the game's own browser test:
 
 1. Run `python3 test-harness/harness/run_tests.py smoke games/<name>/index.html` and fix everything until it passes. The worked example is `test-harness/examples/lost-luggage/index.html` (search for "TEST HOOK", "Hook.mode" and "BOT-SCORES").
-2. Run `python3 test-harness/harness/run_tests.py all games/<name>/index.html`. It runs the Evolution Bot (free) plus any AI bots configured in `test-harness/.env`. If the Evolution Bot can't win, look at where it got stuck (`test-results/report.md`) and either fix that spot or explain in HANDOFF.md why it is fine. If a fairness check fails, fix the game, not the test.
+2. Run `python3 test-harness/harness/run_tests.py all games/<name>/index.html`. It runs the Evolution Bot (free) plus any AI bots configured in `test-harness/.env`. If the Evolution Bot can't win, look at where it got stuck (`test-results/report.md`). If its passes were still improving, give it more tries (`--extra-passes 10`; it stops as soon as it wins), which long games with many levels need. If it was stuck in one spot, fix that spot or explain in HANDOFF.md why it is fine. If a fairness check fails, fix the game, not the test.
 3. Commit the game with the bot scores written into it, plus `bot-scores.json` and `test-results/report.md` (`test-results/` is git-ignored, so add the report with `git add -f`).
 4. In HANDOFF.md, list the bot scores (start, mid, best) and any tight moments the timing-tolerance check found.
 

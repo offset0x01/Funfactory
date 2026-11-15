@@ -54,6 +54,11 @@ body{
 #hudLives{color:var(--slipper)}
 #hudFizz{color:var(--fizz)}
 #hudFizz.off{opacity:.35}
+#hudShield{color:#8fe8ff}
+#hudMega{color:#ffe24d}
+#hudBoss{color:#ff8fd0;gap:4px}
+#hudBoss .pip{display:inline-block;width:12px;height:12px;border-radius:3px;background:#ff5d6c}
+#hudBoss .pip.off{background:rgba(255,255,255,.18)}
 #hudSpacer{flex:1}
 #btnPause,#btnFull{pointer-events:auto;font:inherit;color:var(--ink);background:rgba(20,14,52,.82);border:2px solid var(--panel-edge);border-radius:14px;width:48px;height:44px;cursor:pointer}
 
@@ -140,6 +145,9 @@ p{margin:0;line-height:1.45;color:var(--ink)}
   <div class="chip"><span class="label">Bolts</span><span id="hudScore">0</span></div>
   <div class="chip" id="hudLives">&#9829; 5</div>
   <div class="chip off" id="hudFizz">Fizzy Jet</div>
+  <div class="chip" id="hudShield" hidden>&#9711; Shield</div>
+  <div class="chip" id="hudMega" hidden>&#9733; Mega 8</div>
+  <div class="chip" id="hudBoss" hidden aria-label="Baggage Beast health"></div>
   <div id="hudSpacer"></div>
   <button id="btnFull" aria-label="Full screen" title="Full screen" hidden>&#9974;</button>
   <button id="btnPause" aria-label="Pause">II</button>
@@ -162,7 +170,7 @@ p{margin:0;line-height:1.45;color:var(--ink)}
     <div class="cardTop"><div class="eyebrow">Interstellar parcel service</div><div class="row"><a class="pillBtn" id="allGames" href="../../" hidden>&#8592; All games</a><button class="pillBtn" id="btnFull2">&#9974; Full screen</button></div></div>
     <p class="note" id="fullNote" hidden></p>
     <h1>Lost Luggage of the <span class="pink">Cosmos</span></h1>
-    <p>You are a space courier in fuzzy slippers. Deliver the mystery parcel across a junkyard planet, a malfunctioning cruise ship and an asteroid that will not stop talking.</p>
+    <p>You are a space courier in fuzzy slippers. Deliver the mystery parcel across ten stops: a junkyard planet, a wobbly cruise ship, a talking asteroid, an icy comet, a hot sauce moon and the Galactic Lost &amp; Found, where the Baggage Beast is waiting.</p>
     <div class="row">
       <button class="btn" id="btnStart">Start delivery</button>
       <button class="btn pink" id="btnDemo">Watch demo</button>
@@ -174,7 +182,9 @@ p{margin:0;line-height:1.45;color:var(--ink)}
       <dt>Move</dt><dd>Arrow keys or A / D. On iPad: tilt, or the arrow buttons.</dd>
       <dt>Jump</dt><dd>Space, Up or W. On iPad: the JUMP button.</dd>
       <dt>Fizzy Jet</dt><dd>Grab the green can, then press jump again in mid-air for a burp-powered double jump.</dd>
-      <dt>Stomp</dt><dd>Land on robots and space jellies. Touching them from the side costs a slipper (a life).</dd>
+      <dt>Stomp</dt><dd>Land on robots, jellies, hoppers and drones. Touching them from the side costs a slipper (a life).</dd>
+      <dt>Ouch!</dt><dd>Spiky snails and fire flares can't be stomped: jump over them. Stay out of the hot sauce.</dd>
+      <dt>Power-ups</dt><dd>Blue bubble: a shield that blocks one hit. Rainbow star: Mega Fuzz, 8 seconds of smashing through everything.</dd>
       <dt>Purple zones</dt><dd>Gravity flips! Walk on the ceiling.</dd>
       <dt>Pause</dt><dd>P or Esc. M turns sound on or off. F toggles full screen.</dd>
     </dl>
@@ -186,7 +196,7 @@ p{margin:0;line-height:1.45;color:var(--ink)}
 <!-- Level intro -->
 <section class="screen" id="scrIntro" hidden>
   <div class="card">
-    <div class="eyebrow" id="introEyebrow">Level 1 of 3</div>
+    <div class="eyebrow" id="introEyebrow">Level 1 of 10</div>
     <h2 id="introName">Junkyard Planet</h2>
     <p id="introText"></p>
     <div class="row"><button class="btn" id="btnGo">Go!</button></div>
@@ -242,7 +252,7 @@ p{margin:0;line-height:1.45;color:var(--ink)}
   <div class="card">
     <div class="eyebrow">All deliveries complete</div>
     <h2>The parcel has arrived!</h2>
-    <p>Inside the mystery parcel: a second, slightly smaller mystery parcel. Customer satisfaction is off the charts.</p>
+    <p>You beat the Baggage Beast and delivered the parcel. Inside: a second, slightly smaller mystery parcel. Customer satisfaction is off the charts.</p>
     <p class="stat">Final bolts: <span id="winScore">0</span></p>
     <p class="stat beat" id="winBeat" hidden>You beat the bot!</p>
     <div class="hs" id="hsWin"></div>
@@ -261,7 +271,7 @@ p{margin:0;line-height:1.45;color:var(--ink)}
 </section>
 
 <!-- BOT-SCORES-START -->
-<script>window.BOT_SCORES = {"game":"Lost Luggage of the Cosmos","bots":{"evolutionary":{"label":"Evolution Bot","start":760,"mid":1165,"best":1375,"won":true,"passes":[760,1165,1375]}},"updated":"2026-11-14T23:14:07Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":1375,"won":true}};</script>
+<script>window.BOT_SCORES = {"game":"Lost Luggage of the Cosmos","bots":{"evolutionary":{"label":"Evolution Bot","start":895,"mid":3080,"best":6045,"won":true,"passes":[895,975,1940,2440,3080,4055,4525,4860,4885,6045]}},"updated":"2026-11-15T00:51:24Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":6045,"won":true}};</script>
 <!-- BOT-SCORES-END -->
 
 <script>
@@ -292,6 +302,14 @@ const CFG = {
   INVULN: 1.6,           // seconds of blinking after getting hurt
   TILT_DEADZONE: 3,      // degrees
   TILT_FULL: 18,         // degrees for full speed (divided by sensitivity)
+  ICE_ACCEL: 9,          // how fast you can change speed on slippery ice (normal ground is GROUND_ACCEL)
+  HOPPER_JUMP: 11, HOPPER_WAIT: 1.5,   // Comet Hoppers: jump speed and seconds between hops
+  SNAIL_SPEED: 1.2,      // Spiky Space Snails
+  DRONE_SPEED: 2.6,      // Snoop Drones
+  FLARE_HEIGHT: 4.2, FLARE_PERIOD: 2.6, // Fire Flares: how high they leap out of the sauce, and how often
+  MEGA_TIME: 8,          // seconds of Mega Fuzz
+  MEGA_SPEED: 1.3,       // Mega Fuzz runs this much faster
+  BOSS_HP: 5,            // stomps to beat the Baggage Beast
 };
 
 /* ---------- LEVELS ----------
@@ -302,6 +320,13 @@ const CFG = {
    P player start  * bolt (+10)      B Fizzy Jet can (double jump)
    R vending-machine robot           J space jelly
    C checkpoint flag                 D delivery pad (finish)
+   ~ slippery ice (solid)            % hot sauce / lava (hurts, not solid)
+   S Bubble Shield (blocks one hit)  M Mega Fuzz (8 s unstoppable rainbow run)
+   H Comet Hopper (jumps at you)     U Snoop Drone (flies back and forth)
+   K Spiky Space Snail (can't be stomped: jump over it)
+   F Fire Flare (leaps out of the sauce it sits in; can't be stomped)
+   X the Baggage Beast (boss)        ! boss fence (invisible; the boss can't go left of it)
+   Level options: speed (enemy speed, 1 = normal), boss: true (the Delivery Pad stays locked until the boss is beaten).
    Rows can be different lengths; short rows are padded with spaces. */
 const LEVELS = [
   {
@@ -389,6 +414,212 @@ const LEVELS = [
       '#############    ######    ###################                 ########<<<<#####################    ################################',
       '#############    ######    ###################                 #################################    ################################',
       '#############    ######    ###################                 #################################    ################################',
+    ],
+  },
+  {
+    name: 'The Frosty Comet',
+    intro: 'A comet made of ice and old ice-cream trucks. The ground is slippery, so start stopping early! Comet Hoppers bounce toward you: stomp them.',
+    sky: ['#071b3a', '#3d7fb8'], rock: ['#4f6f96', '#9cc6ea'], metal: ['#a9c4dc', '#ffffff'], bgDecor: 'ice', speed: 1.0,
+    music: { root: 62, scale: [0, 2, 4, 7, 9], tempo: 0.15 },
+    messages: [
+      { x: 4, who: 'Dispatch', text: 'Next drop-off: a frozen comet. Blue ice is slippery, so your slippers will slide.' },
+      { x: 30, who: 'Dispatch', text: 'Comet Hoppers! They jump at you when you get close. Land on their heads.' },
+      { x: 46, who: 'Dispatch', text: 'A blue bubble! The Bubble Shield blocks one hit, then pops.' },
+      { x: 88, who: 'Dispatch', text: 'Big icy wall ahead. Grab the Fizzy Jet and burp over it.' },
+      { x: 138, who: 'Dispatch', text: 'Delivery Pad dead ahead. Try not to slide past it.' },
+    ],
+    map: [
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '                                                                                                     * *      C   H',
+      '                  * *                            S                                                  ##################',
+      '                 ######                         ~~~~         * *                                    ##################',
+      '  P  * * *                         H    *  C                          R       H           *  B  *   ##################        * * *      H    * *    D',
+      '~~~~~~~~~~~~~~~~~~~~~~~~~~   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^~~~~~~~~~~~~~~~~~~~~~~   ~~~~~~~~~~~~~~~~~~~~################~~~^^^~~~~~~~~~~~~~~~~~~~~',
+      '##########################   ########################################################   ##############################################################',
+    ],
+  },
+  {
+    name: 'The Icicle Caves',
+    intro: 'Deep inside the comet. Spiky Space Snails cannot be stomped (ouch!), so jump right over them. Flip gravity in the purple cave.',
+    sky: ['#030d1f', '#1c4870'], rock: ['#3d5a7a', '#86b4dc'], metal: ['#a9c4dc', '#ffffff'], bgDecor: 'ice', speed: 1.05,
+    music: { root: 59, scale: [0, 2, 3, 7, 9], tempo: 0.14 },
+    messages: [
+      { x: 4, who: 'Dispatch', text: 'The comet\'s caves. Watch the icicles, and do NOT stomp the spiky snails. Jump over them.' },
+      { x: 54, who: 'Dispatch', text: 'Purple zone ahead: walk on the ceiling and hop over the icicles.' },
+      { x: 78, who: 'Dispatch', text: 'Snoop Drones fly back and forth. They are nosy, but you can stomp them.' },
+      { x: 150, who: 'Dispatch', text: 'Almost out of the caves. The pad is just ahead.' },
+    ],
+    map: [
+      '########################################################################################################################################################################',
+      '########################################################################################################################################################################',
+      '                 v   v   v                                 GGGGGGvvGGGvGGG',
+      '                                                           GGG*GGGGG*GGG*G',
+      '                                                           GGGGGGGGGGGGGGG',
+      '                                                           GGGGGGGGGGGGGGG',
+      '                                                           GGGGGGGGGGGGGGG',
+      '                                                           GGGGGGGGGGGGGGG',
+      '                                                           GGGGGGGGGGGGGGG',
+      '                                                           GGGGGGGGGGGGGGG                                       * *        K  *',
+      '                                      **                   GGGGGGGGGGGGGGG         U                            ##################                           U',
+      '                                     ~~~~                  GGGGGGGGGGGGGGG                                      ##################         * *',
+      '  P  * * *          K            H          C     * S *    GGGGGGGGGGGGGGG    *  *  R  *  *  C        *  B  *   ##################                  H   * * *   H     D',
+      '~~~~~~~~~~~~~~~~~~~~~~~~~~~~   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^~~~~~~~~~~~~~~~~~~~~~~    ~~~~~~~~~~~~~~~~~~~~################~~~^^^^~~~~~~~~~~~~~~~~~~~~~~~~~',
+      '############################   #################################################################    ####################################################################',
+    ],
+  },
+  {
+    name: 'Hot Sauce Moon',
+    intro: 'A moon covered in bubbling hot sauce. Do not step in it! Fire Flares jump out of the sauce, and the rainbow Mega Fuzz makes you unstoppable.',
+    sky: ['#1a0505', '#8a2a12'], rock: ['#5a2f2a', '#b5604a'], metal: ['#7c5a52', '#d49a82'], bgDecor: 'lava', speed: 1.1,
+    music: { root: 57, scale: [0, 3, 5, 6, 7, 10], tempo: 0.13 },
+    messages: [
+      { x: 4, who: 'Dispatch', text: 'Hot Sauce Moon. The orange stuff is extra spicy. One touch costs a slipper.' },
+      { x: 34, who: 'Dispatch', text: 'Fire Flares leap out of the sauce. Wait for them to drop, then jump.' },
+      { x: 45, who: 'Dispatch', text: 'A rainbow Mega Fuzz! For 8 seconds you run faster and smash anything you touch. GO GO GO!' },
+      { x: 95, who: 'Dispatch', text: 'Fizzy Jet can before the cliff. You know what to do.' },
+      { x: 150, who: 'Dispatch', text: 'Hop the last pits and you are done here.' },
+    ],
+    map: [
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '                                                                                                             * *      C    R',
+      '                                        *        M                             *                            ##################         *    *',
+      '                  *                             ###                                                         ##################',
+      '  P  * * *                 R   * *                      R   K   R    *  C              H    S     *  B  *   ##################                         K   * *     D',
+      '#################%%%##################%%F%####################################%F%######################################################%%F####%%F###################',
+      '####################################################################################################################################################################',
+    ],
+  },
+  {
+    name: 'The Magma Mall',
+    intro: 'A shopping mall built on a volcano. The escalators go the wrong way, and there is hot sauce on aisle five.',
+    sky: ['#1f0710', '#a8361f'], rock: ['#4a2a35', '#a0566a'], metal: ['#8c6f7a', '#e8c2cf'], bgDecor: 'lava', speed: 1.15,
+    music: { root: 60, scale: [0, 2, 3, 5, 7, 10], tempo: 0.12 },
+    messages: [
+      { x: 4, who: 'Mall speaker', text: 'Welcome to the Magma Mall! Our escalators run backwards for your fitness.' },
+      { x: 40, who: 'Mall speaker', text: 'Shoppers are reminded: do not feed the Snoop Drones, and do not swim in the sauce.' },
+      { x: 84, who: 'Mall speaker', text: 'Today only: free Fizzy Jet can. Limit one per courier.' },
+      { x: 130, who: 'Mall speaker', text: 'The forward escalator is the fast way to checkout. Hold on to your parcel.' },
+    ],
+    map: [
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '                                           U                                                   * *      C   K               U',
+      '                                *                        S                                    ====================',
+      '                                                        ===                                   ====================                                      * *',
+      '  P  * * *         H  *                 K      C                 R    R  * *        *  B  *   ====================        * * *        H   R    * *               K    * *    D',
+      '================<<<<<<<<<<====%%F%=====================%%%%========<<<<<======    ====================##################===%%F%=======>>>>>>>>>>=======%F%%====================',
+      '##############################################################################    #############################################################################################',
+    ],
+  },
+  {
+    name: 'The Lost & Found Warehouse',
+    intro: 'Every lost suitcase in the galaxy ends up here, and something big is guarding them. Conveyors, drones, snails and a gravity room.',
+    sky: ['#120d22', '#3b2f5c'], rock: ['#3a3150', '#7a6ca8'], metal: ['#6e6a8a', '#c5c0e6'], bgDecor: 'claim', speed: 1.2,
+    music: { root: 55, scale: [0, 2, 3, 5, 7, 8, 10], tempo: 0.13 },
+    messages: [
+      { x: 4, who: 'Warehouse bot', text: 'Beep. Welcome to the Galactic Lost and Found. Your parcel is not lost. You are.' },
+      { x: 37, who: 'Warehouse bot', text: 'Mega Fuzz on the shelf. Use it to clear the aisle.' },
+      { x: 56, who: 'Warehouse bot', text: 'Gravity room ahead. Please walk on the ceiling responsibly.' },
+      { x: 105, who: 'Warehouse bot', text: 'Courier, grab the fizzy can. That stack of boxes is tall.' },
+      { x: 160, who: 'Warehouse bot', text: 'Beep. Delivery Pad located. Something is rumbling deeper inside.' },
+    ],
+    map: [
+      '=======================================================================================================================================================================================',
+      '=======================================================================================================================================================================================',
+      '                                                            GGGGGGvvGGGvGGG',
+      '                                                            GGG*GGGGG*GGG*G',
+      '                                                            GGGGGGGGGGGGGGG',
+      '                                                            GGGGGGGGGGGGGGG',
+      '                                                            GGGGGGGGGGGGGGG',
+      '                                                            GGGGGGGGGGGGGGG',
+      '                                                            GGGGGGGGGGGGGGG',
+      '                                                            GGGGGGGGGGGGGGG        U     U                            * *      C   R',
+      '                    U                 * M                   GGGGGGGGGGGGGGG                                          ==================                       S',
+      '                                     =====                  GGGGGGGGGGGGGGG                       * *                ==================                      ===',
+      '  P  * * *       R      R           K       C      R  R     GGGGGGGGGGGGGGG    C  H   *   K                *  B  *   ==================                H                 K   R   * *  D',
+      '==================<<<<<<<<====    ==========================^^^^^^^^^^^^^^^=======================^^^^===========================================    ==>>>>>>>>>>>>====================',
+      '##############################    ########################===================############################========================================    ##################################',
+    ],
+  },
+  {
+    name: 'The Luggage Carousel',
+    intro: 'The giant baggage carousel. Everything you have met so far is here, and it is all moving a bit faster. Last stop before the Beast!',
+    sky: ['#1a0d1f', '#55234f'], rock: ['#3f2848', '#9a5aa8'], metal: ['#7a6390', '#e0c8f0'], bgDecor: 'claim', speed: 1.3,
+    music: { root: 58, scale: [0, 3, 5, 7, 10], tempo: 0.115 },
+    messages: [
+      { x: 4, who: 'Warehouse bot', text: 'Carousel online. Please mind the gap between the belts.' },
+      { x: 36, who: 'Warehouse bot', text: 'Bubble Shield on the shelf. You will want it.' },
+      { x: 85, who: 'Warehouse bot', text: 'Mega Fuzz! Smash through the next crowd.' },
+      { x: 118, who: 'Warehouse bot', text: 'Fizzy Jet can before the big stack. Burp responsibly.' },
+      { x: 185, who: 'Warehouse bot', text: 'Warning: the Baggage Beast is awake. It ate three suitcases and a lamp.' },
+    ],
+    map: [
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '                     U                                      U     U                                                               * *      C   K   R               U',
+      '                                       S         *  *                                                                            ====================',
+      '                                      ===                                   *                                                    ====================             * *',
+      '  P  * * *       K      H           R     C                R   K   R                 H   M   C    R  K  R  H           *  B  *   ====================                           H   K   * *        R   H  * *   D',
+      '================<<<<<<<<<<<<==    ==============^^^^=======================%%F%==================<<<<<<<<<<<<<<==    ====================######################==%F%====%F%====<<<<<<<<<<====    ================',
+      '##############################    ###############################################################################    ########################################################################    ################',
+    ],
+  },
+  {
+    name: 'The Baggage Beast',
+    intro: 'The Baggage Beast is a giant angry suitcase guarding the last Delivery Pad. Jump on its head 5 times. Dodge the suitcases it throws!',
+    sky: ['#14081c', '#4a1838'], rock: ['#3f2848', '#9a5aa8'], metal: ['#6b5a80', '#e0c8f0'], bgDecor: 'claim', speed: 1.3,
+    boss: true,
+    music: { root: 55, scale: [0, 3, 5, 7, 10], tempo: 0.14 },
+    messages: [
+      { x: 4, who: 'Warehouse bot', text: 'Grab the bubble and the fizzy can. Then step into the arena.' },
+      { x: 24, who: 'Warehouse bot', text: 'Stomp the Beast\'s head 5 times. When it flashes, it cannot be hurt. Fizzy Jet helps you get above it.' },
+    ],
+    map: [
+      '',
+      '',
+      '                                                                    ==',
+      '                                                                    ==',
+      '                                                                    ==',
+      '                                                                    ==',
+      '                                                                    ==',
+      '                                                                    ==',
+      '                                                                    ==',
+      '                                   *  *       *  *     *  *         ==',
+      '                  S                ====       ====     ====         ==',
+      '                 ===                                                ==',
+      '  P  * * *      *     B     C   !                      X     D      ==',
+      '======================================================================',
+      '######################################################################',
     ],
   },
 ];
@@ -507,6 +738,14 @@ const Sound = {
       case 'win': [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, 0.18, { vol: 0.18, delay: i * 0.11 })); break;
       case 'over': [392, 330, 262, 196].forEach((f, i) => this.tone(f, 0.28, { type: 'triangle', vol: 0.22, delay: i * 0.2 })); break;
       case 'click': this.tone(660, 0.05, { vol: 0.1 }); break;
+      case 'shield': [392, 523, 784].forEach((f, i) => this.tone(f, 0.2, { type: 'sine', vol: 0.18, delay: i * 0.06, slide: 200 })); break;
+      case 'pop': this.noise(0.12, { vol: 0.3, freq: 1800, q: 2 }); this.tone(900, 0.1, { type: 'sine', slide: -600, vol: 0.2 }); break;
+      case 'mega': [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => this.tone(f, 0.1, { vol: 0.14, delay: i * 0.05 })); break;
+      case 'roar': this.tone(70, 0.9, { type: 'sawtooth', slide: 40, vol: 0.4 }); this.noise(0.8, { vol: 0.25, freq: 300, q: 0.5 }); break;
+      case 'thump': this.tone(60, 0.18, { type: 'triangle', slide: -30, vol: 0.4 }); break;
+      case 'throw': this.tone(220, 0.15, { type: 'square', slide: 300, vol: 0.12 }); break;
+      case 'bossHit': this.tone(160, 0.3, { type: 'sawtooth', slide: -100, vol: 0.35 }); this.tone(880, 0.1, { vol: 0.15, delay: 0.05 }); break;
+      case 'bossDown': [196, 165, 131, 98].forEach((f, i) => this.tone(f, 0.3, { type: 'sawtooth', vol: 0.3, delay: i * 0.15 })); this.noise(1, { vol: 0.25, freq: 400, delay: 0.5 }); break;
     }
   },
   // Tiny step sequencer: bass on beats, an arpeggio from the level's scale.
@@ -686,7 +925,13 @@ function updateCamera(snap) {
   Cam.T = Math.min(R.H / CFG.ROWS, R.W / 13);
   Cam.viewW = R.W / Cam.T; Cam.viewH = R.H / Cam.T;
   const L = Game.level, p = Game.player;
-  const target = clamp(p.x + p.w / 2 - Cam.viewW * 0.42, 0, Math.max(0, L.W - Cam.viewW));
+  let want = p.x + p.w / 2 - Cam.viewW * 0.42;
+  const B = L.boss;
+  if (B && B.awake && B.alive) { // boss fight: frame the courier and the Beast together (courier always on screen)
+    const mid = (p.x + p.w / 2 + B.x + B.w / 2) / 2 - Cam.viewW / 2;
+    want = clamp(mid, p.x + p.w / 2 - Cam.viewW * 0.85, p.x + p.w / 2 - Cam.viewW * 0.15);
+  }
+  const target = clamp(want, 0, Math.max(0, L.W - Cam.viewW));
   Cam.x = snap ? target : lerp(Cam.x, target, 0.15);
   // tall screens (iPad portrait): keep the ground at the bottom and put the extra space in the sky
   // (lifted above the touch buttons when they are showing)
@@ -701,22 +946,35 @@ function wtri(x1, y1, x2, y2, x3, y3, c) { tri(sx(x1), sy(y1), sx(x2), sy(y2), s
 function wcircle(x, y, r, c, seg, ce) { scircle(sx(x), sy(y), r * Cam.T, c, seg, ce); }
 
 // ---------- LEVEL LOADING ----------
-const SOLID = new Set(['#', '=', '>', '<']);
+const SOLID = new Set(['#', '=', '>', '<', '~']);
+const HAZARD = new Set(['^', 'v', '%']);   // tiles that hurt
 function loadLevel(idx) {
   const def = LEVELS[idx];
   const rows = def.map.slice(0, CFG.ROWS);
   while (rows.length < CFG.ROWS) rows.push('');
   const W = Math.max(...rows.map(r => r.length)) + 2;
   const grid = rows.map(r => r.padEnd(W, ' ').split(''));
-  const L = { idx, def, W, H: CFG.ROWS, grid, zone: [], enemies: [], items: [], checkpoints: [], start: { x: 1, y: 1 }, goal: null, msgShown: new Set() };
+  const L = { idx, def, W, H: CFG.ROWS, grid, zone: [], enemies: [], items: [], checkpoints: [], shots: [], boss: null, fenceX: 0,
+    start: { x: 1, y: 1 }, goal: null, msgShown: new Set(), speed: def.speed || 1 };
+  const sp = L.speed;
   for (let y = 0; y < L.H; y++) {
     for (let x = 0; x < W; x++) {
       const ch = grid[y][x];
+      const foe = o => { L.enemies.push({ alive: true, squish: 0, vx: 0, vy: 0, t: x * 0.7, ...o }); grid[y][x] = ' '; };
       if (ch === 'P') { L.start = { x: x + 0.15, y: y + 0.1 }; grid[y][x] = ' '; }
       else if (ch === '*') { L.items.push({ type: 'bolt', x, y, got: false }); grid[y][x] = ' '; }
       else if (ch === 'B') { L.items.push({ type: 'can', x, y, got: false }); grid[y][x] = ' '; }
-      else if (ch === 'R') { L.enemies.push({ type: 'robot', x: x + 0.1, y: y + 0.05, w: 0.8, h: 0.95, vx: -CFG.ROBOT_SPEED, vy: 0, alive: true, squish: 0 }); grid[y][x] = ' '; }
-      else if (ch === 'J') { L.enemies.push({ type: 'jelly', x: x + 0.1, y: y + 0.1, baseY: y + 0.1, w: 0.8, h: 0.8, t: x * 0.7, alive: true, squish: 0 }); grid[y][x] = ' '; }
+      else if (ch === 'S') { L.items.push({ type: 'shield', x, y, got: false }); grid[y][x] = ' '; }
+      else if (ch === 'M') { L.items.push({ type: 'mega', x, y, got: false }); grid[y][x] = ' '; }
+      else if (ch === 'R') foe({ type: 'robot', x: x + 0.1, y: y + 0.05, w: 0.8, h: 0.95, vx: -CFG.ROBOT_SPEED * sp });
+      else if (ch === 'J') foe({ type: 'jelly', x: x + 0.1, y: y + 0.1, baseY: y + 0.1, w: 0.8, h: 0.8 });
+      else if (ch === 'H') foe({ type: 'hopper', x: x + 0.12, y: y + 0.3, w: 0.76, h: 0.7, wait: CFG.HOPPER_WAIT * (0.5 + (x % 3) * 0.25) });
+      else if (ch === 'U') foe({ type: 'drone', x: x + 0.1, y: y + 0.15, baseY: y + 0.15, homeX: x + 0.1, w: 0.8, h: 0.6, vx: -CFG.DRONE_SPEED * sp });
+      else if (ch === 'K') foe({ type: 'snail', x: x + 0.1, y: y + 0.3, w: 0.8, h: 0.7, vx: -CFG.SNAIL_SPEED * sp, spiky: true });
+      else if (ch === 'F') { foe({ type: 'flare', x: x + 0.15, y: y + 0.6, baseY: y + 0.2, w: 0.7, h: 0.7, t: (x * 0.37) % CFG.FLARE_PERIOD, spiky: true }); grid[y][x] = '%'; }
+      else if (ch === 'X') { L.boss = { x: x, y: y + 1 - 2.0, w: 2.4, h: 2.0, home: { x, y: y + 1 - 2.0 }, vx: 0, vy: 0, hp: CFG.BOSS_HP, max: CFG.BOSS_HP,
+        alive: true, awake: false, onGround: false, inv: 0, hopT: 2.5, throwT: 2, t: 0, face: -1, dead: 0, mouth: 0 }; grid[y][x] = ' '; }
+      else if (ch === '!') { L.fenceX = x; grid[y][x] = ' '; }
       else if (ch === 'C') { L.checkpoints.push({ x, y, on: false }); grid[y][x] = ' '; }
       else if (ch === 'D') { L.goal = { x, y }; grid[y][x] = ' '; }
     }
@@ -727,7 +985,7 @@ function loadLevel(idx) {
     for (let x = 0; x < W; x++) {
       const raw = rows[y][x] || ' ';
       const near = k => (rows[y][x + k] || ' ') === 'G';
-      L.zone[y][x] = raw === 'G' || ('v^*BRJC'.includes(raw) && (near(-1) || near(1) || near(-2) || near(2)));
+      L.zone[y][x] = raw === 'G' || ('v^*BRJCSMHUK'.includes(raw) && (near(-1) || near(1) || near(-2) || near(2)));
       if (raw === 'G') grid[y][x] = ' ';
     }
   }
@@ -773,7 +1031,8 @@ const Game = {
   t: 0, particles: [], banner: null, shake: 0, levelStartScore: 0,
   newPlayer(at) {
     return { x: at.x, y: at.y, w: 0.7, h: 0.9, vx: 0, vy: 0, gs: 1, onGround: false, face: 1, coyote: 0, jumpBuf: 0,
-      hasFizz: false, burpUsed: false, invuln: 0, walk: 0, respawn: { x: at.x, y: at.y }, standTile: null };
+      hasFizz: false, burpUsed: false, invuln: 0, walk: 0, respawn: { x: at.x, y: at.y }, standTile: null,
+      shield: false, mega: 0 };   // power-ups: Bubble Shield (blocks one hit) and Mega Fuzz (seconds left)
   },
   startRun() { this.score = 0; this.lives = CFG.START_LIVES; this.levelIdx = 0; this.showIntro(); },
   showIntro() {
@@ -791,12 +1050,23 @@ const Game = {
   autoPause() { if (this.state === 'play') this.togglePause(); },
   toMenu() { Sound.stopMusic(); this.state = 'title'; UI.show('scrTitle'); UI.syncBest(); },
 
-  hurt() {
+  // fell = dropped out of the world (power-ups can't save you from that)
+  hurt(fell = false) {
     const p = this.player; if (p.invuln > 0) return;
+    if (!fell && p.mega > 0) return;                       // Mega Fuzz: nothing can hurt you
+    if (!fell && p.shield) {                               // Bubble Shield: pop instead of losing a slipper
+      p.shield = false; p.invuln = 1.0; p.vy = -9 * p.gs; Sound.sfx('pop'); this.shake = 0.2;
+      this.burst(p.x + p.w / 2, p.y + p.h / 2, hex('#8fe8ff'), 20, 6); return;
+    }
     if (this.demo) { Demo.oops(); return; } // the demo never loses lives
     this.lives--; Sound.sfx('hurt'); this.shake = 0.35; this.burst(p.x + p.w / 2, p.y + p.h / 2, hex('#ff6fb5'), 18);
     if (this.lives <= 0) { this.gameOver(); return; }
-    p.x = p.respawn.x; p.y = p.respawn.y; p.vx = p.vy = 0; p.gs = 1; p.invuln = CFG.INVULN; p.burpUsed = false;
+    p.x = p.respawn.x; p.y = p.respawn.y; p.vx = p.vy = 0; p.gs = 1; p.invuln = CFG.INVULN; p.burpUsed = false; p.mega = 0;
+    const B = this.level.boss;   // the Beast goes back to its spot and waits for you to come back in
+    if (B && B.alive && B.awake) {
+      B.awake = false; B.x = B.home.x; B.y = B.home.y; B.vx = B.vy = 0; B.hopT = 2.5; B.throwT = 2; this.level.shots = [];
+      Sound.startMusic(this.level.def.music);
+    }
     updateCamera(true);
   },
   gameOver() {
@@ -839,8 +1109,8 @@ const Game = {
     // horizontal movement
     const ax = Input.axis();
     if (ax) p.face = ax > 0 ? 1 : -1;
-    const accel = p.onGround ? CFG.GROUND_ACCEL : CFG.AIR_ACCEL;
-    const target = ax * CFG.MOVE;
+    const accel = !p.onGround ? CFG.AIR_ACCEL : p.standTile === '~' ? CFG.ICE_ACCEL : CFG.GROUND_ACCEL;
+    const target = ax * CFG.MOVE * (p.mega > 0 ? CFG.MEGA_SPEED : 1);
     p.vx += clamp(target - p.vx, -accel * dt, accel * dt);
     let belt = 0;
     if (p.onGround && p.standTile === '>') belt = CFG.CONVEYOR;
@@ -872,16 +1142,25 @@ const Game = {
     p.standTile = landed ? (p.gs > 0 ? hit.tileBelow : hit.tileAbove) : null;
     p.walk += Math.abs(p.vx) * dt * 2.2;
     if (p.invuln > 0) p.invuln -= dt;
+    if (p.mega > 0) {
+      p.mega -= dt;
+      if (Math.random() < 0.5) this.particles.push({ x: p.x + Math.random() * p.w, y: p.y + Math.random() * p.h, vx: -p.face * 2, vy: -1, life: 0.4, max: 0.4, col: RAINBOW[Math.floor(Game.t * 20 + Math.random() * 6) % 6], size: 0.12 });
+      if (p.mega <= 0) { Sound.sfx('unflip'); this.say('Mega Fuzz', 'The rainbow wore off. Back to normal slippers.'); }
+    }
 
     // fell out of the world
-    if (p.y > L.H + 2 || p.y < -3) { this.hurt(); if (this.state !== 'play') return; }
+    if (p.y > L.H + 2 || p.y < -3) { this.hurt(true); if (this.state !== 'play') return; }
 
-    // spikes
+    // spikes and hot sauce
     const pb = { x: p.x + 0.08, y: p.y + 0.05, w: p.w - 0.16, h: p.h - 0.1 };
     for (let r = Math.floor(pb.y); r <= Math.floor(pb.y + pb.h); r++) for (let c = Math.floor(pb.x); c <= Math.floor(pb.x + pb.w); c++) {
       const t = tileAt(L, c, r);
       if (t === '^' && overlap(pb, { x: c + 0.1, y: r + 0.45, w: 0.8, h: 0.55 })) { this.hurt(); return; }
       if (t === 'v' && overlap(pb, { x: c + 0.1, y: r, w: 0.8, h: 0.55 })) { this.hurt(); return; }
+      if (t === '%' && overlap(pb, { x: c, y: r + 0.35, w: 1, h: 0.65 })) {
+        if (p.mega > 0 || p.shield) { p.vy = -CFG.JUMP_V * 0.9; p.onGround = false; } // power-ups bounce you out of the sauce
+        this.hurt(); return;
+      }
     }
 
     // items
@@ -890,6 +1169,10 @@ const Game = {
       if (overlap(p, { x: it.x + 0.2, y: it.y + 0.2, w: 0.6, h: 0.6 })) {
         it.got = true;
         if (it.type === 'bolt') { this.score += 10; Sound.sfx('bolt'); this.burst(it.x + 0.5, it.y + 0.5, hex('#ffd34d'), 8, 4); }
+        else if (it.type === 'shield') { p.shield = true; this.score += 25; Sound.sfx('shield'); this.burst(it.x + 0.5, it.y + 0.5, hex('#8fe8ff'), 22, 6);
+          this.say('Bubble Shield', 'Bubble on! The next thing that hits you just pops the bubble.'); }
+        else if (it.type === 'mega') { p.mega = CFG.MEGA_TIME; this.score += 25; Sound.sfx('mega'); this.burst(it.x + 0.5, it.y + 0.5, hex('#ffffff'), 30, 7);
+          this.say('Mega Fuzz', 'RAINBOW SLIPPERS! Run into anything to smash it. Hurry, it lasts 8 seconds!'); }
         else { p.hasFizz = true; this.score += 25; Sound.sfx('can'); this.burst(it.x + 0.5, it.y + 0.5, hex('#7dffa0'), 22, 6);
           this.say('Fizzy Jet', 'Got it! Jump, then press jump again in the air to burp-boost.'); }
       }
@@ -906,16 +1189,39 @@ const Game = {
     // enemies
     for (const e of L.enemies) {
       if (!e.alive) { e.squish += dt; continue; }
-      if (e.type === 'robot') {
+      e.t += dt;
+      if (e.type === 'robot' || e.type === 'snail') {
+        // walkers: fall with gravity, turn around at walls and ledges
         e.vy = clamp(e.vy + CFG.GRAVITY * dt, -CFG.MAX_FALL, CFG.MAX_FALL);
         const h2 = moveBox(L, e, e.vx * dt, e.vy * dt);
         if (h2.bottom) e.vy = 0;
-        // turn at walls and ledges
         const aheadX = e.vx > 0 ? e.x + e.w + 0.05 : e.x - 0.05;
         if (h2.left || h2.right || (h2.bottom && !isSolid(L, Math.floor(aheadX), Math.floor(e.y + e.h + 0.1)))) e.vx = -e.vx;
         if (e.y > L.H + 2) e.alive = false;
+      } else if (e.type === 'hopper') {
+        // Comet Hopper: sits still, then hops toward the courier when they are close
+        e.vy = clamp(e.vy + CFG.GRAVITY * dt, -CFG.MAX_FALL, CFG.MAX_FALL);
+        const h2 = moveBox(L, e, e.vx * dt, e.vy * dt);
+        if (h2.left || h2.right) e.vx = -e.vx * 0.5;
+        if (h2.bottom) {
+          e.vy = 0; e.vx = 0; e.wait -= dt;
+          const dx = (p.x + p.w / 2) - (e.x + e.w / 2);
+          if (e.wait <= 0 && Math.abs(dx) < 9) { e.vy = -CFG.HOPPER_JUMP; e.vx = Math.sign(dx) * 2.6 * L.speed; e.wait = CFG.HOPPER_WAIT / L.speed; }
+        }
+        if (e.y > L.H + 2) e.alive = false;
+      } else if (e.type === 'drone') {
+        // Snoop Drone: flies left and right (up to 5 tiles from home), bobbing a little
+        e.x += e.vx * dt;
+        const front = e.vx > 0 ? e.x + e.w : e.x;
+        if (isSolid(L, Math.floor(front), Math.floor(e.y + e.h / 2)) || Math.abs(e.x - e.homeX) > 5) { e.x -= e.vx * dt; e.vx = -e.vx; }
+        e.y = e.baseY + Math.sin(e.t * 2.2) * 0.3;
+      } else if (e.type === 'flare') {
+        // Fire Flare: leaps out of the hot sauce, falls back in, waits, repeats
+        const ph = (e.t % CFG.FLARE_PERIOD) / CFG.FLARE_PERIOD, up = 0.55;
+        e.out = ph < up;
+        e.y = e.out ? e.baseY - Math.sin(Math.PI * ph / up) * CFG.FLARE_HEIGHT : e.baseY + 0.6;
+        if (!e.out) continue;                      // hiding in the sauce: harmless
       } else {
-        e.t += dt;
         const mid = (e.top + e.bot) / 2, amp = (e.bot - e.top) / 2;
         e.y = mid + Math.sin(e.t * 1.6) * amp;
         e.x += Math.sin(e.t * 0.7) * 0.004;
@@ -923,21 +1229,97 @@ const Game = {
       if (overlap(p, e)) {
         const falling = p.vy * p.gs > 0;
         const feetGap = p.gs > 0 ? (p.y + p.h) - e.y : (e.y + e.h) - p.y;
-        if (falling && feetGap < 0.55) {
+        if (p.mega > 0 || (falling && feetGap < 0.55 && !e.spiky)) {
+          // stomped (or smashed by Mega Fuzz)
           e.alive = false; e.squish = 0; this.score += 50; Sound.sfx('stomp');
-          p.vy = -CFG.STOMP_BOUNCE * p.gs; p.burpUsed = false;
-          this.burst(e.x + e.w / 2, e.y + e.h / 2, e.type === 'robot' ? hex('#9fe3ff') : hex('#ff8fd0'), 16, 5);
+          if (p.mega <= 0) { p.vy = -CFG.STOMP_BOUNCE * p.gs; p.burpUsed = false; }
+          this.burst(e.x + e.w / 2, e.y + e.h / 2, hex(FOE_COLOR[e.type] || '#ffffff'), 16, 5);
         } else if (p.invuln <= 0) { this.hurt(); return; }
       }
     }
 
-    // goal
-    if (L.goal && overlap(p, { x: L.goal.x, y: L.goal.y - 1, w: 1, h: 2 })) { this.score += 100; this.completeLevel(); return; }
+    // the boss and the suitcases it throws
+    if (L.boss && this.updateBoss(dt)) return;
+
+    // goal (locked while the boss is still standing)
+    if (L.goal && !(L.boss && L.boss.alive) && overlap(p, { x: L.goal.x, y: L.goal.y - 1, w: 1, h: 2 })) { this.score += 100; this.completeLevel(); return; }
 
     updateCamera(false);
   },
   say(who, text) { this.banner = { who, text, t: 5.5 }; UI.setBanner(who, text); },
+
+  /* THE BAGGAGE BEAST (boss). It wakes up when the courier steps past the boss fence (!),
+     walks toward them, hops, and throws suitcases. Stomp its head CFG.BOSS_HP times.
+     It gets faster each time it is hit. Returns true if this frame should stop (the courier got hurt). */
+  updateBoss(dt) {
+    const L = this.level, p = this.player, B = L.boss;
+    // suitcases fly in arcs; stomp them for a few bolts, or dodge them
+    for (const s of L.shots) {
+      s.vy += 20 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.spin += dt * 8;
+      if (isSolid(L, Math.floor(s.x + s.w / 2), Math.floor(s.y + s.h / 2)) || s.y > L.H + 2) { s.dead = true; this.burst(s.x + s.w / 2, s.y + s.h / 2, hex('#c08a4a'), 8, 3); continue; }
+      if (overlap(p, s)) {
+        if (p.vy > 0 && (p.y + p.h) - s.y < 0.45 && p.gs > 0) { s.dead = true; this.score += 20; Sound.sfx('stomp'); p.vy = -CFG.STOMP_BOUNCE; p.burpUsed = false; this.burst(s.x + s.w / 2, s.y, hex('#c08a4a'), 10, 4); }
+        else if (p.invuln <= 0 && p.mega <= 0) { s.dead = true; this.hurt(); return true; }
+      }
+    }
+    L.shots = L.shots.filter(s => !s.dead);
+    if (!B.alive) { B.dead += dt; return false; }
+
+    if (!B.awake) {
+      if (p.x > L.fenceX + 1.5) {
+        B.awake = true; B.hopT = 2.0; B.throwT = 1.5; Sound.sfx('roar'); this.shake = 0.5;
+        this.say('The Baggage Beast', 'WHO TOUCHED MY LUGGAGE?! Nothing leaves the Lost and Found. NOTHING!');
+        Sound.startMusic(BOSS_SONG);
+      }
+      return false;
+    }
+    B.t += dt; B.inv = Math.max(0, B.inv - dt); B.mouth = Math.max(0, B.mouth - dt);
+    const anger = 1 + (B.max - B.hp) * 0.15;            // faster after every stomp
+    const dx = (p.x + p.w / 2) - (B.x + B.w / 2), dir = dx >= 0 ? 1 : -1;
+    if (B.onGround) {
+      const want = B.inv > 0 ? -dir * 3.2 : dir * 1.9 * anger;   // backs off for a moment after being stomped
+      B.vx += clamp(want - B.vx, -20 * dt, 20 * dt);
+      B.face = dir;
+    }
+    B.vy = clamp(B.vy + CFG.GRAVITY * dt, -CFG.MAX_FALL, CFG.MAX_FALL);
+    const hit = moveBox(L, B, B.vx * dt, B.vy * dt);
+    if (hit.bottom && !B.onGround && B.vy >= 0) { Sound.sfx('thump'); this.shake = Math.max(this.shake, 0.15); }
+    B.onGround = hit.bottom; if (hit.bottom || hit.top) B.vy = 0;
+    if (hit.left || hit.right) B.vx = 0;
+    if (B.x < L.fenceX + 1) { B.x = L.fenceX + 1; B.vx = 0; }
+    B.hopT -= dt;
+    if (B.hopT <= 0 && B.onGround) { B.vy = -12; B.hopT = 2.8 / anger; }
+    B.throwT -= dt;
+    if (B.throwT <= 0) {
+      B.throwT = 3.4 / anger; B.mouth = 0.4; Sound.sfx('throw');
+      L.shots.push({ x: B.x + B.w / 2 - 0.3, y: B.y - 0.3, w: 0.6, h: 0.5, vx: dir * 4.5, vy: -9, spin: 0, col: SUITCASE_COLORS[(B.max - B.hp + L.shots.length) % SUITCASE_COLORS.length] });
+    }
+    // touching the Beast: stomp its head, or get hurt
+    if (overlap(p, B)) {
+      const feetGap = (p.y + p.h) - B.y;
+      if (p.gs > 0 && p.vy > 0 && feetGap < 0.8) {
+        p.vy = -CFG.STOMP_BOUNCE * 1.2; p.burpUsed = false;
+        if (B.inv <= 0) {
+          B.hp--; B.inv = 1.3; this.score += 100; Sound.sfx('bossHit'); this.shake = 0.4;
+          this.burst(p.x + p.w / 2, B.y, hex('#ffd34d'), 20, 6);
+          if (B.hp <= 0) {
+            B.alive = false; this.score += 500; Sound.sfx('bossDown'); this.shake = 0.8; L.shots = [];
+            for (let i = 0; i < 4; i++) this.burst(B.x + Math.random() * B.w, B.y + Math.random() * B.h, hex(SUITCASE_COLORS[i]), 18, 8);
+            this.say('The Baggage Beast', 'Okay, OKAY! Take your parcel! ...Can I keep the lamp?');
+            Sound.startMusic(L.def.music);
+          } else this.say('The Baggage Beast', ['OOF! My zipper!', 'Hey! That is my good handle!', 'Grrr! Stop stomping my stickers!', 'One more and I am filing a complaint!'][B.max - B.hp - 1] || 'OOF!');
+        }
+      } else if (p.mega > 0 || p.invuln > 0) {
+        p.vx = -dir * 8; // bounce off
+      } else { p.vx = -dir * 8; this.hurt(); return true; }
+    }
+    return false;
+  },
 };
+const BOSS_SONG = { root: 50, scale: [0, 1, 3, 5, 7, 8], tempo: 0.105 };
+const SUITCASE_COLORS = ['#c0533a', '#3a8ec0', '#d4a63a', '#7a4ac0', '#3ac07a'];
+const FOE_COLOR = { robot: '#9fe3ff', jelly: '#ff8fd0', hopper: '#bfefff', drone: '#ffe066', snail: '#c9a0ff', flare: '#ffb03a' };
+const RAINBOW = ['#ff5d6c', '#ff9f3d', '#ffe24d', '#7dffa0', '#5dc8ff', '#b07dff'].map(c => hex(c));
 
 // ---------- DRAWING ----------
 const STARS = (() => { const r = rng(7), a = []; for (let i = 0; i < 160; i++) a.push({ x: r(), y: r(), s: 0.6 + r() * 1.8, d: 0.1 + r() * 0.35, tw: r() * 6 }); return a; })();
@@ -999,6 +1381,64 @@ function drawBackground(L) {
     const talking = Game.banner && Game.banner.who === 'The Asteroid';
     const open = talking ? 0.05 + Math.abs(Math.sin(Game.t * 14)) * 0.12 : 0.03;
     srect(cx - r * 0.28, cy + r * 0.2, r * 0.56, r * open, hex('#1b1530'));
+  } else if (def.bgDecor === 'ice') {
+    // ICE BIOME: wavy aurora, snowy mountains, falling snow
+    for (let band = 0; band < 3; band++) {
+      const col = hex(['#7dffa0', '#5dc8ff', '#b07dff'][band], 0.13), y0 = R.H * (0.12 + band * 0.07);
+      for (let i = 0; i < 24; i++) {
+        const x1 = i / 24 * R.W, x2 = (i + 1) / 24 * R.W, w = t => Math.sin(t * 0.008 + Game.t * 0.5 + band) * R.H * 0.04;
+        srect(x1, y0 + w(x1 - par(0.02)), x2 - x1 + 1, R.H * 0.06, col, hex('#000000', 0));
+      }
+    }
+    const rr = rng(11);
+    for (let i = 0; i < 18; i++) {
+      const w = R.H * (0.3 + rr() * 0.3), h = R.H * (0.18 + rr() * 0.22), x = ((i * R.H * 0.42 + par(0.15)) % (R.W + R.H * 2.5)) - R.H * 0.6;
+      tri(x, R.H, x + w / 2, R.H - h, x + w, R.H, hex('#2c4d78', 0.95));
+      tri(x + w * 0.35, R.H - h * 0.7, x + w / 2, R.H - h, x + w * 0.65, R.H - h * 0.7, hex('#e8f4ff', 0.9));
+    }
+    for (let i = 0; i < 70; i++) {
+      const s = STARS[i], fx = ((s.x * R.W * 2 + Math.sin(Game.t + i) * 20 * R.dpr + par(0.3)) % R.W + R.W) % R.W;
+      const fy = ((s.y * R.H + Game.t * R.H * 0.06 * (0.5 + s.d)) % R.H);
+      srect(fx, fy, 2.5 * R.dpr * s.s * 0.6, 2.5 * R.dpr * s.s * 0.6, [1, 1, 1, 0.7]);
+    }
+  } else if (def.bgDecor === 'lava') {
+    // LAVA BIOME: a huge red planet, volcanoes with glowing tops, rising embers
+    scircle(R.W * 0.25 + par(0.03), R.H * 0.22, R.H * 0.16, hex('#ff7a4d', 0.85), 36, hex('#8a1f12', 0.85));
+    const rr = rng(5);
+    for (let i = 0; i < 14; i++) {
+      const w = R.H * (0.35 + rr() * 0.3), h = R.H * (0.22 + rr() * 0.25), x = ((i * R.H * 0.55 + par(0.2)) % (R.W + R.H * 2.5)) - R.H * 0.6;
+      tri(x, R.H, x + w * 0.42, R.H - h, x + w, R.H, hex('#2a0d10', 0.95));
+      srect(x + w * 0.42 - w * 0.05, R.H - h, w * 0.16, R.H * 0.012, hex('#ffb03a', 0.6 + 0.3 * Math.sin(Game.t * 3 + i)));
+      tri(x + w * 0.37, R.H - h, x + w * 0.42, R.H - h - R.H * 0.03, x + w * 0.47, R.H - h, hex('#ff5d2a', 0.5 + 0.4 * Math.sin(Game.t * 4 + i)));
+    }
+    for (let i = 0; i < 50; i++) {
+      const s = STARS[i], ex = ((s.x * R.W * 2 + Math.sin(Game.t * 2 + i) * 15 * R.dpr + par(0.4)) % R.W + R.W) % R.W;
+      const ey = R.H - ((s.y * R.H + Game.t * R.H * 0.08 * (0.5 + s.d)) % R.H), z = 3 * R.dpr * s.s * 0.6;
+      srect(ex, ey, z, z, hex(i % 2 ? '#ffb03a' : '#ff5d2a', 0.7 * (ey / R.H)));
+    }
+  } else if (def.bgDecor === 'claim') {
+    // LOST & FOUND WAREHOUSE: hanging lamps, tall shelves stacked with suitcases, a moving carousel belt
+    const T = Cam.T, shelfW = T * 7, off = par(0.35) % shelfW;
+    for (let i = -1; i < R.W / shelfW + 2; i++) {
+      const x = i * shelfW + off, rr = rng(1000 + ((i - Math.trunc(par(0.35) / shelfW)) & 255));
+      srect(x, R.H * 0.18, T * 0.2, R.H, hex('#2a2142')); srect(x + shelfW - T * 0.4, R.H * 0.18, T * 0.2, R.H, hex('#2a2142'));
+      for (let lvl = 0; lvl < 4; lvl++) {
+        const y = R.H * (0.32 + lvl * 0.17);
+        srect(x, y, shelfW - T * 0.2, T * 0.15, hex('#3d3160'));
+        let bx = x + T * 0.3;
+        while (bx < x + shelfW - T * 1.4) {
+          const bw = T * (0.7 + rr() * 0.7), bh = T * (0.5 + rr() * 0.6), c = hex(SUITCASE_COLORS[Math.floor(rr() * 5)], 0.28);
+          srect(bx, y - bh, bw, bh, c); srect(bx + bw * 0.35, y - bh - T * 0.12, bw * 0.3, T * 0.08, hex('#1b1530', 0.6));
+          bx += bw + T * 0.15;
+        }
+      }
+    }
+    for (let i = 0; i < 6; i++) { // lamps
+      const lx = ((i * R.W / 3 + par(0.15)) % (R.W * 2) + R.W * 2) % (R.W * 2) - R.W * 0.25;
+      srect(lx, 0, 2 * R.dpr, R.H * 0.1, hex('#5a5080'));
+      tri(lx - T * 0.6, R.H * 0.1 + T * 0.4, lx, R.H * 0.1, lx + T * 0.6, R.H * 0.1 + T * 0.4, hex('#8c80b0'));
+      tri(lx - T * 0.6, R.H * 0.1 + T * 0.4, lx + T * 0.6, R.H * 0.1 + T * 0.4, lx, R.H * 0.6, hex('#ffe9a8', 0.06));
+    }
   }
 }
 
@@ -1015,7 +1455,7 @@ function drawTiles(L) {
   }
   // below the map (only visible on tall screens): continue the bottom row's ground downward
   for (let x = c0; x <= c1; x++) if (isSolid(L, x, L.H - 1)) {
-    const t = L.grid[L.H - 1][x], base = t === '=' ? metal : t === '#' ? rock : hex('#2b2f3a');
+    const t = L.grid[L.H - 1][x], base = t === '=' ? metal : t === '#' ? rock : t === '~' ? hex('#6fa8d6') : hex('#2b2f3a');
     wrect(x, L.H, 1, Math.max(0, Cam.y + Cam.viewH - L.H) + 1, shade(base, 0.75), shade(base, 0.45));
   }
   for (let y = 0; y < L.H; y++) for (let x = c0; x <= c1; x++) {
@@ -1043,6 +1483,17 @@ function drawTiles(L) {
         if (dir > 0) wtri(ax, y + 0.04, ax + 0.18, y + 0.15, ax, y + 0.26, cc); else wtri(ax + 0.18, y + 0.04, ax, y + 0.15, ax + 0.18, y + 0.26, cc);
       }
       wcircle(x + 0.25, y + 0.65, 0.17, hex('#5c6375'), 10); wcircle(x + 0.75, y + 0.65, 0.17, hex('#5c6375'), 10);
+    } else if (t === '~') { // slippery ice: pale blue with a shiny streak
+      wrect(x, y, 1, 1, hex('#bfe6ff'), hex('#6fa8d6'));
+      if (openAbove) wrect(x, y, 1, 0.14, hex('#ffffff'));
+      if ((x + y) % 3 === 0) wtri(x + 0.15, y + 0.75, x + 0.55, y + 0.3, x + 0.65, y + 0.38, hex('#ffffff', 0.55));
+      if (openBelow) wrect(x, y + 0.85, 1, 0.15, hex('#4f7fa8'));
+    } else if (t === '%') { // hot sauce: glowing, with a wobbly surface and bubbles
+      const wob = Math.sin(Game.t * 3 + x * 1.3) * 0.06;
+      wrect(x, y + 0.35 + wob, 1, 0.65 - wob, hex('#ff8a1f'), hex('#b3200f'));
+      wrect(x, y + 0.33 + wob, 1, 0.1, hex('#ffe066'));
+      const b = (Game.t * 0.8 + x * 0.37) % 1;
+      wcircle(x + 0.3 + (x % 2) * 0.4, y + 0.95 - b * 0.55, 0.06 + b * 0.05, hex('#ffd34d', 1 - b), 8);
     } else if (t === '^') {
       for (let k = 0; k < 3; k++) wtri(x + k / 3, y + 1, x + k / 3 + 1 / 6, y + 0.42, x + (k + 1) / 3, y + 1, hex('#e6e9f2'));
       wrect(x, y + 0.92, 1, 0.08, hex('#8d93a6'));
@@ -1065,6 +1516,19 @@ function drawItems(L) {
         wtri(cx, cy, cx + Math.cos(a1) * 0.28 * sx2, cy + Math.sin(a1) * 0.28, cx + Math.cos(a2) * 0.28 * sx2, cy + Math.sin(a2) * 0.28, hex(i % 2 ? '#ffd34d' : '#ffe58a'));
       }
       wcircle(cx, cy, 0.1, hex('#a8781a'), 10);
+    } else if (it.type === 'shield') { // Bubble Shield: a wobbly see-through bubble
+      const cx = it.x + 0.5, cy = it.y + 0.5 + bob, r = 0.36 + Math.sin(Game.t * 5) * 0.03;
+      wcircle(cx, cy, r + 0.1, hex('#8fe8ff', 0.15), 20);
+      wcircle(cx, cy, r, hex('#bff4ff', 0.35), 22, hex('#5dc8ff', 0.8));
+      wcircle(cx - 0.12, cy - 0.12, 0.08, hex('#ffffff', 0.9), 10);
+    } else if (it.type === 'mega') { // Mega Fuzz: a spinning rainbow star
+      const cx = it.x + 0.5, cy = it.y + 0.5 + bob, a0 = Game.t * 2;
+      wcircle(cx, cy, 0.5, hex('#ffffff', 0.15 + 0.1 * Math.sin(Game.t * 8)), 20);
+      for (let i = 0; i < 5; i++) {
+        const a = a0 + i * Math.PI * 2 / 5, b1 = a - Math.PI / 5, b2 = a + Math.PI / 5;
+        wtri(cx + Math.cos(a) * 0.42, cy + Math.sin(a) * 0.42, cx + Math.cos(b1) * 0.17, cy + Math.sin(b1) * 0.17, cx + Math.cos(b2) * 0.17, cy + Math.sin(b2) * 0.17, RAINBOW[(i + Math.floor(Game.t * 6)) % 6]);
+      }
+      wcircle(cx, cy, 0.18, RAINBOW[Math.floor(Game.t * 6) % 6], 12);
     } else { // Fizzy Jet can
       const x = it.x + 0.3, y = it.y + 0.18 + bob;
       wcircle(it.x + 0.5, it.y + 0.5 + bob, 0.48, hex('#7dffa0', 0.18 + 0.1 * Math.sin(Game.t * 6)), 20);
@@ -1079,7 +1543,13 @@ function drawItems(L) {
     const wave = Math.sin(Game.t * 6) * 0.05, col = cp.on ? hex('#7dffa0') : hex('#7c7f92');
     wtri(cp.x + 0.53, cp.y - 0.6, cp.x + 1.05, cp.y - 0.4 + wave, cp.x + 0.53, cp.y - 0.15, col);
   }
-  if (L.goal) {
+  if (L.goal && L.boss && L.boss.alive) { // locked pad: red, with a padlock
+    const g = L.goal;
+    wrect(g.x - 0.4, g.y + 0.75, 1.8, 0.25, hex('#8d93a6'));
+    wrect(g.x - 0.3, g.y + 0.65, 1.6, 0.12, hex('#ff5d6c'));
+    wrect(g.x + 0.2, g.y - 0.2, 0.6, 0.5, hex('#ffd34d')); wrect(g.x + 0.3, g.y - 0.5, 0.08, 0.3, hex('#d9dde6')); wrect(g.x + 0.62, g.y - 0.5, 0.08, 0.3, hex('#d9dde6'));
+    wrect(g.x + 0.3, g.y - 0.55, 0.4, 0.08, hex('#d9dde6')); wrect(g.x + 0.45, g.y - 0.05, 0.1, 0.18, hex('#5a3a10'));
+  } else if (L.goal) {
     const g = L.goal, pulse = 0.5 + 0.5 * Math.sin(Game.t * 4);
     wrect(g.x - 0.3, g.y - 2.6, 1.6, 3.5, hex('#7dffa0', 0.08 + 0.08 * pulse), hex('#7dffa0', 0.35));
     wrect(g.x - 0.4, g.y + 0.75, 1.8, 0.25, hex('#e8fff0'));
@@ -1115,7 +1585,92 @@ function drawJelly(e) {
   wcircle(cx - 0.13, cy - 0.06, 0.07, hex('#2b1235', a), 10); wcircle(cx + 0.13, cy - 0.06, 0.07, hex('#2b1235', a), 10);
   wcircle(cx - 0.18, cy - 0.2, 0.06, hex('#ffffff', a * 0.7), 8);
 }
+// squash-and-fade helper for defeated monsters: returns 0..1 (1 = gone)
+const gone = e => (e.alive ? 0 : clamp(e.squish * 2, 0, 1));
+function drawHopper(e) { // Comet Hopper: an icy frog-ball with big eyes
+  const k = gone(e); if (k >= 1) return;
+  const a = 1 - k, air = e.vy < -0.5 || e.vy > 0.5, cx = e.x + e.w / 2, by = e.y + e.h;
+  const sq = air ? 1.12 : 0.92 + 0.05 * Math.sin(Game.t * 6 + e.x);
+  const w = e.w * (air ? 0.9 : 1.08), h = e.h * sq * (1 - k * 0.6);
+  wrect(cx - w / 2, by - h, w, h, hex('#bfefff', a), hex('#5aa6d6', a));
+  wrect(cx - w / 2, by - h, w, 0.1, hex('#ffffff', a));
+  for (const s of [-1, 1]) { wcircle(cx + s * 0.18, by - h + 0.04, 0.15, hex('#ffffff', a), 12); wcircle(cx + s * 0.18 + (e.vx > 0 ? 0.04 : e.vx < 0 ? -0.04 : 0), by - h + 0.06, 0.07, hex('#14324a', a), 10); }
+  wrect(cx - 0.15, by - h * 0.45, 0.3, 0.05, hex('#14324a', a));
+  if (!air) { wrect(cx - w / 2 - 0.05, by - 0.1, 0.22, 0.1, hex('#5aa6d6', a)); wrect(cx + w / 2 - 0.17, by - 0.1, 0.22, 0.1, hex('#5aa6d6', a)); }
+}
+function drawDrone(e) { // Snoop Drone: a little saucer with a spinning rotor and a camera eye
+  const k = gone(e); if (k >= 1) return;
+  const a = 1 - k, cx = e.x + e.w / 2, cy = e.y + e.h * 0.55, spin = Math.abs(Math.sin(Game.t * 30));
+  wrect(cx - 0.4 * spin, e.y - 0.05, 0.8 * spin, 0.06, hex('#d9dde6', a));
+  wrect(cx - 0.03, e.y, 0.06, 0.15, hex('#8d93a6', a));
+  wcircle(cx, cy, 0.42, hex('#ffe066', a), 18, hex('#c9a020', a));
+  wrect(cx - 0.42, cy, 0.84, 0.18, hex('#8d6a10', a));
+  const look = e.vx > 0 ? 0.1 : -0.1;
+  wcircle(cx + look, cy - 0.05, 0.14, hex('#1b1e26', a), 12); wcircle(cx + look, cy - 0.05, 0.06, hex('#ff4b4b', a * (0.6 + 0.4 * Math.sin(Game.t * 10))), 8);
+}
+function drawSnail(e) { // Spiky Space Snail: purple shell covered in spikes (don't stomp!)
+  const k = gone(e); if (k >= 1) return;
+  const a = 1 - k, f = e.vx > 0 ? 1 : -1, cx = e.x + e.w / 2, by = e.y + e.h;
+  wrect(e.x, by - 0.18, e.w, 0.18, hex('#9fe0a0', a), hex('#5aa060', a));                 // foot
+  wrect(cx + f * 0.3 - 0.08, by - 0.42, 0.16, 0.3, hex('#9fe0a0', a));                    // head
+  wrect(cx + f * 0.35 - 0.02, by - 0.62, 0.04, 0.22, hex('#9fe0a0', a)); wcircle(cx + f * 0.35, by - 0.64, 0.06, hex('#1b1e26', a), 8);
+  wcircle(cx - f * 0.08, by - 0.36, 0.3, hex('#b07dff', a), 18, hex('#5a2fa0', a));       // shell
+  for (let i = 0; i < 5; i++) {
+    const an = Math.PI * (1.05 + i * 0.22), r = 0.3, sx0 = cx - f * 0.08 + Math.cos(an) * r, sy0 = by - 0.36 + Math.sin(an) * r;
+    wtri(sx0 - 0.07, sy0 + 0.02, sx0 + Math.cos(an) * 0.2, sy0 + Math.sin(an) * 0.2, sx0 + 0.07, sy0 + 0.02, hex('#e6e9f2', a));
+  }
+}
+function drawFlare(e) { // Fire Flare: a bouncing fireball with a flickering tail
+  if (!e.alive) { if (e.squish > 0.5) return; }
+  else if (!e.out) return;
+  const a = e.alive ? 1 : 1 - e.squish * 2, cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+  for (let i = 1; i <= 3; i++) wcircle(cx + Math.sin(Game.t * 20 + i) * 0.05, cy + i * 0.22, 0.3 - i * 0.07, hex(i % 2 ? '#ffb03a' : '#ff5d2a', a * (0.8 - i * 0.2)), 12);
+  wcircle(cx, cy, 0.36, hex('#ffe066', a), 16, hex('#ff5d2a', a));
+  wcircle(cx - 0.12, cy - 0.04, 0.06, hex('#3a0a00', a), 8); wcircle(cx + 0.12, cy - 0.04, 0.06, hex('#3a0a00', a), 8);
+}
+function drawBoss(B) { // THE BAGGAGE BEAST: a giant angry suitcase with stickers, a handle and a zipper mouth
+  if (!B.alive && B.dead > 1.2) return;
+  const fade = B.alive ? 1 : 1 - B.dead / 1.2, flash = B.inv > 0 && Math.floor(B.inv * 14) % 2 === 0;
+  const squash = B.alive ? 1 + (B.onGround ? 0.03 * Math.sin(B.t * 8) : -0.06) : 1 - B.dead * 0.6;
+  const w = B.w * (2 - squash), h = B.h * squash, x = B.x + (B.w - w) / 2, y = B.y + B.h - h;
+  const body = flash ? hex('#ffffff', fade) : hex('#7a3b8c', fade), dark = flash ? hex('#e0e0e0', fade) : hex('#4a1f5a', fade);
+  wrect(x + 0.3, y - 0.45, w - 0.6, 0.12, hex('#2a1030', fade)); wrect(x + 0.3, y - 0.45, 0.12, 0.5, hex('#2a1030', fade)); wrect(x + w - 0.42, y - 0.45, 0.12, 0.5, hex('#2a1030', fade)); // handle
+  wrect(x, y, w, h, body, dark);
+  wrect(x, y + h * 0.15, w, 0.1, hex('#c9a020', fade)); wrect(x, y + h * 0.78, w, 0.1, hex('#c9a020', fade));            // straps
+  wrect(x + 0.15, y + h * 0.5, 0.45, 0.35, hex('#5dc8ff', fade)); wrect(x + w - 0.55, y + h * 0.42, 0.4, 0.3, hex('#7dffa0', fade)); // stickers
+  wrect(x + 0.22, y + h * 0.58, 0.3, 0.06, hex('#ffffff', fade));
+  // angry eyes (look at the courier) and eyebrows
+  const lk = B.face * 0.08;
+  for (const s of [-1, 1]) {
+    const ex = x + w / 2 + s * 0.48;
+    wcircle(ex, y + 0.62, 0.22, hex('#fff6d6', fade), 14);
+    wcircle(ex + lk, y + 0.65, 0.1, hex('#1b1530', fade), 10);
+    wtri(ex - 0.3, y + 0.32 + (s < 0 ? 0 : 0.14), ex + 0.3, y + 0.32 + (s < 0 ? 0.14 : 0), ex, y + 0.44, dark);
+  }
+  // zipper mouth: opens when throwing or hurt
+  const open = B.mouth > 0 || B.inv > 0 || !B.alive ? 0.32 : 0.06;
+  wrect(x + w / 2 - 0.6, y + 1.15, 1.2, open, hex('#1b1530', fade));
+  for (let i = 0; i < 6; i++) { const tx = x + w / 2 - 0.6 + i * 0.2; wtri(tx, y + 1.15, tx + 0.1, y + 1.24, tx + 0.2, y + 1.15, hex('#e6e9f2', fade)); }
+  // little wheels
+  for (const s of [0.3, w - 0.6]) wcircle(x + s + 0.15, y + h + 0.05, 0.14, hex('#1b1e26', fade), 10);
+}
+function drawShots(L) {
+  for (const s of L.shots) {
+    const cx = s.x + s.w / 2, cy = s.y + s.h / 2, c = Math.cos(s.spin), sn = Math.sin(s.spin), hw = s.w / 2, hh = s.h / 2;
+    const pt = (u, v) => [cx + u * c - v * sn, cy + u * sn + v * c];
+    const [a, b, d, e] = [pt(-hw, -hh), pt(hw, -hh), pt(hw, hh), pt(-hw, hh)], col = hex(s.col);
+    wtri(a[0], a[1], b[0], b[1], d[0], d[1], col); wtri(a[0], a[1], d[0], d[1], e[0], e[1], col);
+    const [m1, m2] = [pt(-0.03, -hh), pt(0.03, hh)];
+    wtri(m1[0], m1[1], m2[0], m2[1], cx, cy, hex('#2a1030'));
+  }
+}
+function drawEnemy(e) {
+  ({ robot: drawRobot, jelly: drawJelly, hopper: drawHopper, drone: drawDrone, snail: drawSnail, flare: drawFlare })[e.type](e);
+}
 function drawPlayer(p) {
+  // power-up glows go behind the courier
+  if (p.shield) wcircle(p.x + p.w / 2, p.y + p.h / 2, 0.75 + Math.sin(Game.t * 5) * 0.04, hex('#8fe8ff', 0.22), 24, hex('#5dc8ff', 0.6));
+  if (p.mega > 0 && (p.mega > 2 || Math.floor(p.mega * 8) % 2 === 0)) wcircle(p.x + p.w / 2, p.y + p.h / 2, 0.8, RAINBOW[Math.floor(Game.t * 15) % 6].slice(0, 3).concat(0.35), 20);
   if (p.invuln > 0 && Math.floor(p.invuln * 12) % 2 === 0) return;
   // local box coords (0..w, 0..h); mirrored for facing and for upside-down gravity
   const part = (lx, ly, lw, lh, c) => {
@@ -1135,8 +1690,9 @@ function drawPlayer(p) {
   part(0.21, -0.12, 0.09, 0.06, hex('#ff6fb5'));
   part(0.18 + step, 0.72, 0.13, air ? 0.08 : 0.12, hex('#24305e'));   // legs
   part(0.42 - step, 0.72, 0.13, air ? 0.08 : 0.12, hex('#24305e'));
-  part(0.12 + step, 0.81, 0.22, 0.09, hex('#ff6fb5'));  // fuzzy slippers
-  part(0.38 - step, 0.81, 0.24, 0.09, hex('#ff6fb5'));
+  const slip = p.mega > 0 ? RAINBOW[Math.floor(Game.t * 12) % 6] : hex('#ff6fb5'); // rainbow during Mega Fuzz
+  part(0.12 + step, 0.81, 0.22, 0.09, slip);  // fuzzy slippers
+  part(0.38 - step, 0.81, 0.24, 0.09, slip);
   part(0.14 + step, 0.79, 0.06, 0.04, hex('#ffd0ea')); part(0.42 - step, 0.79, 0.06, 0.04, hex('#ffd0ea'));
 }
 function drawParticles() {
@@ -1154,7 +1710,9 @@ function render() {
   drawBackground(L);
   drawTiles(L);
   drawItems(L);
-  for (const e of L.enemies) e.type === 'robot' ? drawRobot(e) : drawJelly(e);
+  for (const e of L.enemies) drawEnemy(e);
+  if (L.boss) drawBoss(L.boss);
+  drawShots(L);
   drawPlayer(Game.player);
   drawParticles();
   Cam.x = keepX;
@@ -1176,7 +1734,7 @@ const UI = {
     $('touch').hidden = !(playing && isTouch);
     if (id === 'scrIntro') {
       const d = LEVELS[Game.levelIdx];
-      $('introEyebrow').textContent = `Level ${Game.levelIdx + 1} of ${LEVELS.length}`;
+      $('introEyebrow').textContent = `Level ${Game.levelIdx + 1} of ${LEVELS.length}` + (d.boss ? ' \u00b7 Boss fight!' : '');
       $('introName').textContent = d.name; $('introText').textContent = d.intro;
     }
     const focusBtn = { scrTitle: 'btnStart', scrIntro: 'btnGo', scrPause: 'btnResume', scrComplete: 'btnNext', scrOver: 'btnRetry', scrWin: 'btnAgain', scrScores: 'btnScoresBack' }[id];
@@ -1194,6 +1752,15 @@ const UI = {
     $('hudScore').textContent = Game.score;
     $('hudLives').textContent = '♥ ' + Math.max(0, Game.lives);
     $('hudFizz').classList.toggle('off', !(Game.player && Game.player.hasFizz));
+    const pl = Game.player, B = Game.level.boss;
+    $('hudShield').hidden = !(pl && pl.shield);
+    $('hudMega').hidden = !(pl && pl.mega > 0);
+    if (pl && pl.mega > 0) $('hudMega').textContent = '\u2605 Mega ' + Math.ceil(pl.mega);
+    $('hudBoss').hidden = !(B && B.awake && B.alive);
+    if (B && B.awake && B.alive && $('hudBoss').dataset.hp !== String(B.hp)) {
+      $('hudBoss').dataset.hp = B.hp;
+      $('hudBoss').innerHTML = '<span class="label">Beast</span>' + Array.from({ length: B.max }, (_, i) => `<span class="pip${i < B.hp ? '' : ' off'}"></span>`).join('');
+    }
     // move the message box to the bottom when the courier is near the top (walking on a ceiling)
     if (Game.player) $('banner').classList.toggle('low', sy(Game.player.y) < R.H * 0.35);
   },
@@ -1381,7 +1948,7 @@ const Demo = {
     if (this.t > this.LENGTH) { this.stop(); return; }
     const L = Game.level, p = Game.player, gs = p.gs;
     const solid = (x, y) => isSolid(L, x, y);
-    const hazard = (x, y) => '^v'.includes(tileAt(L, x, y));
+    const hazard = (x, y) => HAZARD.has(tileAt(L, x, y));
     this.axis = 1;
     const fx = Math.floor(p.x + p.w + 0.35), feetRow = gs > 0 ? Math.floor(p.y + p.h + 0.2) : Math.floor(p.y - 0.2);
     const wall = [Math.floor(p.y + 0.1), Math.floor(p.y + p.h - 0.1)].some(rw => solid(fx, rw));
@@ -1455,7 +2022,7 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
     { id: 'left_jump', desc: 'Walk left and jump' },
   ];
   const MOVES = { idle: [0, false], right: [1, false], left: [-1, false], jump: [0, true], right_jump: [1, true], left_jump: [-1, true] };
-  const MAX_STEPS = 120 * 240;
+  const MAX_STEPS = 120 * 720; // 12 minutes of game time for all ten levels
 
   Hook.levelDone = () => {
     Hook.levelsCompleted++;
@@ -1467,6 +2034,12 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
   const levelProgress = () => {
     const L = Game.level, p = Game.player;
     if (!L || !p || !L.goal) return 0;
+    const B = L.boss;
+    if (B) { // boss level: reach the arena (25%), stomp the Beast (60%), then walk to the pad (15%)
+      const reach = clamp((p.x - L.start.x) / Math.max(1, L.fenceX - L.start.x), 0, 1);
+      const after = B.alive ? 0 : clamp((p.x - L.fenceX) / Math.max(1, L.goal.x - L.fenceX), 0, 1);
+      return Math.min(0.999, 0.25 * reach + 0.6 * (B.max - B.hp) / B.max + 0.15 * after);
+    }
     return clamp((p.x - L.start.x) / Math.max(1, L.goal.x - L.start.x), 0, 0.999);
   };
   const status = () => Game.state === 'win' ? 'won' : Game.state === 'over' ? 'lost' : Hook.steps >= MAX_STEPS ? 'timeout' : 'playing';
@@ -1506,7 +2079,9 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
         status: st, score: Game.score, lives: Game.lives, livesLost: CFG.START_LIVES - Game.lives,
         level: Game.levelIdx, levelsCompleted: Hook.levelsCompleted, progress, steps: Hook.steps,
         player: p ? { x: +p.x.toFixed(3), y: +p.y.toFixed(3), vx: +p.vx.toFixed(2), vy: +p.vy.toFixed(2), onGround: p.onGround,
-          gravity: p.gs > 0 ? 'normal' : 'flipped', fizzyJet: !p.hasFizz ? 'none' : p.burpUsed ? 'used' : 'ready' } : null,
+          gravity: p.gs > 0 ? 'normal' : 'flipped', fizzyJet: !p.hasFizz ? 'none' : p.burpUsed ? 'used' : 'ready',
+          shield: p.shield, megaSeconds: +Math.max(0, p.mega).toFixed(1) } : null,
+        boss: Game.level && Game.level.boss ? { hp: Game.level.boss.hp, awake: Game.level.boss.awake } : null,
       };
     },
     observe() {
@@ -1524,16 +2099,22 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
         rows.push(r.split(''));
       }
       const put = (x, y, ch) => { x = Math.floor(x); y = Math.floor(y); if (y >= 0 && y < L.H && x >= x0 && x <= x1) rows[y][x - x0] = ch; };
-      for (const it of L.items) if (!it.got) put(it.x, it.y, it.type === 'bolt' ? '*' : 'B');
-      if (L.goal) put(L.goal.x, L.goal.y, 'D');
-      for (const e of L.enemies) if (e.alive) put(e.x + e.w / 2, e.y + e.h / 2, e.type === 'robot' ? 'R' : 'J');
+      for (const it of L.items) if (!it.got) put(it.x, it.y, { bolt: '*', can: 'B', shield: 'S', mega: 'M' }[it.type]);
+      if (L.goal) put(L.goal.x, L.goal.y, L.boss && L.boss.alive ? 'd' : 'D');
+      const FOE = { robot: 'R', jelly: 'J', hopper: 'H', drone: 'U', snail: 'K', flare: 'F' };
+      for (const e of L.enemies) if (e.alive && (e.type !== 'flare' || e.out)) put(e.x + e.w / 2, e.y + e.h / 2, FOE[e.type]);
+      if (L.boss && L.boss.alive) for (let bx = 0; bx < L.boss.w; bx++) for (let by = 0; by < L.boss.h; by++) put(L.boss.x + bx + 0.2, L.boss.y + by + 0.2, 'X');
+      for (const s of L.shots) put(s.x + s.w / 2, s.y + s.h / 2, 'o');
       put(p.x + p.w / 2, p.y + p.h / 2, '@');
       const st = this.getState();
       const facts = {
         level: `${Game.levelIdx + 1} of ${LEVELS.length} (${L.def.name})`, lives: Game.lives, gravity: st.player.gravity,
         fizzyJet: st.player.fizzyJet, onGround: p.onGround, goalColumnsAhead: L.goal ? Math.round(L.goal.x - p.x) : null,
+        shield: p.shield, megaSeconds: st.player.megaSeconds, boss: st.boss,
       };
-      const text = 'Legend: @ you, # solid, > < conveyor, ^ v spikes, G flipped gravity, R robot, J jelly, * bolt, B Fizzy Jet can, D goal, . empty\n'
+      const text = 'Legend: @ you, # solid, ~ slippery ice (solid), > < conveyor, ^ v spikes, % hot sauce (hurts), G flipped gravity, '
+        + 'R robot, J jelly, H hopper, U drone, K spiky snail (never stomp), F fire flare (never stomp), X Baggage Beast (stomp its head), o thrown suitcase, '
+        + '* bolt, B Fizzy Jet can, S bubble shield, M Mega Fuzz, D goal, d locked goal (beat the boss first), . empty\n'
         + `Columns ${x0}..${x1}, row 0 is the top. Stomp enemies from above; touching them from the side hurts. Falling off the bottom costs a life.\n`
         + rows.map(r => r.join('')).join('\n');
       return { text, facts };
@@ -1544,6 +2125,8 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
         const L = loadLevel(i);
         if (!L.goal) out.push({ level: i, severity: 'error', message: 'Level has no Delivery Pad (D).' });
         if (!def.map.some(r => r.includes('P'))) out.push({ level: i, severity: 'error', message: 'Level has no player start (P).' });
+        if (def.boss && !L.boss) out.push({ level: i, severity: 'error', message: 'Boss level has no Baggage Beast (X).' });
+        if (L.boss && !def.map.some(r => r.includes('!'))) out.push({ level: i, severity: 'warning', message: 'Boss level has no boss fence (!).' });
       });
       return out;
     },

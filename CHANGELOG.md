@@ -4,6 +4,8 @@ Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. New
 
 ## 2026-11-14
 
+- `lost-luggage-of-the-cosmos` v2: six new levels (4 to 9) that get harder step by step, a boss fight (level 10, the Baggage Beast), three new biomes (ice comet, hot sauce moon, Lost & Found warehouse), two power-ups (Bubble Shield, Mega Fuzz) and four new monsters (Comet Hopper, Snoop Drone, Spiky Space Snail, Fire Flare). New map letters are listed in its HANDOFF.md.
+- `AGENTS.md` "Test hook": `progress` must also grow with boss hits (the harness counts 4 s without progress as stuck), `maxSteps` must cover the whole game, and a still-improving Evolution Bot gets more tries with `--extra-passes`. No existing games need changes.
 - New rule ("High scores and saved data"): every game keeps a per-device top-10 table with 3-letter initials, prefixes storage keys with its folder name, handles blocked storage, and never saves bot or demo runs. `lost-luggage-of-the-cosmos` updated to match (its old `llotc.` keys are migrated).
 - `lost-luggage-of-the-cosmos` now implements the test hook (spec v1); the harness passes (Evolution Bot best 1375, won). No existing games still need the hook.
 - Added the rule that anything durable built in a session (tools, scripts, harness code, docs) is committed to the repo, because session workspaces aren't shared between chats.
