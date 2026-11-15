@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d1030">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Comet Catcher">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Comet Catcher</title>
+</head>
+<body>
+<style>
+/* Layout: one full-screen WebGL canvas. The HUD, menus and touch buttons are plain HTML on top of it. */
+:root { --space:#0d1030; --panel:#1a1442; --edge:#43378c; --ink:#f4f0ff; --muted:#b8afe2; --hot:#ff8a3d; --good:#7dffa0; --cyan:#7ce8ff; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+/* The page is pinned so it can never scroll, even when a host adds padding around it. */
+html { box-sizing: border-box; overflow: hidden; height: 100%; background: var(--space); }
+body { position: fixed; inset: 0; margin: 0; overflow: hidden; color: var(--ink);
+  font: 16px/1.4 "Trebuchet MS", system-ui, sans-serif;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#hud { position: absolute; top: max(8px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right));
+  display: flex; gap: 14px; align-items: center; font-weight: 700; pointer-events: none; }
+#hud .spacer { flex: 1; }
+#hudLives { display: inline-flex; gap: 4px; align-items: center; margin-left: 2px; }
+#hudLives i { width: 12px; height: 12px; border-radius: 50%; background: var(--good); border: 2px solid #2f6b4a; }
+#hudLives i.off { background: #3a3468; border-color: #2c2757; }
+#hudMagnet { color: var(--cyan); }
+#hudTime.urgent { color: #ff6b8d; animation: blink 0.5s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0.45; } }
+button { font: inherit; font-weight: 700; color: var(--ink); background: var(--panel); border: 2px solid var(--edge);
+  border-radius: 12px; padding: 10px 16px; min-height: 44px; cursor: pointer; }
+button.primary { background: var(--hot); border-color: var(--hot); color: #1b0d00; }
+#btnPause { pointer-events: auto; }
+.screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(11,8,32,.82); overflow: auto; }
+.screen[hidden] { display: none; }
+.card { width: min(34rem, 100%); max-height: 100%; overflow: auto; background: var(--panel); border: 2px solid var(--edge); border-radius: 18px; padding: 18px 20px; text-align: center; }
+.card h1 { margin: 0 0 6px; font-size: clamp(26px, 6vw, 40px); }
+.card p { margin: 6px 0; color: var(--muted); }
+.row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+.note { font-size: 14px; color: var(--muted); }
+.good { color: var(--good); font-weight: 700; }
+table { margin: 10px auto 0; border-collapse: collapse; }
+td { padding: 2px 10px; text-align: left; }
+tr.new td { color: var(--good); font-weight: 700; }
+/* 16px or bigger, or iOS zooms the page when the field is tapped */
+#initials { font: 700 24px monospace; width: 5.5ch; text-align: center; text-transform: uppercase; padding: 6px; border-radius: 10px; border: 2px solid var(--edge); background: #fff; color: #111; user-select: text; -webkit-user-select: text; }
+/* Touch buttons: only shown on touch screens (see "isTouch" in the script). Big, for thumbs. */
+#touch { position: absolute; left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom)); display: flex; justify-content: space-between; gap: 10px; }
+#touch[hidden] { display: none; }
+#touch button { padding: 0; width: 104px; height: 84px; font-size: 34px; opacity: .8; border-radius: 20px; }
+/* floating "+12" style popups over the canvas */
+#pops { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#pops span { position: absolute; font: 800 20px "Trebuchet MS", system-ui, sans-serif; color: var(--cyan);
+  text-shadow: 0 1px 0 #143; animation: rise .8s ease-out forwards; }
+@keyframes rise { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-46px); } }
+</style>
+
+<canvas id="view"></canvas>
+
+<div id="hud" hidden>
+  <span id="hudComets">Comets: 0/30</span>
+  <span id="hudScore">Score: 0</span>
+  <span id="hudTime">Time: 60</span>
+  <span>Lives:<span id="hudLives"></span></span>
+  <span id="hudMagnet" hidden></span>
+  <span class="spacer"></span>
+  <button id="btnPause" aria-label="Pause">II</button>
+</div>
+
+<div id="touch" hidden>
+  <button id="tLeft" aria-label="Move left">&#9664;</button>
+  <button id="tRight" aria-label="Move right">&#9654;</button>
+</div>
+
+<div id="pops"></div>
+
+<section class="screen" id="scrTitle">
+  <div class="card">
+    <h1>Comet Catcher</h1>
+    <p>You are a space dog with a net. Catch <b>30 glowing comets</b> before 60 seconds run out!</p>
+    <p class="note">Move with the arrow keys or A and D, or the big buttons on a phone or tablet. P pauses.</p>
+    <p class="note">Miss 5 comets and the game is over. Space rocks cost a miss too, so dodge them!
+    Catch a magnet bone and comets fly into your net for 5 seconds. Ten catches in a row win a miss back.</p>
+    <p id="titleTop"></p>
+    <p id="titleBot" class="good"></p>
+    <div class="row">
+      <button class="primary" id="btnPlay">Play</button>
+      <button id="btnScores">High scores</button>
+      <button id="btnFull">Full screen</button>
+      <button id="allGames" hidden>All games</button>
+    </div>
+    <p class="note" id="fullNote" hidden></p>
+  </div>
+</section>
+
+<section class="screen" id="scrPause" hidden>
+  <div class="card">
+    <h1>Paused</h1>
+    <div class="row"><button class="primary" id="btnResume">Keep playing</button><button id="btnQuit">Quit to title</button></div>
+  </div>
+</section>
+
+<section class="screen" id="scrEnd" hidden>
+  <div class="card">
+    <h1 id="endTitle"></h1>
+    <p id="endWhy"></p>
+    <p id="endScore"></p>
+    <p id="endBot" class="good"></p>
+    <div id="endForm" hidden>
+      <p>You made the high score table! Enter your initials:</p>
+      <div class="row"><input id="initials" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="primary" id="btnSave">Save</button></div>
+    </div>
+    <div id="endTable"></div>
+    <div class="row"><button class="primary" id="btnAgain">Play again</button><button id="btnMenu">Title</button></div>
+  </div>
+</section>
+
+<section class="screen" id="scrScores" hidden>
+  <div class="card">
+    <h1>High scores</h1>
+    <div id="scoresTable"></div>
+    <div class="row"><button class="primary" id="btnBack">Back</button></div>
+  </div>
+</section>
+
+<!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
+<!-- BOT-SCORES-START -->
+<script>window.BOT_SCORES = {"game":"Comet Catcher","bots":{"evolutionary":{"label":"Evolution Bot","start":1040,"mid":1065,"best":1065,"won":true,"passes":[1040,1065,1065]}},"updated":"2026-11-15T21:13:19Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":1065,"won":true}};</script>
+<!-- BOT-SCORES-END -->
+
+<script>
+'use strict';
+// =====================================================================================
+// COMET CATCHER. A space dog with a net catches 30 falling comets in 60 seconds.
+// Built from the Funfactory starter; the plumbing (fixed-step update, one Input
+// object, seeded random numbers, saved high scores, pause, touch, test hook) is
+// unchanged. The game itself lives in CFG and the Game object.
+// =====================================================================================
+
+// ---------- CONFIG ----------
+// GAME_ID must be exactly the game's folder name. Saved data is stored under "<GAME_ID>.something".
+const GAME_ID = 'comet-catcher';
+const TITLE = 'Comet Catcher';      // also change the <title>, the title screen heading and manifest.webmanifest
+const SCORE_NAME = 'points';       // what the score is called on screen
+const CFG = {                       // every tuning number lives here
+  W: 16, H: 9,                      // size of the world, in world units (the camera shows all of it)
+  STEPS_PER_SECOND: 60,             // the simulation always moves in fixed steps of exactly 1/60 s
+  LIVES: 5,                         // missed comets AND space-rock bumps come out of this one pool
+  DOG_X0: 8, DOG_Y: 8.15, DOG_SPEED: 12,
+  NET_Y: 6.9, NET_HALF: 1.35, NET_BAND: 0.8,   // the net: catch a comet that is this close to it
+  WIN_AT: 30, TIME_LIMIT: 60,
+  COMET_R: 0.35,
+  COMET_FALL0: 2.4, COMET_FALL1: 3.6,          // fall speed of the first comet ... the 30th
+  COMET_EVERY0: 1.65, COMET_EVERY1: 1.02,      // seconds between comets, ramping up the same way
+  MIN_GAP: 1.4,                    // no comet may reach the net sooner than this after the one
+                                   // before it, so a running dog can always make the catch
+  FIRST_COMET: 0.55, DRIFT: 0.45,              // comets drift sideways a little
+  ROCK_R: 0.55, ROCK_FALL0: 2.9, ROCK_FALL1: 4.2,
+  ROCK_FIRST: 3.4, ROCK_EVERY0: 6.0, ROCK_EVERY1: 3.6, ROCK_AWAY: 2.6,  // rocks never spawn above the dog
+  SAFE_SECONDS: 1.2,               // can't be hurt for this long after a rock bump
+  BONE_FIRST: 6.5, BONE_EVERY: 10, BONE_FALL: 2.6, BONE_POINTS: 25,
+  MAGNET_SECONDS: 5, MAGNET_PULL: 2.6, MAGNET_RANGE: 6.5,
+  COMET_POINTS: 10, STREAK_BONUS: 2, STREAK_CAP: 10,  // +2 per catch in a row, up to +20
+  LIFE_BACK: 10,                   // every 10 catches in a row win a life back (up to 5)
+  TIME_BONUS: 5, LIFE_BONUS: 25,   // extra points when you win, for seconds and lives left
+  FLOOR_Y: 8.55,                   // world y of the ground; a comet past it has been missed
+  MAX_SECONDS: 66,                 // a bot run longer than this counts as a fail
+};
+const STEP = 1 / CFG.STEPS_PER_SECOND;
+const $ = id => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ---------- SEEDED RANDOM NUMBERS ----------
+// Use rand() for anything that changes the game (where things appear, which way they move), so the
+// same seed always gives the same game. Math.random() is fine for looks only (sparkles, shake).
+let rngState = 1;
+function seedRandom(seed) { rngState = (seed >>> 0) || 1; }
+function rand() { // "mulberry32": small, fast and good enough for games
+  let t = (rngState += 0x6D2B79F5);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// ---------- SAVED DATA ----------
+// Every key is prefixed with the folder name. If the browser blocks storage, scores stay in memory.
+const store = {
+  mem: {},
+  ok: (() => { try { const k = GAME_ID + '.__test'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; } catch { return false; } })(),
+  get(key, fallback) {
+    try { const v = localStorage.getItem(GAME_ID + '.' + key); if (v != null) return JSON.parse(v); } catch { /* blocked or bad data */ }
+    return key in this.mem ? this.mem[key] : fallback;
+  },
+  set(key, value) { this.mem[key] = value; try { localStorage.setItem(GAME_ID + '.' + key, JSON.stringify(value)); } catch { /* memory only */ } },
+};
+const Scores = { // top-10 table: [{ initials, score, detail, date }], highest first
+  list() { const l = store.get('scores', []); return Array.isArray(l) ? l : []; },
+  qualifies(score) { const l = this.list(); return score > 0 && (l.length < 10 || score > l[l.length - 1].score); },
+  add(initials, score, detail) {
+    const entry = { initials, score, detail, date: new Date().toISOString().slice(0, 10) };
+    const l = this.list(); l.push(entry);
+    l.sort((a, b) => b.score - a.score); // sort is stable, so ties keep the earlier entry first
+    store.set('scores', l.slice(0, 10)); store.set('initials', initials);
+    return l.indexOf(entry); // its row in the table (10 or more means it did not make the cut)
+  },
+  top() { const l = this.list(); return l.length ? l[0].score : 0; },
+};
+
+// ---------- SOUND (made in code; starts only after the first tap or key, an iOS rule) ----------
+const Sound = {
+  ctx: null,
+  unlock() { if (this.ctx || Hook.mode === 'bot') return; try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { /* no sound */ } },
+  tone(freq, seconds = 0.12, type = 'square', slideTo = 0, gain = 0.12, delay = 0) {
+    if (!this.ctx || Hook.mode === 'bot') return;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain(), t = this.ctx.currentTime + delay;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + seconds);
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.001, t + seconds);
+    o.connect(g).connect(this.ctx.destination); o.start(t); o.stop(t + seconds + 0.02);
+  },
+  woof() { // a cartoon "ruff": two quick low barks with a pitch drop
+    this.tone(150, 0.09, 'square', 95, 0.14);
+    this.tone(320, 0.06, 'triangle', 210, 0.1, 0.05);
+  },
+  bleep(streak) { this.tone(Math.min(1000, 500 + 40 * streak), 0.09, 'square', 0, 0.08); },
+  miss() { this.tone(260, 0.3, 'sawtooth', 120, 0.1); },
+  thud() { this.tone(80, 0.18, 'square', 45, 0.16); this.tone(240, 0.07, 'triangle', 120, 0.08); },
+  bone() { this.tone(660, 0.08, 'triangle'); this.tone(880, 0.08, 'triangle', 0, 0.1, 0.08); this.tone(1100, 0.12, 'triangle', 0, 0.1, 0.16); },
+  lifeBack() { this.tone(700, 0.09, 'triangle'); this.tone(1050, 0.14, 'triangle', 0, 0.11, 0.09); },
+  tick() { this.tone(1000, 0.04, 'square', 0, 0.05); },
+  win() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.16, 'triangle', 0, 0.12, i * 0.13)); },
+  lose() { [300, 240, 170].forEach((f, i) => this.tone(f, 0.2, 'sawtooth', f * 0.7, 0.1, i * 0.16)); },
+};
+
+// ---------- INPUT ----------
+// Keyboard, touch buttons and the test hook all feed this one object. The game only ever reads
+// Input.x(). Add new buttons here, never in Game.update.
+const Hook = { mode: null, steps: 0, bot: { x: 0 } }; // test hook state; the hook itself is at the end
+const Input = {
+  keys: new Set(),    // keyboard keys held right now (KeyboardEvent.code)
+  touch: new Set(),   // touch buttons held right now: 'left', 'right'
+  held(dir, ...codes) { return this.touch.has(dir) || codes.some(c => this.keys.has(c)); },
+  x() { return Hook.mode === 'bot' ? Hook.bot.x : (this.held('right', 'ArrowRight', 'KeyD') ? 1 : 0) - (this.held('left', 'ArrowLeft', 'KeyA') ? 1 : 0); },
+  clear() { this.keys.clear(); this.touch.clear(); },
+};
+const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+const typing = e => e.target && e.target.matches && e.target.matches('input, textarea');
+
+addEventListener('keydown', e => {
+  Sound.unlock();
+  if (typing(e)) return;                       // typing initials: no game shortcuts
+  if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+  if (e.repeat) return;
+  Input.keys.add(e.code);
+  if (e.code === 'KeyP' || e.code === 'Escape') Game.togglePause();
+  if (e.code === 'KeyF') Full.toggle();
+  if (e.code === 'Enter') UI.primary();
+});
+addEventListener('keyup', e => Input.keys.delete(e.code));
+addEventListener('blur', () => { Input.clear(); if (!Hook.mode) Game.pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && !Hook.mode) Game.pause(); });
+// stop pinch-zoom, double-tap zoom and long-press menus over the game
+for (const ev of ['gesturestart', 'contextmenu', 'dblclick']) addEventListener(ev, e => { if (!typing(e)) e.preventDefault(); });
+function bindHold(id, dir) { // a touch button that counts as "held" while a finger is on it
+  const el = $(id);
+  const down = e => { e.preventDefault(); Sound.unlock(); Input.touch.add(dir); };
+  const up = e => { e.preventDefault(); Input.touch.delete(dir); };
+  el.addEventListener('pointerdown', down); el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', up);
+}
+bindHold('tLeft', 'left'); bindHold('tRight', 'right');
+
+// ---------- THE GAME ----------
+// state: 'title' | 'play' | 'paused' | 'won' | 'lost'
+const COMET_COLORS = [['#7ce8ff', '#e8fbff'], ['#ffd166', '#fff6db']]; // [glow, core] — icy cyan and warm gold
+const Game = {
+  state: 'title', score: 0, lives: CFG.LIVES, hits: 0,
+  caught: 0, streak: 0, bestStreak: 0, timeLeft: CFG.TIME_LIMIT, elapsed: 0,
+  dog: null, comets: [], rocks: [], bones: [], fx: [],
+  nextComet: 0, nextRock: 0, nextBone: 0, magnet: 0, lastTick: 99,
+
+  start(seed = (Date.now() >>> 0)) {
+    seedRandom(seed);
+    this.score = 0; this.lives = CFG.LIVES; this.hits = 0;
+    this.caught = 0; this.streak = 0; this.bestStreak = 0;
+    this.timeLeft = CFG.TIME_LIMIT; this.elapsed = 0;
+    this.dog = { x: CFG.DOG_X0, y: CFG.DOG_Y, face: 1, safe: 0, moving: false };
+    this.comets = []; this.rocks = []; this.bones = []; this.fx = [];
+    this.nextComet = CFG.FIRST_COMET; this.nextRock = CFG.ROCK_FIRST; this.nextBone = CFG.BONE_FIRST;
+    this.magnet = 0; this.lastTick = 99;
+    this.state = 'play';
+    UI.show(null);
+  },
+
+  // how hard the game is right now: 0 at the first comet, 1 at the 30th
+  ramp() { return clamp(this.caught / CFG.WIN_AT, 0, 1); },
+
+  spawnComet() {
+    const t = this.ramp();
+    const x = 0.9 + rand() * (CFG.W - 1.8);
+    const vx = (rand() * 2 - 1) * CFG.DRIFT;
+    let vy = lerp(CFG.COMET_FALL0, CFG.COMET_FALL1, t);
+    // Fairness rule: a comet may not reach the net sooner than MIN_GAP seconds after the last
+    // one still in the air, so one running dog can always get from any catch to the next.
+    let last = 0; // seconds until the latest still-catchable comet reaches the net line
+    for (const c of this.comets) if (c.y < CFG.NET_Y) last = Math.max(last, (CFG.NET_Y - c.y) / c.vy);
+    const tta = clamp(Math.max((CFG.NET_Y + 0.6) / vy, last + CFG.MIN_GAP), 0, 4.2); // time to the net line
+    vy = (CFG.NET_Y + 0.6) / tta;
+    this.comets.push({ x, y: -0.6, spawnY: -0.6, vy, vx, col: rand() < 0.55 ? 0 : 1, hist: [], h2: 0 });
+  },
+  spawnRock() {
+    let x;
+    do { x = 1 + rand() * (CFG.W - 2); } while (Math.abs(x - this.dog.x) < CFG.ROCK_AWAY); // never right above the dog
+    this.rocks.push({
+      x, y: -0.7, vy: lerp(CFG.ROCK_FALL0, CFG.ROCK_FALL1, this.ramp()),
+      rot: rand() * 6.28, spin: 0.9 + rand() * 0.6, shape: Math.floor(rand() * 3),
+    });
+  },
+  spawnBone() { this.bones.push({ x: 1.2 + rand() * (CFG.W - 2.4), y: -0.5, vy: CFG.BONE_FALL }); },
+
+  // One fixed step of the simulation. No drawing and no real clock in here: the test hook calls
+  // this thousands of times a second to let bots play.
+  update(dt) {
+    if (this.state !== 'play') return;
+    this.elapsed += dt;
+    this.timeLeft -= dt;
+    if (this.timeLeft <= 0) return this.end(false, 'time');
+    // tick-tock in the last five seconds
+    const tl = Math.ceil(this.timeLeft);
+    if (tl <= 5 && tl !== this.lastTick) { this.lastTick = tl; Sound.tick(); }
+
+    // the dog
+    const d = this.dog, dx = Input.x();
+    d.x = clamp(d.x + dx * CFG.DOG_SPEED * dt, 0.8, CFG.W - 0.8);
+    if (dx) d.face = dx > 0 ? 1 : -1;
+    d.moving = dx !== 0;
+    d.safe = Math.max(0, d.safe - dt);
+    this.magnet = Math.max(0, this.magnet - dt);
+
+    // spawning (all from the seeded rand(), so the same seed gives the same game)
+    const t = this.ramp();
+    this.nextComet -= dt;
+    while (this.nextComet <= 0) { this.spawnComet(); this.nextComet += lerp(CFG.COMET_EVERY0, CFG.COMET_EVERY1, t) * (0.82 + 0.36 * rand()); }
+    this.nextRock -= dt;
+    while (this.nextRock <= 0) { this.spawnRock(); this.nextRock += lerp(CFG.ROCK_EVERY0, CFG.ROCK_EVERY1, t) * (0.8 + 0.4 * rand()); }
+    this.nextBone -= dt;
+    while (this.nextBone <= 0) { this.spawnBone(); this.nextBone += CFG.BONE_EVERY * (0.9 + 0.2 * rand()); }
+
+    // comets: fall, drift, get pulled by the magnet, and (we hope) get caught
+    for (let i = this.comets.length - 1; i >= 0; i--) {
+      const c = this.comets[i];
+      c.x += c.vx * dt;
+      if (c.x < 0.45) { c.x = 0.45; c.vx = Math.abs(c.vx); }        // bounce off the side of the sky
+      if (c.x > CFG.W - 0.45) { c.x = CFG.W - 0.45; c.vx = -Math.abs(c.vx); }
+      if (this.magnet > 0 && c.y < CFG.NET_Y && Math.abs(c.x - d.x) < CFG.MAGNET_RANGE) {
+        c.x += clamp(d.x - c.x, -CFG.MAGNET_PULL * dt, CFG.MAGNET_PULL * dt); // the bone tugs comets toward the net
+      }
+      c.y += c.vy * dt;
+      c.h2 ^= 1; if (c.h2) { c.hist.push([c.x, c.y]); if (c.hist.length > 15) c.hist.shift(); }
+      // caught!
+      if (Math.abs(c.x - d.x) < CFG.NET_HALF && Math.abs(c.y - CFG.NET_Y) < CFG.NET_BAND) {
+        this.comets.splice(i, 1);
+        this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak);
+        const pts = CFG.COMET_POINTS + CFG.STREAK_BONUS * Math.min(this.streak, CFG.STREAK_CAP);
+        this.score += pts;
+        Sound.woof(); Sound.bleep(this.streak);
+        this.burst(c.x, CFG.NET_Y, COMET_COLORS[c.col][0], 12, 'burst');
+        this.burst(c.x, CFG.NET_Y, '#ffffff', 4, 'ring');
+        UI.pop(c.x, CFG.NET_Y - 0.4, '+' + pts, COMET_COLORS[c.col][0]);
+        if (this.streak % CFG.LIFE_BACK === 0 && this.lives < CFG.LIVES) {
+          this.lives++; Sound.lifeBack(); UI.pop(d.x, CFG.NET_Y - 1.1, '+1 life!', '#7dffa0');
+        }
+        if (++this.caught >= CFG.WIN_AT) return this.end(true);
+        continue;
+      }
+      // missed!
+      if (c.y > CFG.FLOOR_Y) {
+        this.comets.splice(i, 1);
+        this.burst(c.x, CFG.FLOOR_Y, '#8f86c9', 8, 'dust');
+        this.loseLife('miss'); Sound.miss();
+        if (this.state !== 'play') return;
+      }
+    }
+
+    // rocks: they fall straight, and bumping one costs a life
+    for (let i = this.rocks.length - 1; i >= 0; i--) {
+      const r = this.rocks[i];
+      r.y += r.vy * dt;
+      if (d.safe <= 0 && Math.abs(r.x - d.x) < 1.05 && r.y > 7.45 && r.y < 8.7) {
+        this.rocks.splice(i, 1);
+        this.burst(r.x, r.y, '#ffb066', 10, 'burst');
+        this.loseLife('rock'); Sound.thud();
+        if (this.state !== 'play') return;
+        continue;
+      }
+      if (r.y > CFG.FLOOR_Y + 0.3) { this.rocks.splice(i, 1); this.burst(r.x, CFG.FLOOR_Y + 0.2, '#6e659c', 7, 'dust'); }
+    }
+
+    // magnet bones: catch one and comets fly to your net for a while
+    for (let i = this.bones.length - 1; i >= 0; i--) {
+      const b = this.bones[i];
+      if (this.magnet > 0 && b.y < CFG.NET_Y && Math.abs(b.x - d.x) < CFG.MAGNET_RANGE) {
+        b.x += clamp(d.x - b.x, -CFG.MAGNET_PULL * dt, CFG.MAGNET_PULL * dt);
+      }
+      b.y += b.vy * dt;
+      if (Math.abs(b.x - d.x) < CFG.NET_HALF && Math.abs(b.y - CFG.NET_Y) < CFG.NET_BAND) {
+        this.bones.splice(i, 1);
+        this.magnet = CFG.MAGNET_SECONDS; this.score += CFG.BONE_POINTS;
+        Sound.bone(); this.burst(b.x, CFG.NET_Y, '#7ce8ff', 14, 'burst');
+        UI.pop(b.x, CFG.NET_Y - 0.4, 'Magnet!', '#7ce8ff');
+        continue;
+      }
+      if (b.y > CFG.FLOOR_Y) { this.bones.splice(i, 1); this.burst(b.x, CFG.FLOOR_Y, '#cfc7f2', 5, 'dust'); }
+    }
+
+    // sparkles and dust (looks only: Math.random is fine here, they never touch the rules)
+    for (let i = this.fx.length - 1; i >= 0; i--) {
+      const p = this.fx[i];
+      p.life -= dt;
+      if (p.life <= 0) { this.fx.splice(i, 1); continue; }
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.kind === 'dust' || p.kind === 'burst') p.vy += 1.2 * dt;
+    }
+  },
+
+  loseLife(why) { // misses and rock bumps come out of the same pool of 5
+    this.lives--; this.hits++; this.streak = 0;
+    if (why === 'rock') this.dog.safe = CFG.SAFE_SECONDS;
+    if (this.lives <= 0) this.end(false, why);
+  },
+
+  // How close the player is to winning, from 0 to 1. Bots chase this number, so it must grow with
+  // every real step forward: comets caught, plus how far the next aligned comet has fallen toward the net.
+  progress() {
+    if (this.state === 'won') return 1;
+    if (!this.dog) return 0;
+    let approach = 0;
+    for (const c of this.comets) {
+      if (c.y < CFG.NET_Y && Math.abs(c.x - this.dog.x) < CFG.NET_HALF + 0.35) {
+        approach = Math.max(approach, 0.9 * clamp((c.y - c.spawnY) / (CFG.NET_Y - c.spawnY), 0, 1));
+      }
+    }
+    return Math.min(0.999, (this.caught + approach) / CFG.WIN_AT);
+  },
+
+  end(won, why) {
+    this.state = won ? 'won' : 'lost';
+    if (won) this.score += CFG.TIME_BONUS * Math.ceil(Math.max(0, this.timeLeft)) + CFG.LIFE_BONUS * this.lives;
+    (won ? Sound.win() : Sound.lose());
+    if (Hook.mode !== 'bot') UI.endRun(won, why || ''); // bot runs show no screens and save nothing
+  },
+  play() { Hook.mode = null; this.start(); }, // a player starting a run (the test hook calls start(seed) itself)
+  pause() { if (this.state === 'play') { this.state = 'paused'; UI.show('scrPause'); } },
+  togglePause() { if (this.state === 'paused') { this.state = 'play'; UI.show(null); } else this.pause(); },
+  toTitle() { this.state = 'title'; Hook.mode = null; Input.clear(); UI.show('scrTitle'); },
+
+  burst(x, y, color, n, kind) { // sparkles, dust and flash rings; purely looks
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.28, s = kind === 'dust' ? 0.6 + Math.random() * 1.2 : 1.2 + Math.random() * 2.6;
+      this.fx.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - (kind === 'dust' ? 0.3 : 0.6),
+        life: 0.35 + Math.random() * 0.35, max: 0.7, size: kind === 'ring' ? 0.5 : 0.1 + Math.random() * 0.12, color, kind });
+    }
+  },
+};
+
+// ---------- RENDERER (plain WebGL: colored triangles, no library) ----------
+const canvas = $('view');
+const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+const R = { verts: [], prog: null, buf: null, scale: 1, ox: 0, oy: 0 };
+function initGL() {
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+  R.prog = gl.createProgram();
+  gl.attachShader(R.prog, sh(gl.VERTEX_SHADER, 'attribute vec2 p; attribute vec4 c; uniform vec2 size; varying vec4 v; void main(){ v=c; gl_Position=vec4(p.x/size.x*2.0-1.0, 1.0-p.y/size.y*2.0, 0.0, 1.0); }'));
+  gl.attachShader(R.prog, sh(gl.FRAGMENT_SHADER, 'precision mediump float; varying vec4 v; void main(){ gl_FragColor=v; }'));
+  gl.linkProgram(R.prog); gl.useProgram(R.prog);
+  R.buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, R.buf);
+  const p = gl.getAttribLocation(R.prog, 'p'), c = gl.getAttribLocation(R.prog, 'c');
+  gl.enableVertexAttribArray(p); gl.vertexAttribPointer(p, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(c); gl.vertexAttribPointer(c, 4, gl.FLOAT, false, 24, 8);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+}
+function resize() { // fit the whole world on screen, centered, on any screen shape
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(canvas.clientWidth * dpr); canvas.height = Math.round(canvas.clientHeight * dpr);
+  R.scale = Math.min(canvas.width / CFG.W, canvas.height / CFG.H);
+  R.ox = (canvas.width - CFG.W * R.scale) / 2; R.oy = (canvas.height - CFG.H * R.scale) / 2;
+}
+const hex = (h, a = 1) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255, a];
+// tri() and rect() take screen pixels; the w* helpers take world units.
+function tri(x1, y1, x2, y2, x3, y3, c1, c2 = c1, c3 = c1) { R.verts.push(x1, y1, ...c1, x2, y2, ...c2, x3, y3, ...c3); }
+function rect(x, y, w, h, top, bottom = top) { tri(x, y, x + w, y, x, y + h, top, top, bottom); tri(x + w, y, x + w, y + h, x, y + h, top, bottom, bottom); }
+function wrect(cx, cy, w, h, color) { rect(R.ox + (cx - w / 2) * R.scale, R.oy + (cy - h / 2) * R.scale, w * R.scale, h * R.scale, color); }
+const WX = x => R.ox + x * R.scale, WY = y => R.oy + y * R.scale;
+function wcirc(cx, cy, r, color, seg = 10, rot = 0) { // a filled circle (fan of triangles)
+  const x = WX(cx), y = WY(cy), rr = r * R.scale;
+  for (let i = 0; i < seg; i++) {
+    const a1 = rot + i / seg * 6.2832, a2 = rot + (i + 1) / seg * 6.2832;
+    tri(x, y, x + Math.cos(a1) * rr, y + Math.sin(a1) * rr, x + Math.cos(a2) * rr, y + Math.sin(a2) * rr, color);
+  }
+}
+function wring(cx, cy, r, thick, color, seg = 10, rot = 0) { // a ring (the net)
+  const x = WX(cx), y = WY(cy), r1 = (r - thick / 2) * R.scale, r2 = (r + thick / 2) * R.scale;
+  for (let i = 0; i < seg; i++) {
+    const a1 = rot + i / seg * 6.2832, a2 = rot + (i + 1) / seg * 6.2832;
+    const c1 = Math.cos(a1), s1 = Math.sin(a1), c2 = Math.cos(a2), s2 = Math.sin(a2);
+    tri(x + c1 * r1, y + s1 * r1, x + c1 * r2, y + s1 * r2, x + c2 * r1, y + s2 * r1, color);
+    tri(x + c2 * r1, y + s2 * r1, x + c1 * r2, y + s1 * r2, x + c2 * r2, y + s2 * r2, color);
+  }
+}
+function wline(x1, y1, x2, y2, thick, color) { // a line of even thickness (the net handle)
+  const ax = WX(x1), ay = WY(y1), bx = WX(x2), by = WY(y2);
+  const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
+  const px = -dy / len * thick / 2 * R.scale, py = dx / len * thick / 2 * R.scale;
+  tri(ax + px, ay + py, bx + px, by + py, ax - px, ay - py, color);
+  tri(bx + px, by + py, bx - px, by - py, ax - px, ay - py, color);
+}
+const ROCK_SHAPE = [[1, .85, .95, .78, 1, .9, .82, .96], [.95, .8, 1, .85, .98, .8, .92, 1], [1, .9, .8, .95, .85, 1, .8, .92]];
+function wrock(r) { // a craggy space rock, slowly turning
+  const x = WX(r.x), y = WY(r.y), rad = CFG.ROCK_R * R.scale, pts = [];
+  for (let i = 0; i < 8; i++) {
+    const a = r.rot + i / 8 * 6.2832, rr = rad * ROCK_SHAPE[r.shape][i];
+    pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+  }
+  for (let i = 1; i < 7; i++) tri(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], hex('#9b8f80'));
+  wcirc(r.x, r.y, 0.16, hex('#7e7264'), 6, r.rot); wcirc(r.x + 0.18, r.y + 0.12, 0.1, hex('#7e7264'), 6, r.rot);
+}
+// the never-moving scenery (Math.random is fine: looks only)
+const BACKDROP = Array.from({ length: 80 }, () => ({ x: Math.random(), y: Math.random(), s: 1 + Math.random() * 2, a: 0.25 + Math.random() * 0.6 }));
+const CRATERS = Array.from({ length: 6 }, (_, i) => ({ x: 1.6 + i * 2.3 + Math.random() * 0.8, w: 0.5 + Math.random() * 0.5 }));
+
+function draw(now) {
+  R.verts.length = 0;
+  // deep blue space
+  rect(0, 0, canvas.width, canvas.height, hex('#1a2560'), hex('#06031a'));
+  for (const s of BACKDROP) rect(s.x * canvas.width, s.y * canvas.height, s.s, s.s, hex('#ffffff', s.a * (0.7 + 0.3 * Math.sin(now / 600 + s.x * 40))));
+  wcirc(2.1, 1.1, 0.85, hex('#ffd9a0', 0.9), 12, now / 4000);  // a little ringed planet
+  wring(2.1, 1.1, 1.25, 0.1, hex('#ffb3d9', 0.5), 12, 0.4);
+  wcirc(13.6, 1.7, 1.5, hex('#3b6fd6', 0.14), 12);              // soft nebula glows
+  wcirc(8, 4.5, 2.6, hex('#d65ca8', 0.07), 12);
+  // the moon-park floor
+  wrect(CFG.W / 2, (CFG.FLOOR_Y + CFG.H) / 2 + 0.05, CFG.W, CFG.H - CFG.FLOOR_Y + 0.2, hex('#241b4a'));
+  for (const c of CRATERS) wrect(c.x, CFG.FLOOR_Y + 0.25, c.w, 0.12, hex('#1a1440'));
+  wrect(CFG.W / 2, CFG.FLOOR_Y + 0.05, CFG.W, 0.1, hex('#7ce8ff', 0.45));
+  wrect(CFG.W / 2, CFG.FLOOR_Y + 0.13, CFG.W, 0.06, hex('#7ce8ff', 0.2));
+
+  const g = Game;
+  if (g.dog) {
+    // comets, with their sparkly trails
+    for (const c of g.comets) {
+      const n = c.hist.length;
+      for (let i = 0; i < n; i++) {
+        const f = (i + 1) / n;
+        wrect(c.hist[i][0], c.hist[i][1], 0.34 * f, 0.34 * f, hex(COMET_COLORS[c.col][0], 0.05 + 0.22 * f));
+        if (i % 3 === 2) { // little four-point sparkles along the trail
+          const s = 0.3 * f;
+          wrect(c.hist[i][0], c.hist[i][1], s * 2.2, 0.05, hex('#ffffff', 0.3 * f));
+          wrect(c.hist[i][0], c.hist[i][1], 0.05, s * 2.2, hex('#ffffff', 0.3 * f));
+        }
+      }
+      wcirc(c.x, c.y, CFG.COMET_R + 0.22, hex(COMET_COLORS[c.col][0], 0.35), 8);
+      wcirc(c.x, c.y, CFG.COMET_R, hex(COMET_COLORS[c.col][0]), 8);
+      wcirc(c.x - 0.06, c.y - 0.06, CFG.COMET_R * 0.45, hex(COMET_COLORS[c.col][1]), 6);
+    }
+    // space rocks
+    for (const r of g.rocks) wrock({ ...r, rot: r.rot + g.elapsed * r.spin });
+    // magnet bones
+    for (const b of g.bones) {
+      const p = 0.5 + 0.5 * Math.sin(now / 120);
+      wcirc(b.x, b.y, 0.42 + 0.08 * p, hex('#7ce8ff', 0.25), 8);
+      wrect(b.x, b.y, 0.4, 0.16, hex('#fff3d6'));
+      wcirc(b.x - 0.2, b.y - 0.09, 0.09, hex('#fff3d6'), 6); wcirc(b.x - 0.2, b.y + 0.09, 0.09, hex('#fff3d6'), 6);
+      wcirc(b.x + 0.2, b.y - 0.09, 0.09, hex('#fff3d6'), 6); wcirc(b.x + 0.2, b.y + 0.09, 0.09, hex('#fff3d6'), 6);
+    }
+    // the space dog and the net
+    const d = g.dog;
+    if (d.safe <= 0 || Math.floor(now / 90) % 2) {
+      const run = d.moving ? Math.sin(g.elapsed * 22) : 0;
+      const wag = d.moving ? Math.sin(g.elapsed * 14) : Math.sin(g.elapsed * 3) * 0.4;
+      wline(d.x - d.face * 0.55, 8.05 + wag * 0.08, d.x - d.face * 0.95, 7.75 + wag * 0.3, 0.12, hex('#e8a15c')); // wagging tail
+      for (const [lx, ph] of [[-0.3, 0], [0.3, 3.14]]) wrect(d.x + lx, 8.45 + (d.moving ? Math.sin(g.elapsed * 22 + ph) * 0.04 : 0), 0.16, 0.3, hex('#d18a44')); // legs
+      wrect(d.x, 8.28, 1.05, 0.52, hex('#e8a15c'));                                  // body
+      wrect(d.x, 8.45, 0.8, 0.22, hex('#f7d9ac'));                                   // belly
+      wrect(d.x + d.face * 0.1, 8.02, 0.5, 0.08, hex('#ff5d6c'));                    // collar
+      const hx = d.x + d.face * 0.3, flap = d.moving ? Math.sin(g.elapsed * 16) * 0.08 : Math.sin(g.elapsed * 4) * 0.04;
+      wrect(hx - d.face * 0.28, 7.66 + flap, 0.16, 0.34, hex('#b5763c'));             // back ear
+      wcirc(hx, 7.85, 0.3, hex('#e8a15c'), 10);                                      // head
+      wrect(hx + d.face * 0.24, 7.98, 0.34, 0.2, hex('#f7d9ac'));                     // muzzle
+      wcirc(hx + d.face * 0.38, 7.94, 0.07, hex('#2a1a10'), 6);                       // nose
+      wcirc(hx + d.face * 0.1, 7.78, 0.055, hex('#2a1a10'), 5);                       // eyes
+      wcirc(hx + d.face * 0.3, 7.76, 0.055, hex('#2a1a10'), 5);
+      wrect(hx + d.face * 0.28, 7.7 + flap, 0.16, 0.34, hex('#b5763c'));             // front ear
+      const netC = g.magnet > 0 ? hex('#7ce8ff', 0.9) : hex('#f4f0ff', 0.95);
+      wline(d.x + d.face * 0.18, 8.0, d.x, 7.52, 0.09, netC);                        // handle
+      wring(d.x, CFG.NET_Y, 0.62, 0.09, netC, 10);                                   // the net
+      wline(d.x - 0.55, CFG.NET_Y, d.x + 0.55, CFG.NET_Y, 0.05, hex('#c9c2ff', 0.5));
+      wline(d.x, CFG.NET_Y - 0.55, d.x, CFG.NET_Y + 0.55, 0.05, hex('#c9c2ff', 0.5));
+      if (g.magnet > 0) { // the magnet field, glowing while it lasts
+        const p = 0.5 + 0.5 * Math.sin(now / 90);
+        wring(d.x, CFG.NET_Y, 0.9 + 0.12 * p, 0.06, hex('#7ce8ff', 0.35 + 0.2 * p), 12);
+        wcirc(d.x, 7.4, 2.4, hex('#7ce8ff', 0.05), 12);
+      }
+    }
+    // sparkles, dust and flash rings
+    for (const p of g.fx) {
+      const a = clamp(p.life / p.max, 0, 1);
+      if (p.kind === 'ring') wring(p.x, p.y, 0.35 + (1 - a) * 0.6, 0.06, hex(p.color, a * 0.8), 10);
+      else wrect(p.x, p.y, p.size * (0.5 + a), p.size * (0.5 + a), hex(p.color, a * 0.9));
+    }
+  }
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(gl.getUniformLocation(R.prog, 'size'), canvas.width, canvas.height);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(R.verts), gl.DYNAMIC_DRAW);
+  gl.drawArrays(gl.TRIANGLES, 0, R.verts.length / 6);
+}
+
+// ---------- SCREENS AND HUD ----------
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const UI = {
+  pending: null, // a finished run waiting for initials: { score, detail }
+  show(id) {
+    for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id;
+    const playing = id === null || id === 'scrPause';
+    $('hud').hidden = !playing; $('touch').hidden = !(playing && isTouch);
+    if (id === 'scrTitle') this.syncTitle();
+  },
+  syncTitle() {
+    const top = Scores.top(), bot = window.BOT_SCORES && window.BOT_SCORES.champion;
+    $('titleTop').textContent = top ? `Top score: ${top} ${SCORE_NAME}` : '';
+    $('titleBot').textContent = bot ? `Bot's best: ${bot.score} ${SCORE_NAME}. Can you beat it?` : '';
+  },
+  syncHud() {
+    const g = Game;
+    $('hudComets').textContent = `Comets: ${g.caught}/${CFG.WIN_AT}`;
+    $('hudScore').textContent = `Score: ${g.score}`;
+    const tl = Math.max(0, Math.ceil(g.timeLeft));
+    $('hudTime').textContent = `Time: ${tl}`;
+    $('hudTime').classList.toggle('urgent', g.state === 'play' && tl <= 5);
+    const lives = $('hudLives');
+    if (lives.childElementCount !== CFG.LIVES) { lives.innerHTML = '<i></i>'.repeat(CFG.LIVES); }
+    [...lives.children].forEach((el, i) => el.classList.toggle('off', i >= g.lives));
+    const m = $('hudMagnet');
+    m.hidden = !(g.magnet > 0 && g.state === 'play');
+    if (!m.hidden) m.textContent = `Magnet: ${g.magnet.toFixed(1)}s`;
+  },
+  table(newRow = -1) { // newRow: which row to highlight
+    const l = Scores.list();
+    const rows = l.map((e, i) => `<tr class="${i === newRow ? 'new' : ''}"><td>${i + 1}.</td><td>${esc(e.initials)}</td><td>${e.score}</td><td>${esc(e.detail || '')}</td></tr>`).join('');
+    return (l.length ? `<table>${rows}</table>` : '<p>No scores yet. Be the first!</p>') + (store.ok ? '' : '<p class="note">Scores can\'t be saved in this browser.</p>');
+  },
+  endRun(won, why) {
+    const score = Game.score, caught = Game.caught;
+    const detail = won ? `Won! ${Math.ceil(Math.max(0, Game.timeLeft))}s left` : `${caught}/${CFG.WIN_AT} comets`;
+    const bot = window.BOT_SCORES && window.BOT_SCORES.champion;
+    $('endTitle').textContent = won ? 'You win!' : 'Game over';
+    $('endWhy').textContent = won ? `All ${CFG.WIN_AT} comets caught!` :
+      why === 'time' ? "Time ran out!" : why === 'rock' ? 'A space rock bumped you one time too many!' : 'Five comets got away!';
+    $('endScore').textContent = `Score: ${score} ${SCORE_NAME}`;
+    $('endBot').textContent = bot && score > bot.score ? 'You beat the bot!' : '';
+    const saving = !Hook.mode && Scores.qualifies(score); // test runs never save
+    this.pending = saving ? { score, detail } : null;
+    $('endForm').hidden = !saving;
+    $('endTable').innerHTML = this.table();
+    this.show('scrEnd');
+    if (saving) { $('initials').value = store.get('initials', ''); if (!isTouch) $('initials').focus(); }
+  },
+  save() { // also called when leaving the screen, so a score is never lost
+    if (!this.pending) return;
+    const initials = ($('initials').value.toUpperCase().replace(/[^A-Z]/g, '') || '???').slice(0, 3);
+    const row = Scores.add(initials, this.pending.score, this.pending.detail);
+    this.pending = null; $('endForm').hidden = true; $('initials').blur();
+    $('endTable').innerHTML = this.table(row);
+  },
+  pop(x, y, text, color) { // a little "+12" over the net; skipped while bots play
+    if (Hook.mode) return;
+    const el = document.createElement('span');
+    el.textContent = text; el.style.color = color;
+    el.style.left = Math.round(R.ox + x * R.scale - 14) + 'px';
+    el.style.top = Math.round(R.oy + y * R.scale - 10) + 'px';
+    $('pops').append(el);
+    setTimeout(() => el.remove(), 850);
+  },
+  primary() { // what Enter does on each screen
+    if (Game.state === 'title' && !$('scrScores').hidden) return this.show('scrTitle');
+    if (Game.state === 'title') return Game.play();
+    if (Game.state === 'paused') return Game.togglePause();
+    if (Game.state === 'won' || Game.state === 'lost') { this.save(); Game.play(); }
+  },
+};
+$('initials').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); });
+$('initials').addEventListener('keydown', e => { if (e.code === 'Enter') { e.preventDefault(); UI.save(); } });
+const onTap = (id, fn) => $(id).addEventListener('click', () => { Sound.unlock(); fn(); });
+onTap('btnPlay', () => Game.play());
+onTap('btnScores', () => { $('scoresTable').innerHTML = UI.table(); UI.show('scrScores'); });
+onTap('btnBack', () => UI.show('scrTitle'));
+onTap('btnPause', () => Game.togglePause());
+onTap('btnResume', () => Game.togglePause());
+onTap('btnQuit', () => Game.toTitle());
+onTap('btnSave', () => UI.save());
+onTap('btnAgain', () => { UI.save(); Game.play(); });
+onTap('btnMenu', () => { UI.save(); Game.toTitle(); });
+
+// ---------- FULL SCREEN ----------
+// iPhones never let a web page go full screen; the note tells players to use Add to Home Screen.
+const Full = {
+  supported: () => !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen),
+  toggle() {
+    const el = document.documentElement, on = document.fullscreenElement || document.webkitFullscreenElement;
+    const blocked = () => { $('fullNote').hidden = false; $('fullNote').textContent = 'Full screen is blocked here. On an iPhone or iPad: tap Share, then Add to Home Screen, and open the game from its new icon.'; };
+    if (on) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    if (!this.supported()) return blocked();
+    try { const r = (el.requestFullscreen || el.webkitRequestFullscreen).call(el); if (r && r.catch) r.catch(blocked); } catch { blocked(); }
+  },
+};
+onTap('btnFull', () => Full.toggle());
+
+// ---------- MAIN LOOP ----------
+// Real time is chopped into fixed steps, so the game plays the same on slow and fast screens.
+// In bot mode this loop only draws; the test hook's step() is the only thing that moves time.
+let last = 0, owed = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000 || 0); last = now;
+  if (Hook.mode !== 'bot') { owed += dt; while (owed >= STEP) { Game.update(STEP); if (Hook.mode) Hook.steps++; owed -= STEP; } }
+  UI.syncHud(); draw(now);
+  requestAnimationFrame(frame);
+}
+if (gl) { initGL(); addEventListener('resize', resize); resize(); UI.show('scrTitle'); requestAnimationFrame(frame); }
+else document.body.insertAdjacentHTML('beforeend', '<section class="screen"><div class="card"><h1>Sorry!</h1><p>This browser can\'t draw the game (WebGL is off).</p></div></section>');
+
+// ---------- HOSTING EXTRAS (only switch on when served from games/<name>/ on the site) ----------
+if (/\/games\/[^/]+\/?(index\.html)?$/.test(location.pathname)) {
+  $('allGames').hidden = false; onTap('allGames', () => { location.href = '../../'; });
+  if ('serviceWorker' in navigator && window.isSecureContext && location.protocol.startsWith('http')) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+window.__game = { Game, Input, Scores, UI, Full, CFG, store }; // for test_game.py
+
+// ---------- TEST HOOK (spec v1) ----------
+// Lets the test harness and its bots play the game. See test-harness/GAME_TEST_HOOK_SPEC.md.
+// Nothing changes for players unless something calls reset().
+(() => {
+  const ACTIONS = [ // 3 actions; "idle" first
+    { id: 'idle', desc: 'Stand still' },
+    { id: 'left', desc: 'Run left' },
+    { id: 'right', desc: 'Run right' },
+  ];
+  const MOVES = { left: -1, right: 1 };
+  const MAX_STEPS = CFG.MAX_SECONDS * CFG.STEPS_PER_SECOND;
+  const status = () => Game.state === 'won' ? 'won' : Game.state === 'lost' ? 'lost' : Hook.steps >= MAX_STEPS ? 'timeout' : 'playing';
+
+  window.GAME_TEST_HOOK = {
+    version: 1,
+    info: () => ({
+      spec: 1, title: TITLE, stepsPerSecond: CFG.STEPS_PER_SECOND, levelCount: 1, scoreName: SCORE_NAME,
+      maxSteps: MAX_STEPS, stallSeconds: 5, actions: ACTIONS.map(a => ({ ...a })),
+      keys: { left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'] }, smokeAction: 'right',
+    }),
+    reset({ seed = 1, level = 0, realtime = false } = {}) {
+      Input.clear(); UI.pending = null;
+      Hook.mode = realtime ? 'realtime' : 'bot'; Hook.steps = 0; Hook.bot = { x: 0 };
+      Game.start(seed);
+      return this.getState();
+    },
+    step(action = 'idle', n = 1) {
+      if (!ACTIONS.some(a => a.id === action)) throw new Error('Unknown action: ' + action);
+      if (Hook.mode !== 'bot') throw new Error('Call reset() (bot mode) before step()');
+      Hook.bot.x = action === 'idle' ? 0 : MOVES[action];
+      for (let i = 0; i < n && status() === 'playing'; i++) { Game.update(STEP); Hook.steps++; }
+      return this.getState();
+    },
+    getState() {
+      const d = Game.dog;
+      return {
+        status: status(), score: Game.score, lives: Game.lives, livesLost: Game.hits,
+        level: 0, levelsCompleted: Game.state === 'won' ? 1 : 0, progress: Game.progress(), steps: Hook.steps,
+        player: d ? { x: +d.x.toFixed(3), y: CFG.DOG_Y, safeSeconds: +d.safe.toFixed(2), magnet: +Game.magnet.toFixed(2) } : null,
+      };
+    },
+    observe() { // what a bot "sees": a small text map and a few facts
+      if (!Game.dog) return { text: 'Game not started.', facts: {} };
+      const rows = Array.from({ length: CFG.H }, () => Array(CFG.W).fill('.'));
+      const put = (o, ch) => { rows[clamp(Math.floor(o.y), 0, CFG.H - 1)][clamp(Math.floor(o.x), 0, CFG.W - 1)] = ch; };
+      for (const c of Game.comets) put(c, 'C');
+      for (const b of Game.bones) put(b, 'B');
+      for (const r of Game.rocks) put(r, 'R');
+      put(Game.dog, '@');
+      // where the nearest interesting thing is, compared with the dog
+      const d = Game.dog;
+      let near = null, nearDy = 0;
+      for (const c of Game.comets) {
+        const dy = CFG.NET_Y - c.y;
+        if (dy >= -0.4 && (!near || dy < nearDy)) { near = c; nearDy = dy; }
+      }
+      const dir = o => `${Math.abs(o - d.x) < 0.4 ? 'above you' : o < d.x ? 'left' : 'right'}`;
+      return {
+        text: 'Legend: @ you (bottom row, with a net just above your head), C comet (catch it in your net), '
+          + 'B magnet bone (catch it for 5 s of magnet), R space rock (dodge it), . empty sky. Row 0 is the top.\n'
+          + rows.map(r => r.join('')).join('\n'),
+        facts: {
+          comets: `${Game.caught} of ${CFG.WIN_AT} caught`,
+          timeLeft: `${Math.max(0, Game.timeLeft).toFixed(1)}s of ${CFG.TIME_LIMIT}`,
+          lives: Game.lives,
+          streak: `${Game.streak} in a row (10 wins a life back)`,
+          magnet: Game.magnet > 0 ? `${Game.magnet.toFixed(1)}s left` : 'off',
+          falling: `${Game.comets.length} comet(s), ${Game.rocks.length} rock(s) in the air`,
+          nextComet: near ? `${dir(near)}, ${nearDy.toFixed(1)} above your net` : 'none yet',
+        },
+      };
+    },
+    selfCheck() { // the game can spot no design problems by itself
+      return [];
+    },
+  };
+})();
+</script>
+</body>
+</html>
