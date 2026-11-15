@@ -1,7 +1,7 @@
 {
   "name": "Lost Luggage of the Cosmos",
   "short_name": "Lost Luggage",
-  "description": "A space courier in fuzzy slippers delivers a mystery parcel across three wobbly worlds.",
+  "description": "A space courier in fuzzy slippers delivers a mystery parcel across ten wobbly worlds, then faces the Baggage Beast.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

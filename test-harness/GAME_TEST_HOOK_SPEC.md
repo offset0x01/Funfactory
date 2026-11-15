@@ -1,6 +1,6 @@
 # Game Test Hook: spec v1
 
-Every game built from the Kids Game Builder Prompt **must** expose this hook. The test harness (`harness/run_tests.py`) drives the game only through it. A game without a valid hook fails the build.
+Every game built from `AGENTS.md` **must** expose this hook. The test harness (`test-harness/harness/run_tests.py`) drives the game only through it. The starter game (`templates/game/index.html`) has a complete, passing hook to copy. A game without a valid hook fails the build.
 
 The hook does three jobs:
 
@@ -51,18 +51,20 @@ Returns a plain object. It must not change during a run.
   keys: {                       // real keyboard keys behind each action (KeyboardEvent.code)
     right: ["ArrowRight"], left: ["ArrowLeft"], jump: ["Space"]
   },
-  smokeAction: "right"          // an action that visibly changes getState() within 1 second
+  smokeAction: "right",         // an action that visibly changes getState() within 1 second
+  stallSeconds: 4               // OPTIONAL: how long without progress counts as stuck (default 4)
 }
 ```
 
 Rules for `actions`:
 
 - `idle` must exist and must be first.
+- **An underscore joins two actions held together**: `right_jump` means `right` + `jump`, and the harness splits ids on `_` to find the keys. So a single action's id must not contain an underscore (`turnleft` or `turnLeft`, never `turn_left`).
 - Each action is a **held** input for as long as the bot keeps choosing it. If an action includes a button press (jump, fire), the hook turns "not held last step, held now" into a single press, exactly as a key-down would.
 - `desc` is read by the AI bots. Write it for a smart 10-year-old: what it does, not how.
 - Touch- or tilt-only games still declare actions; the hook feeds them into the same input object the touch buttons or tilt feed.
 
-`keys` lists keyboard codes for each part of an action (`right_jump` = `right` + `jump`). The smoke test presses these real keys to prove the keyboard is wired, so it must match the game.
+`keys` lists keyboard codes for each part of an action (`right_jump` = `right` + `jump`). The smoke test presses these real keys to prove the keyboard is wired, so it must match the game. Every game has keyboard controls, including ones made mainly for touch (AGENTS.md, "Controls and devices").
 
 ## 3. `reset(options)`
 
@@ -73,9 +75,9 @@ reset({ seed = 1, level = 0, realtime = false } = {})
 - Starts a brand-new run from `level` with full lives and score 0. It skips the title, intro and any "press start" screens, and stops any demo.
 - **Seeds every random number that affects gameplay** from `seed` (enemy spawns, item drops, level generation). Randomness that only affects looks (particles, screen shake) may keep using `Math.random`. Same seed + same actions must give exactly the same run. The harness checks this.
 - `realtime: false` (bot mode): the game's own loop **must stop advancing the simulation**. It keeps drawing. Only `step()` moves time. Sound stays off.
-- `realtime: true` (smoke-test mode): the game runs normally on its own clock with real keyboard input. Used to prove the keys work.
+- `realtime: true` (smoke-test mode): the game runs normally on its own clock with real keyboard input, and P still pauses. Used to prove the keys and pause work. Nothing is saved in this mode either.
 - Between levels in bot mode, the hook loads the next level immediately; no "level complete" screen waits for a click. Level-complete bonuses still count.
-- Saving a player's best score to localStorage is skipped during test runs, so bots never overwrite the kids' high score.
+- Nothing is written to localStorage during test runs (scores, bests, settings), so bots never overwrite the kids' high scores. The smoke test checks this.
 
 ## 4. `step(action, n = 1)`
 
@@ -106,7 +108,8 @@ It must be fast: no rendering, no waiting. A whole 4-minute run should simulate 
 
 - go from 0 at the start of the game to 1 when the game is won;
 - mostly increase as the player gets closer to winning;
-- for a multi-level game, be `(levelsCompleted + progressInThisLevel) / levelCount`.
+- for a multi-level game, be `(levelsCompleted + progressInThisLevel) / levelCount`;
+- **grow with every real step forward.** The Evolution Bot treats `stallSeconds` (default 4 s) with no new best `progress` as stuck and backs up to try something else. Distance alone fails in a boss arena or a room you cross back and forth, so count boss hits, keys collected, switches thrown. If honest play really does go longer than 4 s between steps forward (a puzzle, a survival timer that only ticks), raise `stallSeconds` in `info()`.
 
 Pick the honest measure for the genre: distance to the goal for a platformer or racer, fraction of enemies cleared for a shooter, fraction of pellets eaten for a maze game, survival time over target time for a survival game.
 
@@ -178,13 +181,27 @@ The same numbers are saved next to the game as `bot-scores.json`.
 ## 9. Checklist for the coding agent
 
 - [ ] `window.GAME_TEST_HOOK` with `version: 1` and all required methods.
-- [ ] `info().actions` starts with `idle`; `keys` match the real controls.
+- [ ] `info().actions` starts with `idle`; no underscore inside a single action's id; `keys` match the real controls.
 - [ ] Bot mode freezes the real-time loop; `step()` is the only clock.
 - [ ] Gameplay randomness is seeded by `reset({seed})`.
 - [ ] Level transitions are automatic in bot mode.
-- [ ] `progress` goes 0 → 1 and reaches 1 exactly when `status` becomes `won`.
+- [ ] `progress` goes 0 → 1, grows with every real step forward, and reaches 1 exactly when `status` becomes `won`.
 - [ ] Test runs don't save to the player's high score.
 - [ ] `BOT-SCORES` markers present; title screen shows the bot's best when set.
-- [ ] `python3 harness/run_tests.py smoke path/to/index.html` passes.
+- [ ] `python3 test-harness/harness/run_tests.py smoke games/<name>/index.html` passes (run from the repo root).
 
-A complete worked example is `examples/lost-luggage/index.html` (search for `TEST HOOK`).
+Worked examples: `templates/game/index.html` (small, one screen) and `games/lost-luggage-of-the-cosmos/index.html` (ten levels and a boss). Search either for `TEST HOOK`.
+
+## 10. What else the smoke test checks
+
+Besides the hook itself, `smoke` checks the site rules from `AGENTS.md` on every game, so no game has to re-test them:
+
+| Check | Rule |
+| --- | --- |
+| P pauses and resumes | In real-time mode, nothing in `getState()` changes while paused, and the smoke action works again after a second P. |
+| Page never scrolls | Even with 40 px of padding added to `<html>`, as some hosts do. |
+| Bot runs save nothing | No `localStorage` write during bot-mode runs. |
+| Storage keys start with the folder name | Every key written since the page loaded starts with `<folder>.`. |
+| No network requests | Only `file:`, `data:` and `blob:` URLs. |
+| Title screen has a High scores button | Warning only. |
+| Phone touch screen | At 844 x 390 with touch and no mouse: loads with no errors, draws, doesn't scroll. |

@@ -1,17 +1,23 @@
-// Offline helper for Lost Luggage of the Cosmos.
-// After the first visit the game is saved on the device, so it opens from the
-// Home Screen with no signal. Each launch shows the saved copy right away and
-// quietly downloads any newer version for next time.
-// Bump CACHE when the list of files changes.
-const CACHE = 'lost-luggage-v1';
+// Offline helper for Lost Luggage of the Cosmos. After the first visit the game is saved on the device, so it opens from the
+// Home Screen with no signal. Each launch shows the saved copy right away and quietly downloads
+// any newer version for next time.
+//
+// Every game on the site shares one cache space, so this file only ever touches caches named
+// after its own folder. Nothing here needs editing for a new game. Bump VERSION when the list
+// of FILES changes.
+const VERSION = 2;
+const FOLDER = new URL('./', self.location).pathname.split('/').filter(Boolean).pop() || 'game';
+const CACHE = `${FOLDER}-v${VERSION}`;
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
+  // delete only this game's older caches, never another game's
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    .then(keys => Promise.all(keys.filter(k => (k.startsWith(FOLDER + '-v') && k !== CACHE) || k === 'lost-luggage-v1') // 'lost-luggage-v1' was this game's first cache name
+     .map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {

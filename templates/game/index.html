@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0820">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Starter Game">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+</head>
+<body>
+<!-- GAME-START (everything between GAME-START and GAME-END is the page) -->
+<title>Starter Game</title>
+<style>
+/* Layout: one full-screen WebGL canvas. The HUD, menus and touch buttons are plain HTML on top of it. */
+:root { --space:#0b0820; --panel:#1a1442; --edge:#43378c; --ink:#f4f0ff; --muted:#b8afe2; --hot:#ff8a3d; --good:#7dffa0; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+/* The page is pinned so it can never scroll, even when a host adds padding around it. */
+html { box-sizing: border-box; overflow: hidden; height: 100%; background: var(--space); }
+body { position: fixed; inset: 0; margin: 0; overflow: hidden; color: var(--ink);
+  font: 16px/1.4 "Trebuchet MS", system-ui, sans-serif;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#hud { position: absolute; top: max(8px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right));
+  display: flex; gap: 14px; align-items: center; font-weight: 700; pointer-events: none; }
+#hud .spacer { flex: 1; }
+button { font: inherit; font-weight: 700; color: var(--ink); background: var(--panel); border: 2px solid var(--edge);
+  border-radius: 12px; padding: 10px 16px; min-height: 44px; cursor: pointer; }
+button.primary { background: var(--hot); border-color: var(--hot); color: #1b0d00; }
+#btnPause { pointer-events: auto; }
+.screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(11,8,32,.82); overflow: auto; }
+.screen[hidden] { display: none; }
+.card { width: min(34rem, 100%); max-height: 100%; overflow: auto; background: var(--panel); border: 2px solid var(--edge); border-radius: 18px; padding: 18px 20px; text-align: center; }
+.card h1 { margin: 0 0 6px; font-size: clamp(26px, 6vw, 40px); }
+.card p { margin: 6px 0; color: var(--muted); }
+.row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+.note { font-size: 14px; color: var(--muted); }
+.good { color: var(--good); font-weight: 700; }
+table { margin: 10px auto 0; border-collapse: collapse; }
+td { padding: 2px 10px; text-align: left; }
+tr.new td { color: var(--good); font-weight: 700; }
+/* 16px or bigger, or iOS zooms the page when the field is tapped */
+#initials { font: 700 24px monospace; width: 5.5ch; text-align: center; text-transform: uppercase; padding: 6px; border-radius: 10px; border: 2px solid var(--edge); background: #fff; color: #111; user-select: text; -webkit-user-select: text; }
+/* Touch buttons: only shown on touch screens (see "isTouch" in the script). */
+#touch { position: absolute; left: max(14px, env(safe-area-inset-left)); bottom: max(14px, env(safe-area-inset-bottom));
+  display: grid; grid-template: repeat(3, 60px) / repeat(3, 60px); gap: 4px; }
+#touch[hidden] { display: none; }
+#touch button { padding: 0; font-size: 24px; opacity: .75; border-radius: 16px; }
+#tUp { grid-area: 1 / 2; } #tLeft { grid-area: 2 / 1; } #tRight { grid-area: 2 / 3; } #tDown { grid-area: 3 / 2; }
+</style>
+
+<canvas id="view"></canvas>
+
+<div id="hud" hidden>
+  <span id="hudScore">Stars: 0</span>
+  <span id="hudLives">Lives: 3</span>
+  <span class="spacer"></span>
+  <button id="btnPause" aria-label="Pause">II</button>
+</div>
+
+<div id="touch" hidden>
+  <button id="tUp" aria-label="Up">&#9650;</button>
+  <button id="tLeft" aria-label="Left">&#9664;</button>
+  <button id="tRight" aria-label="Right">&#9654;</button>
+  <button id="tDown" aria-label="Down">&#9660;</button>
+</div>
+
+<section class="screen" id="scrTitle">
+  <div class="card">
+    <h1>Starter Game</h1>
+    <p>Catch 8 stars. Don't touch the grumpy red block.</p>
+    <p class="note">Move with the arrow keys or WASD, or the on-screen arrows on a phone or tablet. P pauses.</p>
+    <p id="titleTop"></p>
+    <p id="titleBot" class="good"></p>
+    <div class="row">
+      <button class="primary" id="btnPlay">Play</button>
+      <button id="btnScores">High scores</button>
+      <button id="btnFull">Full screen</button>
+      <button id="allGames" hidden>All games</button>
+    </div>
+    <p class="note" id="fullNote" hidden></p>
+  </div>
+</section>
+
+<section class="screen" id="scrPause" hidden>
+  <div class="card">
+    <h1>Paused</h1>
+    <div class="row"><button class="primary" id="btnResume">Keep playing</button><button id="btnQuit">Quit to title</button></div>
+  </div>
+</section>
+
+<section class="screen" id="scrEnd" hidden>
+  <div class="card">
+    <h1 id="endTitle"></h1>
+    <p id="endScore"></p>
+    <p id="endBot" class="good"></p>
+    <div id="endForm" hidden>
+      <p>You made the high score table! Enter your initials:</p>
+      <div class="row"><input id="initials" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="primary" id="btnSave">Save</button></div>
+    </div>
+    <div id="endTable"></div>
+    <div class="row"><button class="primary" id="btnAgain">Play again</button><button id="btnMenu">Title</button></div>
+  </div>
+</section>
+
+<section class="screen" id="scrScores" hidden>
+  <div class="card">
+    <h1>High scores</h1>
+    <div id="scoresTable"></div>
+    <div class="row"><button class="primary" id="btnBack">Back</button></div>
+  </div>
+</section>
+
+<!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
+<!-- BOT-SCORES-START -->
+<script>window.BOT_SCORES = null;</script>
+<!-- BOT-SCORES-END -->
+
+<script>
+'use strict';
+// =====================================================================================
+// STARTER GAME. Copy this folder to games/<your-game-name>/ and turn it into your game.
+// The parts every game needs are already wired up and tested. Keep them working:
+//   fixed-step update(), one Input object, seeded random numbers, saved high scores,
+//   pause, touch buttons, full screen, the test hook, and the page that never scrolls.
+// Replace the parts marked "YOUR GAME": CONFIG, the Game object and the drawing.
+// =====================================================================================
+
+// ---------- CONFIG ----------
+// GAME_ID must be exactly the game's folder name. Saved data is stored under "<GAME_ID>.something".
+const GAME_ID = 'game';
+const TITLE = 'Starter Game';       // also change the <title>, the title screen heading and manifest.webmanifest
+const SCORE_NAME = 'points';        // what the score is called on screen
+const CFG = {                       // YOUR GAME: every tuning number lives here
+  W: 16, H: 9,                      // size of the world, in world units (the camera shows all of it)
+  STEPS_PER_SECOND: 60,             // the simulation always moves in steps of exactly 1/60 s
+  LIVES: 3,
+  PLAYER_SIZE: 0.7, PLAYER_SPEED: 5,
+  STARS_TO_WIN: 8, STAR_SIZE: 0.5, STAR_POINTS: 10, LIFE_BONUS: 50,
+  FOE_SIZE: 1.1, FOE_SPEED: 2.4, FOE_SPEEDUP: 0.3, FOE_NAP: 2,   // the foe naps for 2 s, then speeds up with every star
+  SAFE_SECONDS: 1.5,                // can't be hurt for this long after losing a life
+  MAX_SECONDS: 120,                 // a bot run longer than this counts as a fail
+};
+const STEP = 1 / CFG.STEPS_PER_SECOND;
+const $ = id => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// ---------- SEEDED RANDOM NUMBERS ----------
+// Use rand() for anything that changes the game (where things appear, which way they move), so the
+// same seed always gives the same game. Math.random() is fine for looks only (sparkles, shake).
+let rngState = 1;
+function seedRandom(seed) { rngState = (seed >>> 0) || 1; }
+function rand() { // "mulberry32": small, fast and good enough for games
+  let t = (rngState += 0x6D2B79F5);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// ---------- SAVED DATA ----------
+// Every key is prefixed with the folder name. If the browser blocks storage, scores stay in memory.
+const store = {
+  mem: {},
+  ok: (() => { try { const k = GAME_ID + '.__test'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; } catch { return false; } })(),
+  get(key, fallback) {
+    try { const v = localStorage.getItem(GAME_ID + '.' + key); if (v != null) return JSON.parse(v); } catch { /* blocked or bad data */ }
+    return key in this.mem ? this.mem[key] : fallback;
+  },
+  set(key, value) { this.mem[key] = value; try { localStorage.setItem(GAME_ID + '.' + key, JSON.stringify(value)); } catch { /* memory only */ } },
+};
+const Scores = { // top-10 table: [{ initials, score, detail, date }], highest first
+  list() { const l = store.get('scores', []); return Array.isArray(l) ? l : []; },
+  qualifies(score) { const l = this.list(); return score > 0 && (l.length < 10 || score > l[l.length - 1].score); },
+  add(initials, score, detail) {
+    const entry = { initials, score, detail, date: new Date().toISOString().slice(0, 10) };
+    const l = this.list(); l.push(entry);
+    l.sort((a, b) => b.score - a.score); // sort is stable, so ties keep the earlier entry first
+    store.set('scores', l.slice(0, 10)); store.set('initials', initials);
+    return l.indexOf(entry); // its row in the table (10 or more means it did not make the cut)
+  },
+  top() { const l = this.list(); return l.length ? l[0].score : 0; },
+};
+
+// ---------- SOUND (made in code; starts only after the first tap or key, an iOS rule) ----------
+const Sound = {
+  ctx: null,
+  unlock() { if (this.ctx || Hook.mode === 'bot') return; try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { /* no sound */ } },
+  beep(freq, seconds = 0.12, type = 'square') {
+    if (!this.ctx || Hook.mode === 'bot') return;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain(), t = this.ctx.currentTime;
+    o.type = type; o.frequency.value = freq; g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + seconds);
+    o.connect(g).connect(this.ctx.destination); o.start(t); o.stop(t + seconds);
+  },
+};
+
+// ---------- INPUT ----------
+// Keyboard, touch buttons and the test hook all feed this one object. The game only ever reads
+// Input.x() and Input.y(). Add new buttons here (for example Input.fire()), never in Game.update.
+const Hook = { mode: null, steps: 0, bot: { x: 0, y: 0 } }; // test hook state; the hook itself is at the end
+const Input = {
+  keys: new Set(),    // keyboard keys held right now (KeyboardEvent.code)
+  touch: new Set(),   // touch buttons held right now: 'left', 'right', 'up', 'down'
+  held(dir, ...codes) { return this.touch.has(dir) || codes.some(c => this.keys.has(c)); },
+  x() { return Hook.mode === 'bot' ? Hook.bot.x : (this.held('right', 'ArrowRight', 'KeyD') ? 1 : 0) - (this.held('left', 'ArrowLeft', 'KeyA') ? 1 : 0); },
+  y() { return Hook.mode === 'bot' ? Hook.bot.y : (this.held('down', 'ArrowDown', 'KeyS') ? 1 : 0) - (this.held('up', 'ArrowUp', 'KeyW') ? 1 : 0); },
+  clear() { this.keys.clear(); this.touch.clear(); },
+};
+const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+const typing = e => e.target && e.target.matches && e.target.matches('input, textarea');
+
+addEventListener('keydown', e => {
+  Sound.unlock();
+  if (typing(e)) return;                       // typing initials: no game shortcuts
+  if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+  if (e.repeat) return;
+  Input.keys.add(e.code);
+  if (e.code === 'KeyP' || e.code === 'Escape') Game.togglePause();
+  if (e.code === 'KeyF') Full.toggle();
+  if (e.code === 'Enter') UI.primary();
+});
+addEventListener('keyup', e => Input.keys.delete(e.code));
+addEventListener('blur', () => { Input.clear(); if (!Hook.mode) Game.pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && !Hook.mode) Game.pause(); });
+// stop pinch-zoom, double-tap zoom and long-press menus over the game
+for (const ev of ['gesturestart', 'contextmenu', 'dblclick']) addEventListener(ev, e => { if (!typing(e)) e.preventDefault(); });
+function bindHold(id, dir) { // a touch button that counts as "held" while a finger is on it
+  const el = $(id);
+  const down = e => { e.preventDefault(); Sound.unlock(); Input.touch.add(dir); };
+  const up = e => { e.preventDefault(); Input.touch.delete(dir); };
+  el.addEventListener('pointerdown', down); el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', up);
+}
+bindHold('tLeft', 'left'); bindHold('tRight', 'right'); bindHold('tUp', 'up'); bindHold('tDown', 'down');
+
+// ---------- THE GAME (YOUR GAME: replace the rules in here) ----------
+// state: 'title' | 'play' | 'paused' | 'won' | 'lost'
+const Game = {
+  state: 'title', score: 0, lives: CFG.LIVES, stars: 0, time: 0,
+  player: null, star: null, foe: null,
+
+  start(seed = (Date.now() >>> 0)) {
+    seedRandom(seed);
+    this.score = 0; this.lives = CFG.LIVES; this.stars = 0; this.time = 0;
+    this.player = { x: CFG.W / 2, y: CFG.H / 2, safe: 0 };
+    const a = 0.3 + rand() * 0.9; // the foe's first direction comes from the seed
+    this.foe = { x: 1.2, y: 1.2, vx: Math.cos(a), vy: Math.sin(a) };
+    this.placeStar();
+    this.state = 'play';
+    UI.show(null);
+  },
+  placeStar() { // somewhere at least 4 units from the player, so it is never a free point
+    let x, y;
+    do { x = 1 + rand() * (CFG.W - 2); y = 1.5 + rand() * (CFG.H - 2.5); } while (Math.hypot(x - this.player.x, y - this.player.y) < 4);
+    this.star = { x, y, startDist: Math.hypot(x - this.player.x, y - this.player.y) };
+  },
+
+  // One fixed step of the simulation. No drawing and no real clock in here: the test hook calls
+  // this thousands of times a second to let bots play.
+  update(dt) {
+    if (this.state !== 'play') return;
+    this.time += dt;
+    const p = this.player, f = this.foe, half = CFG.PLAYER_SIZE / 2;
+
+    // player
+    let dx = Input.x(), dy = Input.y();
+    if (dx && dy) { dx *= Math.SQRT1_2; dy *= Math.SQRT1_2; } // diagonals are not faster
+    p.x = clamp(p.x + dx * CFG.PLAYER_SPEED * dt, half, CFG.W - half);
+    p.y = clamp(p.y + dy * CFG.PLAYER_SPEED * dt, half, CFG.H - half);
+    p.safe = Math.max(0, p.safe - dt);
+
+    // foe: naps at first, then bounces around the walls, a bit faster with every star
+    if (this.time > CFG.FOE_NAP) {
+      const speed = CFG.FOE_SPEED + CFG.FOE_SPEEDUP * this.stars, fh = CFG.FOE_SIZE / 2;
+      f.x += f.vx * speed * dt; f.y += f.vy * speed * dt;
+      if (f.x < fh || f.x > CFG.W - fh) { f.vx = -f.vx; f.x = clamp(f.x, fh, CFG.W - fh); }
+      if (f.y < fh || f.y > CFG.H - fh) { f.vy = -f.vy; f.y = clamp(f.y, fh, CFG.H - fh); }
+    }
+    const reach = (CFG.FOE_SIZE + CFG.PLAYER_SIZE) / 2 - 0.08; // a little forgiving
+    if (p.safe <= 0 && Math.abs(f.x - p.x) < reach && Math.abs(f.y - p.y) < reach) {
+      this.lives--; p.safe = CFG.SAFE_SECONDS; Sound.beep(120, 0.3, 'sawtooth');
+      if (this.lives <= 0) return this.end(false);
+    }
+
+    // star
+    if (Math.hypot(this.star.x - p.x, this.star.y - p.y) < (CFG.STAR_SIZE + CFG.PLAYER_SIZE) / 2) {
+      this.stars++; this.score += CFG.STAR_POINTS; Sound.beep(660 + 60 * this.stars);
+      if (this.stars >= CFG.STARS_TO_WIN) { this.score += CFG.LIFE_BONUS * this.lives; return this.end(true); }
+      this.placeStar();
+    }
+  },
+
+  // How close the player is to winning, from 0 to 1. Bots chase this number, so it must grow with
+  // every real step forward: here, stars caught plus how close the next star is.
+  progress() {
+    if (this.state === 'won') return 1;
+    if (!this.player) return 0;
+    const near = 1 - clamp(Math.hypot(this.star.x - this.player.x, this.star.y - this.player.y) / this.star.startDist, 0, 1);
+    return Math.min(0.999, (this.stars + 0.9 * near) / CFG.STARS_TO_WIN);
+  },
+
+  end(won) {
+    this.state = won ? 'won' : 'lost';
+    Sound.beep(won ? 880 : 90, 0.5, won ? 'triangle' : 'sawtooth');
+    if (Hook.mode !== 'bot') UI.endRun(won); // bot runs show no screens and save nothing
+  },
+  play() { Hook.mode = null; this.start(); }, // a player starting a run (the test hook calls start(seed) itself)
+  pause() { if (this.state === 'play') { this.state = 'paused'; UI.show('scrPause'); } },
+  togglePause() { if (this.state === 'paused') { this.state = 'play'; UI.show(null); } else this.pause(); },
+  toTitle() { this.state = 'title'; Hook.mode = null; Input.clear(); UI.show('scrTitle'); },
+};
+
+// ---------- RENDERER (plain WebGL: colored triangles, no library) ----------
+const canvas = $('view');
+const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+const R = { verts: [], prog: null, buf: null, scale: 1, ox: 0, oy: 0 };
+function initGL() {
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+  R.prog = gl.createProgram();
+  gl.attachShader(R.prog, sh(gl.VERTEX_SHADER, 'attribute vec2 p; attribute vec4 c; uniform vec2 size; varying vec4 v; void main(){ v=c; gl_Position=vec4(p.x/size.x*2.0-1.0, 1.0-p.y/size.y*2.0, 0.0, 1.0); }'));
+  gl.attachShader(R.prog, sh(gl.FRAGMENT_SHADER, 'precision mediump float; varying vec4 v; void main(){ gl_FragColor=v; }'));
+  gl.linkProgram(R.prog); gl.useProgram(R.prog);
+  R.buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, R.buf);
+  const p = gl.getAttribLocation(R.prog, 'p'), c = gl.getAttribLocation(R.prog, 'c');
+  gl.enableVertexAttribArray(p); gl.vertexAttribPointer(p, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(c); gl.vertexAttribPointer(c, 4, gl.FLOAT, false, 24, 8);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+}
+function resize() { // fit the whole world on screen, centered, on any screen shape
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(canvas.clientWidth * dpr); canvas.height = Math.round(canvas.clientHeight * dpr);
+  R.scale = Math.min(canvas.width / CFG.W, canvas.height / CFG.H);
+  R.ox = (canvas.width - CFG.W * R.scale) / 2; R.oy = (canvas.height - CFG.H * R.scale) / 2;
+}
+const hex = (h, a = 1) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255, a];
+// tri() and rect() take screen pixels; wrect() and wdiamond() take world units.
+function tri(x1, y1, x2, y2, x3, y3, c1, c2 = c1, c3 = c1) { R.verts.push(x1, y1, ...c1, x2, y2, ...c2, x3, y3, ...c3); }
+function rect(x, y, w, h, top, bottom = top) { tri(x, y, x + w, y, x, y + h, top, top, bottom); tri(x + w, y, x + w, y + h, x, y + h, top, bottom, bottom); }
+function wrect(cx, cy, size, color) { rect(R.ox + (cx - size / 2) * R.scale, R.oy + (cy - size / 2) * R.scale, size * R.scale, size * R.scale, color); }
+function wdiamond(cx, cy, size, color) {
+  const x = R.ox + cx * R.scale, y = R.oy + cy * R.scale, r = size / 2 * R.scale;
+  tri(x, y - r, x + r, y, x, y + r, color); tri(x, y - r, x - r, y, x, y + r, color);
+}
+const BACKDROP = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: 1 + Math.random() * 2, a: 0.25 + Math.random() * 0.6 })); // looks only
+function draw(now) { // YOUR GAME: draw your world here
+  R.verts.length = 0;
+  rect(0, 0, canvas.width, canvas.height, hex('#1b1147'), hex('#070514'));
+  for (const s of BACKDROP) rect(s.x * canvas.width, s.y * canvas.height, s.s, s.s, hex('#ffffff', s.a * (0.7 + 0.3 * Math.sin(now / 600 + s.x * 40))));
+  rect(R.ox, R.oy, CFG.W * R.scale, CFG.H * R.scale, hex('#2a1f6b', 0.35), hex('#43378c', 0.35));
+  if (Game.player) {
+    const p = Game.player, f = Game.foe, s = Game.star;
+    wdiamond(s.x, s.y, CFG.STAR_SIZE * (1.5 + 0.2 * Math.sin(now / 150)), hex('#ffe066'));
+    wdiamond(s.x, s.y, CFG.STAR_SIZE * 0.8, hex('#fff7cc'));
+    wrect(f.x, f.y, CFG.FOE_SIZE, hex(Game.time > CFG.FOE_NAP ? '#ff5d6c' : '#8a4a66'));
+    wrect(f.x - 0.22, f.y - 0.12, 0.18, hex('#2a0010')); wrect(f.x + 0.22, f.y - 0.12, 0.18, hex('#2a0010'));
+    if (p.safe <= 0 || Math.floor(now / 90) % 2) { // blink while safe after a hit
+      wrect(p.x, p.y, CFG.PLAYER_SIZE, hex('#7dffa0'));
+      wrect(p.x - 0.14, p.y - 0.08, 0.12, hex('#0b0820')); wrect(p.x + 0.14, p.y - 0.08, 0.12, hex('#0b0820'));
+    }
+  }
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(gl.getUniformLocation(R.prog, 'size'), canvas.width, canvas.height);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(R.verts), gl.DYNAMIC_DRAW);
+  gl.drawArrays(gl.TRIANGLES, 0, R.verts.length / 6);
+}
+
+// ---------- SCREENS AND HUD ----------
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const UI = {
+  pending: null, // a finished run waiting for initials: { score, detail }
+  show(id) {
+    for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id;
+    const playing = id === null || id === 'scrPause';
+    $('hud').hidden = !playing; $('touch').hidden = !(playing && isTouch);
+    if (id === 'scrTitle') this.syncTitle();
+  },
+  syncTitle() {
+    const top = Scores.top(), bot = window.BOT_SCORES && window.BOT_SCORES.champion;
+    $('titleTop').textContent = top ? `Top score: ${top} ${SCORE_NAME}` : '';
+    $('titleBot').textContent = bot ? `Bot's best: ${bot.score} ${SCORE_NAME}. Can you beat it?` : '';
+  },
+  syncHud() { $('hudScore').textContent = `Stars: ${Game.stars} of ${CFG.STARS_TO_WIN}`; $('hudLives').textContent = `Lives: ${Game.lives}`; },
+  table(newRow = -1) { // newRow: which row to highlight
+    const l = Scores.list();
+    const rows = l.map((e, i) => `<tr class="${i === newRow ? 'new' : ''}"><td>${i + 1}.</td><td>${esc(e.initials)}</td><td>${e.score}</td><td>${esc(e.detail || '')}</td></tr>`).join('');
+    return (l.length ? `<table>${rows}</table>` : '<p>No scores yet. Be the first!</p>') + (store.ok ? '' : '<p class="note">Scores can\'t be saved in this browser.</p>');
+  },
+  endRun(won) {
+    const score = Game.score, detail = won ? 'All stars!' : `${Game.stars} star${Game.stars === 1 ? '' : 's'}`;
+    const bot = window.BOT_SCORES && window.BOT_SCORES.champion;
+    $('endTitle').textContent = won ? 'You win!' : 'Game over';
+    $('endScore').textContent = `Score: ${score} ${SCORE_NAME}`;
+    $('endBot').textContent = bot && score > bot.score ? 'You beat the bot!' : '';
+    const saving = !Hook.mode && Scores.qualifies(score); // test runs never save
+    this.pending = saving ? { score, detail } : null;
+    $('endForm').hidden = !saving;
+    $('endTable').innerHTML = this.table();
+    this.show('scrEnd');
+    if (saving) { $('initials').value = store.get('initials', ''); if (!isTouch) $('initials').focus(); }
+  },
+  save() { // also called when leaving the screen, so a score is never lost
+    if (!this.pending) return;
+    const initials = ($('initials').value.toUpperCase().replace(/[^A-Z]/g, '') || '???').slice(0, 3);
+    const row = Scores.add(initials, this.pending.score, this.pending.detail);
+    this.pending = null; $('endForm').hidden = true; $('initials').blur();
+    $('endTable').innerHTML = this.table(row);
+  },
+  primary() { // what Enter does on each screen
+    if (Game.state === 'title' && !$('scrScores').hidden) return this.show('scrTitle');
+    if (Game.state === 'title') return Game.play();
+    if (Game.state === 'paused') return Game.togglePause();
+    if (Game.state === 'won' || Game.state === 'lost') { this.save(); Game.play(); }
+  },
+};
+$('initials').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); });
+$('initials').addEventListener('keydown', e => { if (e.code === 'Enter') { e.preventDefault(); UI.save(); } });
+const onTap = (id, fn) => $(id).addEventListener('click', () => { Sound.unlock(); fn(); });
+onTap('btnPlay', () => Game.play());
+onTap('btnScores', () => { $('scoresTable').innerHTML = UI.table(); UI.show('scrScores'); });
+onTap('btnBack', () => UI.show('scrTitle'));
+onTap('btnPause', () => Game.togglePause());
+onTap('btnResume', () => Game.togglePause());
+onTap('btnQuit', () => Game.toTitle());
+onTap('btnSave', () => UI.save());
+onTap('btnAgain', () => { UI.save(); Game.play(); });
+onTap('btnMenu', () => { UI.save(); Game.toTitle(); });
+
+// ---------- FULL SCREEN ----------
+// iPhones never let a web page go full screen; the note tells players to use Add to Home Screen.
+const Full = {
+  supported: () => !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen),
+  toggle() {
+    const el = document.documentElement, on = document.fullscreenElement || document.webkitFullscreenElement;
+    const blocked = () => { $('fullNote').hidden = false; $('fullNote').textContent = 'Full screen is blocked here. On an iPhone or iPad: tap Share, then Add to Home Screen, and open the game from its new icon.'; };
+    if (on) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    if (!this.supported()) return blocked();
+    try { const r = (el.requestFullscreen || el.webkitRequestFullscreen).call(el); if (r && r.catch) r.catch(blocked); } catch { blocked(); }
+  },
+};
+onTap('btnFull', () => Full.toggle());
+
+// ---------- MAIN LOOP ----------
+// Real time is chopped into fixed steps, so the game plays the same on slow and fast screens.
+// In bot mode this loop only draws; the test hook's step() is the only thing that moves time.
+let last = 0, owed = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000 || 0); last = now;
+  if (Hook.mode !== 'bot') { owed += dt; while (owed >= STEP) { Game.update(STEP); if (Hook.mode) Hook.steps++; owed -= STEP; } }
+  UI.syncHud(); draw(now);
+  requestAnimationFrame(frame);
+}
+if (gl) { initGL(); addEventListener('resize', resize); resize(); UI.show('scrTitle'); requestAnimationFrame(frame); }
+else document.body.insertAdjacentHTML('beforeend', '<section class="screen"><div class="card"><h1>Sorry!</h1><p>This browser can\'t draw the game (WebGL is off).</p></div></section>');
+
+// ---------- HOSTING EXTRAS (only switch on when served from games/<name>/ on the site) ----------
+if (/\/games\/[^/]+\/?(index\.html)?$/.test(location.pathname)) {
+  $('allGames').hidden = false; onTap('allGames', () => { location.href = '../../'; });
+  if ('serviceWorker' in navigator && window.isSecureContext && location.protocol.startsWith('http')) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+window.__game = { Game, Input, Scores, UI, Full, CFG, store }; // for test_game.py
+
+// ---------- TEST HOOK (spec v1) ----------
+// Lets the test harness and its bots play the game. See test-harness/GAME_TEST_HOOK_SPEC.md.
+// Nothing changes for players unless something calls reset().
+(() => {
+  const ACTIONS = [ // YOUR GAME: 3 to 10 actions; "idle" first; join two with "_" to hold both
+    { id: 'idle', desc: 'Stand still' },
+    { id: 'left', desc: 'Move left' }, { id: 'right', desc: 'Move right' },
+    { id: 'up', desc: 'Move up' }, { id: 'down', desc: 'Move down' },
+    { id: 'left_up', desc: 'Move up and left' }, { id: 'right_up', desc: 'Move up and right' },
+    { id: 'left_down', desc: 'Move down and left' }, { id: 'right_down', desc: 'Move down and right' },
+  ];
+  const MOVES = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
+  const MAX_STEPS = CFG.MAX_SECONDS * CFG.STEPS_PER_SECOND;
+  const status = () => Game.state === 'won' ? 'won' : Game.state === 'lost' ? 'lost' : Hook.steps >= MAX_STEPS ? 'timeout' : 'playing';
+
+  window.GAME_TEST_HOOK = {
+    version: 1,
+    info: () => ({
+      spec: 1, title: TITLE, stepsPerSecond: CFG.STEPS_PER_SECOND, levelCount: 1, scoreName: SCORE_NAME,
+      maxSteps: MAX_STEPS, actions: ACTIONS.map(a => ({ ...a })),
+      keys: { left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'] }, smokeAction: 'right',
+    }),
+    reset({ seed = 1, level = 0, realtime = false } = {}) {
+      Input.clear(); UI.pending = null;
+      Hook.mode = realtime ? 'realtime' : 'bot'; Hook.steps = 0; Hook.bot = { x: 0, y: 0 };
+      Game.start(seed);
+      return this.getState();
+    },
+    step(action = 'idle', n = 1) {
+      if (!ACTIONS.some(a => a.id === action)) throw new Error('Unknown action: ' + action);
+      if (Hook.mode !== 'bot') throw new Error('Call reset() (bot mode) before step()');
+      Hook.bot = { x: 0, y: 0 };
+      if (action !== 'idle') for (const part of action.split('_')) { Hook.bot.x += MOVES[part][0]; Hook.bot.y += MOVES[part][1]; }
+      for (let i = 0; i < n && status() === 'playing'; i++) { Game.update(STEP); Hook.steps++; }
+      return this.getState();
+    },
+    getState() {
+      const p = Game.player;
+      return {
+        status: status(), score: Game.score, lives: Game.lives, livesLost: CFG.LIVES - Game.lives,
+        level: 0, levelsCompleted: Game.state === 'won' ? 1 : 0, progress: Game.progress(), steps: Hook.steps,
+        player: p ? { x: +p.x.toFixed(3), y: +p.y.toFixed(3), safeSeconds: +p.safe.toFixed(2) } : null,
+      };
+    },
+    observe() { // what a bot "sees": a small text map and a few facts
+      if (!Game.player) return { text: 'Game not started.', facts: {} };
+      const rows = Array.from({ length: CFG.H }, () => Array(CFG.W).fill('.'));
+      const put = (o, ch) => { rows[clamp(Math.floor(o.y), 0, CFG.H - 1)][clamp(Math.floor(o.x), 0, CFG.W - 1)] = ch; };
+      put(Game.star, '*'); put(Game.foe, 'X'); put(Game.player, '@');
+      const d = (a, b) => `${Math.abs(a) < 0.3 ? 'level with you' : a > 0 ? b[0] : b[1]}`;
+      const s = Game.star, p = Game.player;
+      return {
+        text: 'Legend: @ you, * star (catch it), X grumpy block (avoid it), . empty. Row 0 is the top.\n' + rows.map(r => r.join('')).join('\n'),
+        facts: { stars: `${Game.stars} of ${CFG.STARS_TO_WIN}`, lives: Game.lives, starIs: `${d(s.x - p.x, ['right', 'left'])}, ${d(s.y - p.y, ['down', 'up'])}`, foeAwake: Game.time > CFG.FOE_NAP },
+      };
+    },
+    selfCheck() { // YOUR GAME: report design problems the game can spot by itself (unreachable goals, impossible gaps)
+      return [];
+    },
+  };
+})();
+</script>
+<!-- GAME-END -->
+</body>
+</html>

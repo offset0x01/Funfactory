@@ -6,7 +6,8 @@
   python3 test-harness/harness/run_tests.py bots   path/to/index.html --bots jev,enum  # just these bots
   python3 test-harness/harness/run_tests.py all    path/to/index.html --bots evolutionary,jev,enum,llm --passes 3
 
-Results go to <game folder>/test-results/ (report.md, report.json, screenshots, the bot's best run).
+`all` writes the report to commit, <game folder>/TEST_REPORT.md. Working files (smoke-report.md, bots-report.md,
+report.json, screenshots, the bot's best run) go to <game folder>/test-results/, which git ignores.
 Bot scores go to <game folder>/bot-scores.json and into the game file between the BOT-SCORES markers
 (use --no-inject to leave the game file alone). Exit code 1 means the game failed a required check.
 """
@@ -42,9 +43,10 @@ def icon(ok, severity):
     return "PASS" if ok else ("FAIL" if severity == "error" else "WARN")
 
 
-def write_report(out: pathlib.Path, report: dict):
+def write_report(out: pathlib.Path, report: dict, md: pathlib.Path) -> pathlib.Path:
+    """Write the report as Markdown to `md`, and as JSON next to the other working files in `out`."""
     out.mkdir(parents=True, exist_ok=True)
-    (out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+    (out / (md.stem.lower().replace("_", "-") + ".json")).write_text(json.dumps(report, indent=2) + "\n")
     L = [f"# Test report: {report.get('title', report['game'])}", "", f"Run at {report['started']} · seed {report['seed']}", ""]
     if "smoke" in report:
         L += ["## Smoke tests", "", "| Result | Check | Detail |", "| --- | --- | --- |"]
@@ -77,7 +79,8 @@ def write_report(out: pathlib.Path, report: dict):
         c = report["scoreboard"].get("champion")
         L += ["## Scoreboard", "", f"Bot to beat: **{c['label']} with {c['score']}**" if c else "No bot scores yet.", ""]
     L += [f"**Overall: {'PASS' if report['passed'] else 'FAIL'}**", ""]
-    (out / "report.md").write_text("\n".join(L))
+    md.write_text("\n".join(L))
+    return md
 
 
 def main():
@@ -100,6 +103,8 @@ def main():
     game = pathlib.Path(a.game).resolve()
     out = game.parent / "test-results"
     passes = max(3, a.passes)
+    # Only a full `all` run replaces the committed report; quick smoke and bots-only runs write beside it.
+    md = {"smoke": out / "smoke-report.md", "bots": out / "bots-report.md", "all": game.parent / "TEST_REPORT.md"}[a.command]
     report = {"game": str(game), "seed": a.seed, "started": time.strftime("%Y-%m-%d %H:%M:%S"), "passed": True}
     log = lambda m: print(m, flush=True)
 
@@ -112,12 +117,12 @@ def main():
             log(f"  [{icon(c['ok'], c['severity'])}] {c['name']}" + (f"  ({c['detail']})" if not c["ok"] and c["detail"] else ""))
         if not sm["passed"]:
             report["passed"] = False
-            write_report(out, report)
-            log(f"\nSmoke tests failed. See {out / 'report.md'}")
+            write_report(out, report, out / "smoke-report.md")
+            log(f"\nSmoke tests failed. See {out / 'smoke-report.md'}")
             sys.exit(1)
         if a.command == "smoke":
-            write_report(out, report)
-            log(f"\nAll smoke tests passed. Report: {out / 'report.md'}")
+            write_report(out, report, md)
+            log(f"\nAll smoke tests passed. Report: {md}")
             return
 
     bots = [b.strip() for b in a.bots.split(",")] if a.bots else ["evolutionary"] + [b for b in AI_BOTS if configured(b)]
@@ -178,8 +183,8 @@ def main():
         if c:
             log(f"Bot to beat: {c['label']} with {c['score']}")
 
-    write_report(out, report)
-    log(f"\n{'PASS' if report['passed'] else 'FAIL'}. Report: {out / 'report.md'}")
+    write_report(out, report, md)
+    log(f"\n{'PASS' if report['passed'] else 'FAIL'}. Report: {md}")
     sys.exit(0 if report["passed"] else 1)
 
 

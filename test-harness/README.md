@@ -8,7 +8,6 @@ test-harness/
   LLM_GUIDED_BOT.md          the Thinking Bot (v2) and the GEPA upgrade path
   harness/run_tests.py       the test runner (run it from the repo root)
   harness/gamebot/           smoke tests, fairness checks, bots, scoreboard
-  examples/lost-luggage/     Lost Luggage with the hook added (index.html + hook.patch)
   tests/mock_ai_server.py    offline fake LiteLLM + Jev endpoint for testing the plumbing for free
   .env.example               model settings for the AI bots (copy to .env; never commit .env)
   requirements.txt           playwright, pillow, numpy
@@ -26,13 +25,13 @@ python3 test-harness/harness/run_tests.py all games/<game>/index.html
 
 `all` runs, in order:
 
-1. **Smoke tests** (about 10 s). The page loads with no console errors, the hook follows the spec, the real keyboard moves the player, the screen is actually drawn, the same seed gives the same run, and the title screen shows the bot's best. If these fail, nothing else runs.
+1. **Smoke tests** (about 20 s). The page loads with no console errors, the hook follows the spec, the real keyboard moves the player, the screen is actually drawn, the same seed gives the same run, and the title screen shows the bot's best. Then the site rules every game must follow: P pauses, the page never scrolls, bot runs save nothing, storage keys start with the folder name, nothing is fetched from the network, and the game loads and draws on a phone-sized touch screen (spec section 10). If these fail, nothing else runs.
 2. **Evolution Bot** (about 2 to 3 min). At least 3 passes, getting better each pass.
 3. **AI bots** that are configured in `.env` (Jev, Quick-Pick, Thinking). Skipped if not configured.
 4. **Fairness checks.** Standing still at the start is safe; doing nothing or button-mashing doesn't win; a human-speed bot can win; and a timing-tolerance test (nudge one input 40 ms early or late and see if the run still works).
 5. **Scoreboard.** Writes `bot-scores.json` and puts the scores into the game file so the title screen says "Bot's best: 1375 bolts. Can you beat it?"
 
-Results land in `<game folder>/test-results/`: `report.md`, `report.json`, screenshots, and `evolutionary-best-run.json` (the exact inputs of the bot's best run). Exit code 1 means a required check failed.
+`all` writes the report to commit, `<game folder>/TEST_REPORT.md`. Working files land in `<game folder>/test-results/`, which git ignores: `report.json`, screenshots, `evolutionary-best-run.json` (the exact inputs of the bot's best run), and the reports of quick runs (`smoke-report.md`, `bots-report.md`), so a quick run never overwrites the committed report. Exit code 1 means a required check failed.
 
 Other commands:
 
@@ -80,10 +79,10 @@ LITELLM_BASE_URL=http://127.0.0.1:8765/v1 ENUM_MODEL=mock JEV_URL=http://127.0.0
 
 Hand the agent the spec plus this instruction:
 
-> Read test-harness/GAME_TEST_HOOK_SPEC.md and add the test hook to `games/<game>/index.html`. Use `test-harness/examples/lost-luggage/index.html` (search for "TEST HOOK", "Hook.mode" and "BOT-SCORES") as the worked example. Then run the smoke test and fix everything until it passes, then run `all`.
+> Read test-harness/GAME_TEST_HOOK_SPEC.md and add the test hook to `games/<game>/index.html`. Use `templates/game/index.html` (search for "TEST HOOK", "Hook.mode" and "BOT-SCORES") as the worked example. Then run the smoke test and fix everything until it passes, then run `all`.
 
-About the example: `examples/lost-luggage/index.html` was made from the published Claude artifact copy of Lost Luggage, which is older than `games/lost-luggage-of-the-cosmos/index.html` (it has no full-screen button or hosting extras). `examples/lost-luggage/hook.patch` is the exact diff from that copy. Against the current game it applies in a dry run (`patch --dry-run --fuzz=3 games/lost-luggage-of-the-cosmos/index.html < test-harness/examples/lost-luggage/hook.patch`), but two hunks need fuzz, so check where they landed and run the smoke test before committing.
+New games start from `templates/game/`, which already has the hook, so this is only for games built another way.
 
 ## What it found on Lost Luggage
 
-Run on the example copy (`test-harness/examples/lost-luggage/index.html`): all smoke tests passed. The Evolution Bot scored 760, then 1165, then won on pass 3 with 1375 bolts and no lives lost. Every fairness check passed. Timing tolerance was 70%; the tightest moments were around 6 s, 26 s and 38–39 s into a run, which are the spots to playtest if anything feels unfair. The repo's copy of Lost Luggage does not have the hook yet.
+`games/lost-luggage-of-the-cosmos/` (ten levels and a boss): all smoke tests pass. The Evolution Bot needed `--extra-passes 12` and won on pass 10 (about 19 minutes) with 6045 bolts and no lives lost. Every fairness check passes; timing tolerance was 57%. The current numbers are in that game's `TEST_REPORT.md`. The starter game (`templates/game/`) wins on pass 1 in under a minute.

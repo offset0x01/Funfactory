@@ -57,7 +57,7 @@ class EvolutionaryBot:
         self.min_hold = max(1, round(0.15 * sps))   # ~150 ms: human-speed input changes
         self.max_hold = max(self.min_hold + 1, round(0.9 * sps))
         self.tail = round(2.0 * sps)                 # explore ~2 s of new moves at a time
-        self.stall = round(4.0 * sps)                # no progress for 4 s = stuck
+        self.stall = round(float(info.get("stallSeconds") or 4.0) * sps)   # no progress for this long = stuck (default 4 s)
         self.n_actions = len(info["actions"])
         self.elite: list[tuple[float, list, dict]] = []   # (fitness, genome, search result)
         self.stuck = 0

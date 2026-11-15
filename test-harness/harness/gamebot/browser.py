@@ -49,13 +49,21 @@ class GameSession:
             self.browser = self._pw.chromium.launch(headless=headless, args=GL_ARGS, executable_path=chrome)
         self.page = None
         self.errors: list[str] = []
+        self.network: list[str] = []
         self.open()
 
-    def open(self, url: str | None = None, viewport=(1280, 800)):
+    def open(self, url: str | None = None, viewport=(1280, 800), touch: bool = False):
+        """Load the game. touch=True pretends to be a phone or tablet (touch screen, no mouse)."""
         if self.page:
-            self.page.close()
+            self.page.context.close()
         self.errors = []
-        self.page = self.browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
+        self.network = []   # anything the page asked for that is not a local file (games must work offline)
+        ctx = self.browser.new_context(viewport={"width": viewport[0], "height": viewport[1]}, has_touch=touch, is_mobile=touch)
+        # remember every storage key the page writes, so the smoke test can check the names
+        ctx.add_init_script("window.__storageWrites = []; try { const set = Storage.prototype.setItem; "
+                            "Storage.prototype.setItem = function (k, v) { window.__storageWrites.push(String(k)); return set.call(this, k, v); }; } catch (e) {}")
+        self.page = ctx.new_page()
+        self.page.on("request", lambda r: None if r.url.startswith(("file:", "data:", "blob:", "about:")) else self.network.append(r.url))
         self.page.on("console", lambda m: self.errors.append(m.text) if m.type == "error" else None)
         self.page.on("pageerror", lambda e: self.errors.append(f"pageerror: {e}"))
         self.page.goto(url or self.game_path.as_uri())

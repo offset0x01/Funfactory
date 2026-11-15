@@ -4,7 +4,7 @@ Checks: loads with no console errors, movement, scoring, Fizzy Jet, gravity zone
 getting hurt, game over + restart, level completion, power-ups (Bubble Shield, Mega Fuzz),
 new monsters (snail, flare, hopper, drone), ice and hot sauce, the Baggage Beast boss,
 and that a simple bot can finish every level (terrain reachability)."""
-import sys, pathlib
+import os, sys, pathlib
 from playwright.sync_api import sync_playwright
 
 HTML = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else pathlib.Path(__file__).with_name('index.html')).resolve()
@@ -59,7 +59,9 @@ BOT = r"""
 """
 
 with sync_playwright() as pw:
-    b = pw.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'])
+    GL = ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--enable-webgl', '--ignore-gpu-blocklist']
+    try: b = pw.chromium.launch(args=GL)   # Playwright's own Chromium
+    except Exception: b = pw.chromium.launch(args=GL, executable_path=os.environ.get('CHROME_PATH', '/usr/bin/google-chrome'))
     errors = []
     def new_page(**kw):
         pg = b.new_page(**kw)

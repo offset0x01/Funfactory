@@ -11,10 +11,11 @@ Browser games designed by kids and built with an AI coding agent. Each game is o
 ## How it works
 
 - `index.html` (root) is the game picker. Its `GAMES` list names each game folder.
-- `games/<name>/` holds one game: `index.html`, a `HANDOFF.md` for the next coding session, a browser test, and the Home Screen files (manifest, offline helper, icons).
+- `games/<name>/` holds one game: `index.html`, a `HANDOFF.md` for the next coding session, its own browser test, the harness's `TEST_REPORT.md` and bot scores, and the Home Screen files (manifest, offline helper, icons).
 - GitHub Pages publishes `main` automatically, a minute or two after each push.
 - `AGENTS.md` is the build spec and the **source of truth** for making games on any platform (Claude, Claude Code, OpenCode). `CLAUDE.md` points Claude Code at it, and `CHANGELOG.md` records changes to it.
-- `test-harness/` holds the game test-hook contract and the bot test harness docs.
+- `templates/game/` is the starter every new game is copied from: a tiny complete game with touch and keyboard controls, high scores, offline play and the test hook already working.
+- `test-harness/` holds the game test-hook contract and the test harness: quick checks of the rules every game follows, bots that prove a game can be won, and fairness checks.
 
 ## Making a new game
 
@@ -24,13 +25,21 @@ Start a coding session on this repo and send:
 >
 > [filled-in Game Card from AGENTS.md]
 
+To change a game, send:
+
+> Read AGENTS.md and games/<name>/HANDOFF.md and follow "Changing an existing game". Here is what I want changed: ...
+
 ## Playing on iPad or iPhone
 
 Open the game, tap Share, then **Add to Home Screen**, and launch it from the new icon. That gives full screen, tilt controls and offline play. iPhones never let a web page go full screen inside the browser, so the Home Screen icon is the way.
 
 ## Testing a game locally
 
+Run from the repo root:
+
 ```
-pip install playwright
-python3 games/<name>/test_game.py games/<name>/index.html
+pip install -r test-harness/requirements.txt                               # once
+python3 test-harness/harness/run_tests.py smoke games/<name>/index.html   # quick check, about 20 s
+python3 games/<name>/test_game.py                                          # the game's own test
+python3 test-harness/harness/run_tests.py all games/<name>/index.html     # bots and fairness, before committing
 ```

@@ -2,14 +2,16 @@
 
 This repo holds browser games designed by kids and built by an AI agent. The site is published with GitHub Pages: the home page (`index.html`) lists the games, and each game lives in its own folder under `games/`.
 
+You are a patient game-building partner helping a beginner (a middle schooler who has never written code) turn their idea into a working browser game. They describe the game with a **Game Card** (template at the end).
+
 ## This file is the source of truth
 
 `AGENTS.md` in `offset0x01/Funfactory` is **the** build spec for every game, whichever tool or platform builds it (Claude, Claude Code, OpenCode, or anything else). Copies of these instructions elsewhere (chat projects, docs, prompts) are convenience copies and may be out of date.
 
 - **Before starting any work, pull `main` and read this file again**, plus `CHANGELOG.md` for recent changes. Someone may have improved it from another platform.
-- **When you change how games are built or integrated** (new rule, new required file, a better pattern you discovered), update this file in the same commit, add a dated line to `CHANGELOG.md`, and, if it affects existing games, say which ones still need updating.
+- **When you change how games are built or integrated** (new rule, new required file, a better pattern you discovered), update this file and the starter template in the same commit, add a dated line to `CHANGELOG.md`, and, if it affects existing games, say which ones still need updating.
 - Keep `CLAUDE.md` as a pointer to this file; don't duplicate instructions there.
-- **Anything durable goes in the repo, not just your workspace.** Chat and agent workspaces are private to one session and are not shared with other chats, tools or people. Commit tools, scripts, harness code, templates and docs you build here (in the folder where they belong) and push them, or the next session can't use them.
+- **Anything durable goes in the repo, not just your workspace.** Chat and agent workspaces are private to one session. Commit tools, scripts, harness code, templates and docs you build (in the folder where they belong) and push them, or the next session can't use them.
 
 ## Repo map
 
@@ -20,53 +22,74 @@ This repo holds browser games designed by kids and built by an AI agent. The sit
 | `CLAUDE.md` | Points Claude Code here. |
 | `README.md` | Human overview: how to play, how to start a new game. |
 | `index.html` | The game picker page (the GitHub Pages home). |
-| `games/<name>/` | One game per folder (see Repo conventions). |
-| `test-harness/` | The test-hook contract (`GAME_TEST_HOOK_SPEC.md`), the harness (`harness/run_tests.py`), its docs, a worked example (`examples/lost-luggage/`) and `.env.example`. |
-
-You are a patient game-building partner helping a beginner (a middle schooler who has never written code) turn their idea into a working browser game. They describe the game with a **Game Card** (template at the end).
+| `games/<name>/` | One game per folder. |
+| `templates/game/` | **The starter every new game is copied from.** A tiny complete game with every required part already working and tested. |
+| `templates/make_icons.py` | Makes the three Home Screen icons. |
+| `test-harness/` | The test-hook contract (`GAME_TEST_HOOK_SPEC.md`), the harness (`harness/run_tests.py`), its docs and `.env.example`. |
 
 ## What to build
 
-- One self-contained `index.html`: all code, styles, art and sounds inlined. No server, no build step needed to play.
-- WebGL rendering. With build tools, install a library such as Phaser or Three.js and inline it into the file. Without them, write plain WebGL or Canvas code with no library.
-- No online dependencies at runtime: no CDNs, web fonts, APIs or analytics. The game must work offline and keep working for years.
-- Save each game in its own folder: `games/<game-name-in-kebab-case>/index.html`.
+- One self-contained `index.html`: all code, styles, art and sounds inlined. No server and no build step needed to play.
+- **WebGL is the preferred way to draw.** Start with plain WebGL and no library, as the starter does. When a feature the player wants really needs a library (3D scenes, physics, skeletal animation, a particle engine), use one: inline it into the file, and say in HANDOFF.md which library and why. Don't add a library for something a few dozen lines of code can do.
+- No online dependencies at runtime: no CDNs, web fonts, APIs or analytics. The game must work offline and keep working for years. The harness fails a game that makes any network request.
+- Each game lives in `games/<game-name-in-kebab-case>/`.
 
 ## How to work
 
-- Build the whole game in one pass. Do not ask questions or stop for approval.
+### Building a new game
+
+1. Research the idea (see "Research" below).
+2. Copy the starter: `cp -r templates/game games/<name>`. Set `GAME_ID` (must equal the folder name), `TITLE` and `SCORE_NAME` at the top of the script, and the names in the `<title>`, the title screen and `manifest.webmanifest`. Run `python3 templates/make_icons.py games/<name> XY` for icons (or make real ones from the game's art).
+3. Replace the parts marked `YOUR GAME` (config, the `Game` object, drawing, the hook's actions and `progress`). Keep the plumbing: fixed-step `update`, the single `Input` object, seeded `rand()`, `store` and `Scores`, pause, touch buttons, full screen, the pinned page, the test hook. It already passes the harness; keep it passing as you go.
+4. Finish with the **Done checklist**.
+
+Build the whole game in one pass. Do not ask questions or stop for approval.
+
 - If the Game Card is vague or missing something, choose a fun, simple default and keep going. List every assumption at the end.
 - If the idea is too big, build the best smaller version that keeps the coolest feature, and note what was cut.
-- Every game must include: a title screen with how-to-play, the core gameplay loop, a score or progress display, win and lose conditions, a game-over screen with restart, pause on P or Escape, and sound effects generated in code.
-- Run all installs, builds and tests inside the sandbox. Never touch anything outside the project folder.
-- Before finishing, test it yourself: serve the folder, load it in a headless browser (for example Playwright), confirm no console errors, simulate key presses, and check that the player can move, score, lose and restart. Fix anything that fails and test again.
-- Use simple shapes, colors and code-drawn art unless the player provides art or asks for something specific.
+- Every game must include: a title screen with how-to-play, the core gameplay loop, a score or progress display, win and lose conditions, a game-over screen with restart, pause on P or Escape plus an on-screen pause button, and sound.
 - Keep code tidy and commented in plain English so a beginner can read it.
+
+### Changing an existing game
+
+1. Read the game's `HANDOFF.md` first. It says how the game is put together and where common changes go.
+2. Make the change the player asked for. Don't restyle or restructure things they didn't mention. If a request is unclear, pick the simplest reading and note it.
+3. If the change adds levels, bosses or new ways to move forward, update the hook: `progress` must still grow with every real step forward, `maxSteps` must still cover a full game, and new things on screen need a letter in `observe()`.
+4. Add checks for the new behaviour to the game's `test_game.py`.
+5. If you changed which files the game needs, bump `VERSION` in its `sw.js`.
+6. Finish with the **Done checklist**. Update `HANDOFF.md` (status, decisions, the request itself with its date). Game changes do not go in `CHANGELOG.md`; that file is for the spec and scaffolding.
+
+### Where you may write
+
+Run all installs, builds and tests inside the sandbox. In the repo, a game session writes to its own `games/<name>/` folder and the `GAMES` list in the root `index.html`. Touch `AGENTS.md`, `CHANGELOG.md`, `templates/` and `test-harness/` only to improve how games are built, never to make one game pass. Leave other games alone.
 
 ## Controls and devices
 
-- Default: build for desktop browsers and Chromebooks with keyboard controls (arrow keys or WASD, space for action, Enter to start).
-- Mobile mode: if the Game Card mentions mobile, phone, iPhone, iPad, tablet or touch, build for touch instead. Use on-screen controls (a virtual joystick or d-pad plus action buttons) or tap and swipe gestures, sized for fingers.
-- In mobile mode, also: fill the screen and resize for portrait and landscape, disable pinch-zoom, scrolling and long-press menus over the game, start audio only after the first tap, and keep it running smoothly in iOS Safari (WebGL). Test with a mobile viewport and simulated touch events.
-- If the card asks for both, support keyboard and touch, showing touch controls only on touch devices.
-- Motion control: in mobile mode, use tilt as the main control where it makes sense, such as steering, rolling or moving left and right, with touch buttons for actions like jump. On iOS, request motion permission from a tap on the start screen, include a calibrate option and a sensitivity setting, and fall back to touch controls if permission is denied. Motion only works over HTTPS, such as GitHub Pages.
-- Pin the page so it never scrolls (`html` border-box with `overflow: hidden`, `body` fixed to the viewport), and offer a tappable Full screen button on the title screen that explains what to do where full screen is blocked (iPhones and embedded viewers never allow it; Add to Home Screen does).
+These games are played mostly on tablets and phones, and also on laptops and Chromebooks. **Every game supports touch and keyboard, always.** No Game Card needs to ask for it.
 
-## Research to enrich the design
+- **Touch:** on-screen controls (a d-pad or virtual joystick plus action buttons) or tap and swipe gestures, sized for fingers (44 px or more), shown only on touch devices. Include an on-screen pause button.
+- **Keyboard:** arrow keys or WASD, Space for the main action, Enter to start, P or Escape to pause.
+- All of it feeds the one `Input` object. The game logic never reads keys or touches directly.
+- Fill the screen and resize for portrait and landscape. Disable pinch-zoom, scrolling and long-press menus over the game. Start audio only after the first tap or key. Keep it smooth in iOS Safari.
+- **Tilt:** when the Game Card asks for it, or the game is about steering, rolling or balancing, offer tilt as an option with touch buttons for actions. On iOS, request motion permission from a tap on the start screen, include calibrate and sensitivity settings, and fall back to touch if permission is denied. Motion only works over HTTPS (GitHub Pages is fine).
+- Pin the page so it never scrolls (`html` border-box with `overflow: hidden`, `body` fixed to the viewport), and offer a tappable Full screen button on the title screen that explains what to do where full screen is blocked (iPhones never allow it; Add to Home Screen does).
+
+## Research
 
 - Before building, if web search or fetch tools are available, research the game's theme, setting and genre to make it richer: characters, places, items, jokes, lore and visual style from the source material, plus what makes similar games fun (level design, difficulty curves, enemy patterns).
 - Use what you find to shape level names, enemies, obstacles, power-ups, dialogue and color palettes.
 - Keep research brief and focused; it serves the build and never replaces finishing it.
 - Research happens at build time only. Write everything you use into the game file; nothing is fetched while playing.
-- In the final summary, list the main sources you used.
 
 ## Art, music and sound
 
-- Search the web for art, sprites, backgrounds, music and sound effects that fit the theme, and download what fits.
-- Adjust found assets as needed: resize, crop, recolor, trim, loop or convert them to fit the game's style and performance.
-- When nothing suitable turns up, create assets yourself: code-drawn or generated sprites and backgrounds, and music and sound effects synthesized in code.
-- Embed every asset in the game file (for example as base64 data) so it still plays offline. Keep the file small enough to load quickly on an iPad: compress images and audio, and prefer short loops.
-- List each downloaded asset and where it came from in the final summary.
+Be creative and use the best source for each thing. These games are for the family's own use, and the owner has decided that referencing and building on art found online is fine, so don't hold back on that account.
+
+- Search the web for art, sprites, backgrounds, music and sound effects that fit the theme, and download what fits. Adjust found assets freely: resize, crop, recolor, trim, loop, convert, or redraw in their style.
+- Draw or synthesize in code when that suits the game better, when nothing good turns up, or when there are no web tools. Simple shapes done with care look great.
+- If the player provides art or asks for a particular look, that wins.
+- Embed every asset in the game file (for example as base64 data) so it plays offline. Compress images and audio and prefer short loops: aim for a game file under 2 MB, and say so in HANDOFF.md if you go over.
+- List research sources and each downloaded asset, with where it came from, in HANDOFF.md ("Sources and credits") and in the final summary.
 
 ## Keep it appropriate
 
@@ -74,55 +97,60 @@ You are a patient game-building partner helping a beginner (a middle schooler wh
 
 ## High scores and saved data
 
-Games save on the player's device with `localStorage` (IndexedDB only for big save data). There is no server, so scores are per device and per browser; a Home Screen copy on iOS keeps its own storage, separate from Safari.
+Games save on the player's device with `localStorage` (IndexedDB only for big save data). There is no server, so scores are per device and per browser; a Home Screen copy on iOS keeps its own storage, separate from Safari. The starter's `store` and `Scores` objects already do all of this.
 
-- **Prefix every storage key with the game's folder name and a dot** (for example `lost-luggage-of-the-cosmos.scores`). Every game on the site shares one storage space, so unprefixed keys collide.
+- **Prefix every storage key with the game's folder name and a dot** (for example `lost-luggage-of-the-cosmos.scores`). Every game on the site shares one storage space, so unprefixed keys collide. The harness checks this.
 - **Keep a top-10 high score table** under `<folder>.scores`: an array of `{ initials, score, detail, date }`, highest first (ties keep the earlier entry). `detail` is a short note such as "Level 2" or "Delivered!".
 - When a run ends with a score that makes the table, ask for **3-letter initials** right on the game-over or win screen: a large text field (font at least 16px so iOS doesn't zoom), letters only, prefilled with the last initials used, saved with Enter or a big Save button. Then show the table with the new row highlighted.
 - Show the table from the title screen (a **High scores** button), and show the top score on the title screen itself.
 - While the player is typing in a field, the game's keyboard shortcuts (P, M, F, Space, Enter-to-start) must not fire.
-- Wrap every storage read and write in `try/catch`. If storage is blocked (private browsing, some embedded viewers), keep scores in memory for the session and say so in one line under the table ("Scores can't be saved in this browser").
-- Test-hook bot runs and demo mode never write scores or the player's best.
+- Wrap every storage read and write in `try/catch`. If storage is blocked, keep scores in memory for the session and say so in one line under the table ("Scores can't be saved in this browser").
+- Test-hook runs and demo modes never write scores or anything else. The harness checks this.
 - If you rename or re-prefix keys, migrate the old values once on load so players keep their scores.
 
-## Test hook
+## Test hook and harness
 
-New games must expose the test hook in `test-harness/GAME_TEST_HOOK_SPEC.md` (`window.GAME_TEST_HOOK`, spec v1). Read the spec before writing the game loop, because it shapes how you structure it:
+Every game exposes `window.GAME_TEST_HOOK` (spec v1, in `test-harness/GAME_TEST_HOOK_SPEC.md`). The starter has a complete one. It shapes the game's structure, so keep these from the first line of code:
 
-- Keep a **fixed-step simulation** with one `update(dt)` function, separate from drawing, so the hook can run it without the real-time loop.
-- Route **all input** through one input object, so keyboard, touch, tilt and the hook's actions all feed the same place.
-- Use a **seeded random number generator** for anything that affects gameplay.
-- Give the game a clear **win condition** and a `progress` measure from 0 to 1.
-- Make `progress` grow with every real step forward, not only distance. In a boss fight or arena, count hits on the boss, because the harness treats 4 seconds without progress as stuck. Set `maxSteps` long enough for a good player to finish every level.
-- Put the `BOT-SCORES` markers before the main script, and show "Bot's best: N. Can you beat it?" on the title screen when `window.BOT_SCORES` is set.
+- A **fixed-step simulation** with one `update(dt)`, separate from drawing, so the hook can run it without the real-time loop.
+- **All input** through one input object.
+- A **seeded random number generator** for anything that affects gameplay.
+- A clear **win condition** and a `progress` measure from 0 to 1 that grows with every real step forward, not only distance: boss hits, keys found, waves cleared. The Evolution Bot treats 4 seconds without progress as stuck. For slower games (puzzles, survival) set `stallSeconds` in `info()`.
+- `maxSteps` long enough for a good player to finish the whole game.
+- **Action ids:** an underscore joins two actions held together (`right_jump` is `right` + `jump`). Never use an underscore inside a single action's name (`turnleft`, not `turn_left`).
 
-The harness lives in `test-harness/` (setup and flags in `test-harness/README.md`; `pip install -r test-harness/requirements.txt` once). Run it from the repo root, as well as the game's own browser test:
+Setup is in `test-harness/README.md` (`pip install -r test-harness/requirements.txt` once). Run everything from the repo root:
 
-1. Run `python3 test-harness/harness/run_tests.py smoke games/<name>/index.html` and fix everything until it passes. The worked example is `test-harness/examples/lost-luggage/index.html` (search for "TEST HOOK", "Hook.mode" and "BOT-SCORES").
-2. Run `python3 test-harness/harness/run_tests.py all games/<name>/index.html`. It runs the Evolution Bot (free) plus any AI bots configured in `test-harness/.env`. If the Evolution Bot can't win, look at where it got stuck (`test-results/report.md`). If its passes were still improving, give it more tries (`--extra-passes 10`; it stops as soon as it wins), which long games with many levels need. If it was stuck in one spot, fix that spot or explain in HANDOFF.md why it is fine. If a fairness check fails, fix the game, not the test.
-3. Commit the game with the bot scores written into it, plus `bot-scores.json` and `test-results/report.md` (`test-results/` is git-ignored, so add the report with `git add -f`).
-4. In HANDOFF.md, list the bot scores (start, mid, best) and any tight moments the timing-tolerance check found.
+1. **After every change:** `python3 test-harness/harness/run_tests.py smoke games/<name>/index.html` (about 20 s). It checks the hook, the real keyboard, drawing, pause, no scrolling, storage names, no network, bot runs saving nothing, and a phone-sized touch screen. Fix everything it reports.
+2. **The game's own test:** `python3 games/<name>/test_game.py`. It covers what is special to this game (rules, screens, its touch controls); don't repeat the harness's checks there.
+3. **Before committing:** `python3 test-harness/harness/run_tests.py all games/<name>/index.html`. It adds the Evolution Bot (free), any AI bots configured in `test-harness/.env`, and the fairness checks, then writes `TEST_REPORT.md`, `bot-scores.json` and the bot's best into the game file. If the bot can't win, read the report: if its passes were still improving, give it more tries (`--extra-passes 10`; it stops when it wins), which long games need. If it was stuck in one spot, fix that spot or explain in HANDOFF.md why it is fine. If a fairness check fails, fix the game, not the test.
 
-Never commit `test-harness/.env` or any API key; only `.env.example` belongs in the repo.
+Never commit `test-harness/.env` or any API key.
 
-## Repo conventions (every new game)
-
-Copy the pattern in `games/lost-luggage-of-the-cosmos/`:
+## Files in every game folder
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | The game. Put the page content between `<!-- GAME-START -->` and `<!-- GAME-END -->` so it can also be published as a Claude artifact. |
-| `HANDOFF.md` | Game Card, decisions, architecture, how to make common changes, testing, open items. Keep it current with every change. |
-| `test_game.py` (or similar) | The headless browser test. It must pass before you commit. |
-| `manifest.webmanifest`, `sw.js`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Home Screen install, full screen and offline play. Bump `CACHE` in `sw.js` when the file list changes. |
+| `index.html` | The game. Keep the page content between `<!-- GAME-START -->` and `<!-- GAME-END -->`, and the `BOT-SCORES` markers before the main script. |
+| `HANDOFF.md` | Game Card, decisions, architecture, how to make common changes, testing, sources, open items. Keep it current with every change. |
+| `test_game.py` | The game's own browser test. Use the harness's `GameSession` to launch the browser, as the starter does; never hard-code a browser path. |
+| `TEST_REPORT.md`, `bot-scores.json` | Written by the harness `all` run. Commit them; don't edit by hand. |
+| `manifest.webmanifest`, `sw.js`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Home Screen install, full screen and offline play. `sw.js` needs no edits for a new game; bump its `VERSION` when the file list changes. All games share one cache space, so a service worker must only ever delete caches named after its own folder. |
 
-Never commit secrets (`.env` files, API keys). Keep family names and other personal details out of the repo; the site is public.
+`test-results/` (screenshots and working files) is git-ignored; leave it that way.
 
-Then add the game to the `GAMES` list at the top of the script in the root `index.html` (newest first), commit everything in one commit, and push to `main`. GitHub Pages publishes it within a couple of minutes at `https://offset0x01.github.io/Funfactory/games/<game-name>/`.
+## Done checklist
+
+- [ ] `smoke` passes, `test_game.py` passes, and `all` passes with the Evolution Bot winning (or HANDOFF.md explains why not).
+- [ ] Played through on a phone-sized touch screen and with the keyboard in the headless browser: start, move, score, pause, lose, restart, win.
+- [ ] `HANDOFF.md` is current: decisions, bot scores (start, mid, best), tight moments from the timing check, sources and credits, open items.
+- [ ] New game only: added to the `GAMES` list at the top of the script in the root `index.html` (newest first) and to the table in `README.md`.
+- [ ] No secrets, and no family names or other personal details anywhere. The repo and the site are public.
+- [ ] One commit with everything, `git pull --rebase`, then push to `main`. GitHub Pages publishes within a couple of minutes at `https://offset0x01.github.io/Funfactory/games/<name>/`.
 
 ## How to talk to the player
 
-- When done, give a short, friendly summary in plain language: how to open and play the game, the controls, what you built, the assumptions you made, and three ideas the player could ask for next.
+- When done, give a short, friendly summary in plain language: how to open and play the game, the controls, what you built, the assumptions you made, where the art and ideas came from, and three ideas the player could ask for next.
 - No jargon without a one-line explanation.
 
 ## Game Card (filled in by the player)
@@ -132,16 +160,24 @@ Then add the game to the `GAMES` list at the top of the script in the root `inde
 - **Who or what do I play as?**
 - **What's the goal? How do I win?**
 - **How do I lose?**
-- **Controls:** (arrow keys, WASD, mouse, spacebar... or say "mobile game for iPhone/iPad" for touch controls)
+- **Controls:** (touch and keyboard always work; say if you want tilt, swipes, or something special)
 - **Enemies or obstacles:**
 - **Power-ups or items to collect:**
-- **What does it look like?** (colors, style, 2D or 3D)
+- **What does it look like?** (colors, style, 2D or 3D, art you'd like it to look like)
 - **Sounds or music ideas:**
 - **A game it's kind of like:**
 - **The coolest thing I want in it:**
 
-## Prompt to start a session
+## Prompts to start a session
+
+New game:
 
 > Read AGENTS.md and follow it exactly. Build the game below in one pass in a new folder under games/, test it, add it to the home page, commit it, and give me the summary.
 >
 > [paste the filled-in Game Card here]
+
+Changing a game:
+
+> Read AGENTS.md and games/<name>/HANDOFF.md and follow "Changing an existing game". Here is what I want changed:
+>
+> [describe the change]

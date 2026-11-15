@@ -64,6 +64,88 @@ def _canvas_drawn(png: bytes) -> tuple[bool, str]:
     return std > 8 and colors > 12, f"pixel std {std:.1f}, ~{colors} colors"
 
 
+STORAGE_JS = "(() => { try { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); o[k] = localStorage.getItem(k); } return o; } catch (e) { return null; } })()"
+SCROLL_JS = "(() => { const e = document.scrollingElement || document.documentElement; return [e.scrollWidth - innerWidth, e.scrollHeight - innerHeight]; })()"
+
+
+def _site_rules(g: GameSession, info: dict, c: Checks, game_path: str, out_dir: pathlib.Path):
+    """Rules from AGENTS.md that apply to every game, so no game has to re-test them by hand."""
+    sps = info["stepsPerSecond"]
+    folder = pathlib.Path(game_path).resolve().parent.name
+    keys_ = [k for part in info["smokeAction"].split("_") for k in info["keys"].get(part, [])[:1]]
+
+    def hold(ms):
+        for k in keys_:
+            g.page.keyboard.down(k)
+        g.page.wait_for_timeout(ms)
+        for k in keys_:
+            g.page.keyboard.up(k)
+        return g.state()
+
+    def same(a, b):
+        return a["player"] == b["player"] and a["score"] == b["score"] and a["progress"] == b["progress"]
+
+    # pause: P freezes the game, P again resumes it
+    g.reset(seed=1, realtime=True)
+    g.page.mouse.click(5, 5)
+    g.page.wait_for_timeout(150)
+    g.page.keyboard.press("KeyP")
+    g.page.wait_for_timeout(150)
+    p0 = g.state()
+    p1 = hold(600)
+    g.page.keyboard.press("KeyP")
+    g.page.wait_for_timeout(150)
+    p2 = hold(600)
+    c.add("P pauses and resumes", same(p0, p1) and not same(p1, p2),
+          "nothing may change while paused, and the smoke action must work again after the second P")
+
+    # the page never scrolls, even when the host adds padding around it
+    g.page.evaluate("document.documentElement.style.padding = '40px'")
+    over = g.page.evaluate(SCROLL_JS)
+    g.page.evaluate("document.documentElement.style.padding = ''")
+    c.add("page never scrolls", max(over) <= 1, f"page is {over[0]} px too wide, {over[1]} px too tall")
+
+    # bot runs never save anything
+    before = g.page.evaluate(STORAGE_JS)
+    writes_before = g.page.evaluate("window.__storageWrites.length")
+    rnd = random.Random(11)
+    gen = [[rnd.randrange(len(info["actions"])), rnd.randint(6, 60)] for _ in range(info["maxSteps"] // 30)]
+    g.rollout(gen, seed=2, stall_steps=10**9, chunk=60)
+    g.rollout([[0, info["maxSteps"]]], seed=2, stall_steps=10**9, chunk=600)
+    after = g.page.evaluate(STORAGE_JS)
+    writes = g.page.evaluate("window.__storageWrites")
+    c.add("bot runs save nothing", before == after and len(writes) == writes_before,
+          f"a bot run wrote to localStorage: {writes[writes_before:][:4]}")
+
+    # saved data is prefixed with the game's folder name (checks every key written since the page loaded)
+    used = sorted(set(writes) | set(after or {}))
+    bad = [k for k in used if not k.startswith(folder + ".")]
+    c.add("storage keys start with the folder name", not bad,
+          f"expected '{folder}.<name>', found {bad[:4]}" if bad else f"{len(used)} key(s) checked")
+
+    # offline: nothing is fetched from the network
+    c.add("no network requests", not g.network, "; ".join(g.network[:3]))
+
+    # title screen offers the high score table
+    g.open()
+    g.page.wait_for_timeout(600)
+    c.add("title screen has a High scores button", "high score" in g.page.inner_text("body").lower(), "no 'High scores' text on the title screen", severity="warn")
+
+    # phone-sized touch screen: loads, draws, doesn't scroll
+    g.open(viewport=(844, 390), touch=True)
+    g.page.wait_for_timeout(800)
+    ok_hook = g.has_hook()
+    if ok_hook:
+        g.reset(seed=1, realtime=True)
+        g.page.wait_for_timeout(500)
+    shot = g.page.screenshot(path=str(out_dir / "smoke-phone.png"))
+    over = g.page.evaluate(SCROLL_JS)
+    drawn, detail = _canvas_drawn(shot)
+    c.add("phone touch screen: loads, draws, no scroll", ok_hook and not g.errors and drawn and max(over) <= 1,
+          "; ".join(g.errors[:2]) or f"{detail}; overflow {over}")
+    g.open()
+
+
 def run_smoke(game_path: str, out_dir: pathlib.Path) -> dict:
     c = Checks()
     html = pathlib.Path(game_path).read_text(encoding="utf-8", errors="replace")
@@ -144,6 +226,7 @@ def run_smoke(game_path: str, out_dir: pathlib.Path) -> dict:
         drawn, detail = _canvas_drawn(shot)
         c.add("game screen is drawn (not blank)", drawn, detail)
         c.add("no console errors while playing", not g.errors, "; ".join(g.errors[:3]))
+        _site_rules(g, info, c, game_path, out_dir)
 
     # title screen shows a bot's best when BOT_SCORES is set
     if MARK_START in html:
