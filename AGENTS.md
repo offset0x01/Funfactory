@@ -83,13 +83,13 @@ These games are played mostly on tablets and phones, and also on laptops and Chr
 
 ## Art, music and sound
 
-Be creative and use the best source for each thing. These games are for the family's own use, and the owner has decided that referencing and building on art found online is fine, so don't hold back on that account.
+Be creative and use the best source for each thing. The games are non-commercial (never sold, no ads), and the owner has decided that referencing and building on art found online is fine on two conditions: **every source is cited**, and nothing is used commercially. Within that, don't hold back.
 
 - Search the web for art, sprites, backgrounds, music and sound effects that fit the theme, and download what fits. Adjust found assets freely: resize, crop, recolor, trim, loop, convert, or redraw in their style.
 - Draw or synthesize in code when that suits the game better, when nothing good turns up, or when there are no web tools. Simple shapes done with care look great.
 - If the player provides art or asks for a particular look, that wins.
-- Embed every asset in the game file (for example as base64 data) so it plays offline. Compress images and audio and prefer short loops: aim for a game file under 2 MB, and say so in HANDOFF.md if you go over.
-- List research sources and each downloaded asset, with where it came from, in HANDOFF.md ("Sources and credits") and in the final summary.
+- Embed every asset in the game file (for example as base64 data) so it plays offline. Compress images and audio sensibly and prefer short loops. There is no size limit; if the embedded art and audio add up to more than 10 MB, say so in the final summary and in HANDOFF.md.
+- **Cite every source.** List research sources and each downloaded or referenced asset, with its name, creator if known and URL, in HANDOFF.md ("Sources and credits") and in the final summary. A game with uncited outside art is not done.
 
 ## Keep it appropriate
 
@@ -143,7 +143,7 @@ Never commit `test-harness/.env` or any API key.
 
 - [ ] `smoke` passes, `test_game.py` passes, and `all` passes with the Evolution Bot winning (or HANDOFF.md explains why not).
 - [ ] Played through on a phone-sized touch screen and with the keyboard in the headless browser: start, move, score, pause, lose, restart, win.
-- [ ] `HANDOFF.md` is current: decisions, bot scores (start, mid, best), tight moments from the timing check, sources and credits, open items.
+- [ ] `HANDOFF.md` is current: decisions, bot scores (start, mid, best), tight moments from the timing check, open items, and a source cited for every piece of outside art, music, sound and research.
 - [ ] New game only: added to the `GAMES` list at the top of the script in the root `index.html` (newest first) and to the table in `README.md`.
 - [ ] No secrets, and no family names or other personal details anywhere. The repo and the site are public.
 - [ ] One commit with everything, `git pull --rebase`, then push to `main`. GitHub Pages publishes within a couple of minutes at `https://offset0x01.github.io/Funfactory/games/<name>/`.
