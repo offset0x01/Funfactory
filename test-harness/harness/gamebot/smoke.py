@@ -9,6 +9,7 @@ import tempfile
 import time
 
 from .browser import GameSession
+from .privacy import private_words, scan_folder
 from .scores import inject_into_html, MARK_START, MARK_END
 
 STATUSES = {"playing", "won", "lost", "timeout"}
@@ -150,6 +151,9 @@ def run_smoke(game_path: str, out_dir: pathlib.Path) -> dict:
     c = Checks()
     html = pathlib.Path(game_path).read_text(encoding="utf-8", errors="replace")
     c.add("BOT-SCORES markers in file", MARK_START in html and MARK_END in html, "add the markers from spec section 8")
+    folder = pathlib.Path(game_path).resolve().parent
+    private = scan_folder(folder, private_words(folder.parents[1]) if len(folder.parents) > 1 else [])
+    c.add("nothing personal in the game folder", not private, "; ".join(private[:4]) or "no emails, home paths, keys, phone numbers or session links")
 
     with GameSession(game_path) as g:
         g.page.wait_for_timeout(1500)

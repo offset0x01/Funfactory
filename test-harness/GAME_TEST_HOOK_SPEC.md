@@ -203,5 +203,6 @@ Besides the hook itself, `smoke` checks the site rules from `AGENTS.md` on every
 | Bot runs save nothing | No `localStorage` write during bot-mode runs. |
 | Storage keys start with the folder name | Every key written since the page loaded starts with `<folder>.`. |
 | No network requests | Only `file:`, `data:` and `blob:` URLs. |
+| Nothing personal in the game folder | No email addresses, home-folder paths, keys, phone numbers or chat-session links in any text file, and no word from the optional `.private-words` list. |
 | Title screen has a High scores button | Warning only. |
 | Phone touch screen | At 844 x 390 with touch and no mouse: loads with no errors, draws, doesn't scroll. |

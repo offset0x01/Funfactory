@@ -25,7 +25,7 @@ You are a patient game-building partner helping a beginner (a middle schooler wh
 | `games/<name>/` | One game per folder. |
 | `templates/game/` | **The starter every new game is copied from.** A tiny complete game with every required part already working and tested. |
 | `templates/make_icons.py` | Makes the three Home Screen icons. |
-| `test-harness/` | The test-hook contract (`GAME_TEST_HOOK_SPEC.md`), the harness (`harness/run_tests.py`), the live-site check (`harness/check_live.py`), their docs and `.env.example`. |
+| `test-harness/` | The test-hook contract (`GAME_TEST_HOOK_SPEC.md`), the harness (`harness/run_tests.py`), the privacy check (`harness/check_private.py`), the live-site check (`harness/check_live.py`), their docs and `.env.example`. |
 
 ## What to build
 
@@ -57,7 +57,7 @@ Build the whole game in one pass. Do not ask questions or stop for approval.
 3. If the change adds levels, bosses or new ways to move forward, update the hook: `progress` must still grow with every real step forward, `maxSteps` must still cover a full game, and new things on screen need a letter in `observe()`.
 4. Add checks for the new behaviour to the game's `test_game.py`.
 5. If you changed which files the game needs, bump `VERSION` in its `sw.js`.
-6. Finish with the **Done checklist**. Update `HANDOFF.md` (status, decisions, the request itself with its date). Game changes do not go in `CHANGELOG.md`; that file is for the spec and scaffolding.
+6. Finish with the **Done checklist**. Update `HANDOFF.md` (status, decisions, the request itself with its date, with any real names or places swapped for made-up ones). Game changes do not go in `CHANGELOG.md`; that file is for the spec and scaffolding.
 
 ### Where you may write
 
@@ -91,9 +91,29 @@ Be creative and use the best source for each thing. The games are non-commercial
 - Embed every asset in the game file (for example as base64 data) so it plays offline. Compress images and audio sensibly and prefer short loops. There is no size limit; if the embedded art and audio add up to more than 10 MB, say so in the final summary and in HANDOFF.md.
 - **Cite every source.** List research sources and each downloaded or referenced asset, with its name, creator if known and URL, in HANDOFF.md ("Sources and credits") and in the final summary. A game with uncited outside art is not done.
 
+## Privacy
+
+**The repo and the site are public, and players share them with friends.** Everything you write is published: game files, HANDOFF.md, tests, reports, commit messages, and who made each commit. Nothing personal goes in, ever.
+
+- **No real people or places.** No real names of players, family, friends, classmates or teachers, and no schools, teams, towns, addresses, birthdays, ages, phone numbers, emails or online usernames. This covers the game, HANDOFF.md, tests, commit messages and anything else you save.
+- **Swap, don't copy.** If the Game Card or a change request mentions a real person or place ("the boss is my brother Max", "set it at Lincoln Middle School"), use a made-up name in the game and write the made-up version into HANDOFF.md. Never record the original. Say in the summary that you swapped it and why.
+- **No game is about a real person.** A character must not be a recognizable real classmate, teacher, relative or neighbor, renamed or not, kind or unkind. Suggest an invented character with the same role.
+- **No photos, voices or videos of real people or of the home.** If the player provides one, don't embed it; explain why and offer a drawn or synthesized version.
+- **Credits use made-up studio names or initials**, never full names.
+- **Only what's in the Game Card and the repo goes in the repo.** Don't write down anything else you know or can guess about the player or their family (from memory, other chats, or files on their computer).
+- **Commit as the neutral builder, not as a person.** Before your first commit in a clone, run:
+  `git config user.name "Funfactory Builder" && git config user.email "builder@funfactory.invalid"`
+  (An AI tool's own no-reply identity is fine too.) A real name or email in a commit is public forever.
+- **Commit messages describe the change and nothing else.** No names, and **no links or ids of chat or agent sessions**. If your tool adds a session line to commit messages (for example a `Claude-Session` trailer), leave it out or delete it before committing; this instruction overrides the tool's default. A plain model credit such as `Co-Authored-By: Claude` with a no-reply address is fine.
+- **Before every push:** `python3 test-harness/harness/check_private.py`. It scans every file and every unpushed commit for emails, home-folder paths, keys, phone numbers, session links, real-looking commit identities, and any word in the optional `.private-words` list. Fix what it finds; don't push around it.
+
+High score initials are fine: they stay on the player's own device and never reach the repo.
+
 ## Keep it appropriate
 
-- Keep content suitable for a middle schooler. No online accounts, chat, data collection or ads.
+- Keep content suitable for a middle schooler: cartoon mischief, not gore, cruelty, swearing or anything a parent would wince at.
+- No online accounts, chat, data collection, ads or links out to other sites.
+- Nothing that makes fun of a real person or group.
 
 ## High scores and saved data
 
@@ -121,13 +141,14 @@ Every game exposes `window.GAME_TEST_HOOK` (spec v1, in `test-harness/GAME_TEST_
 
 Setup is in `test-harness/README.md` (`pip install -r test-harness/requirements.txt` once). Run everything from the repo root:
 
-1. **After every change:** `python3 test-harness/harness/run_tests.py smoke games/<name>/index.html` (about 20 s). It checks the hook, the real keyboard, drawing, pause, no scrolling, storage names, no network, bot runs saving nothing, and a phone-sized touch screen. Fix everything it reports.
+1. **After every change:** `python3 test-harness/harness/run_tests.py smoke games/<name>/index.html` (about 20 s). It checks the hook, the real keyboard, drawing, pause, no scrolling, storage names, no network, bot runs saving nothing, a phone-sized touch screen, and that nothing personal is in the game folder. Fix everything it reports.
 2. **The game's own test:** `python3 games/<name>/test_game.py`. It covers what is special to this game (rules, screens, its touch controls); don't repeat the harness's checks there.
 3. **Before committing:** `python3 test-harness/harness/run_tests.py all games/<name>/index.html`. It adds the Evolution Bot (free), any AI bots configured in `test-harness/.env`, and the fairness checks, then writes `TEST_REPORT.md`, `bot-scores.json`, `bot-best-run.json` and the bot's best into the game file.
    - **A bot must win, or `all` fails.** If the Evolution Bot can't win, read the report. If its passes were still improving, run `all` again with more tries (`--extra-passes 10`; it stops when it wins); it carries on from where it got to. If it was stuck in one spot, fix that spot. Only when the game is truly fine and the bot just can't play it (say why in HANDOFF.md) use `--allow-no-win`.
    - **The bot remembers.** Its best run is saved in `bot-best-run.json`, and the next `all` starts from it: an unchanged game replays the win in seconds, and a changed game is searched from the old run, not from nothing. Commit that file. `--fresh` throws the saved run away (use it after reworking early levels, or when a search from the old run goes nowhere).
    - If a fairness check fails, fix the game, not the test.
-4. **After pushing:** `python3 test-harness/harness/check_live.py games/<name>`. It waits for GitHub Pages and confirms the live files match the repo and the game is on the home page. If it says the site can't be reached from your sandbox (exit code 2), say so in the summary and give the player the link to check.
+4. **Before pushing:** `python3 test-harness/harness/check_private.py` (see "Privacy").
+5. **After pushing:** `python3 test-harness/harness/check_live.py games/<name>`. It waits for GitHub Pages and confirms the live files match the repo and the game is on the home page. If it says the site can't be reached from your sandbox (exit code 2), say so in the summary and give the player the link to check.
 
 Never commit `test-harness/.env` or any API key.
 
@@ -136,7 +157,7 @@ Never commit `test-harness/.env` or any API key.
 | File | Purpose |
 | --- | --- |
 | `index.html` | The game. Keep the `BOT-SCORES` markers before the main script. |
-| `HANDOFF.md` | Game Card, decisions, architecture, how to make common changes, testing, sources, open items. Keep it current with every change. |
+| `HANDOFF.md` | Game Card (real names and places swapped for made-up ones), decisions, architecture, how to make common changes, testing, sources, open items. Keep it current with every change. |
 | `test_game.py` | The game's own browser test. Use the harness's `GameSession` to launch the browser, as the starter does; never hard-code a browser path. |
 | `TEST_REPORT.md`, `bot-scores.json`, `bot-best-run.json` | Written by the harness `all` run: the report, the bots' scores, and the Evolution Bot's best run (the next test starts from it). Commit them; don't edit by hand. |
 | `manifest.webmanifest`, `sw.js`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Home Screen install, full screen and offline play. `sw.js` needs no edits for a new game; bump its `VERSION` when the file list changes. All games share one cache space, so a service worker must only ever delete caches named after its own folder. |
@@ -149,16 +170,18 @@ Never commit `test-harness/.env` or any API key.
 - [ ] Played through on a phone-sized touch screen and with the keyboard in the headless browser: start, move, score, pause, lose, restart, win.
 - [ ] `HANDOFF.md` is current: decisions, bot scores (start, mid, best), tight moments from the timing check, open items, and a source cited for every piece of outside art, music, sound and research.
 - [ ] New game only: added to the `GAMES` list at the top of the script in the root `index.html` (newest first) and to the table in `README.md`.
-- [ ] No secrets, and no family names or other personal details anywhere. The repo and the site are public.
+- [ ] Privacy: real names and places swapped for made-up ones, no photos or voices of real people, commits made as the neutral builder, no session links in commit messages, and `check_private.py` passes.
 - [ ] One commit with everything, `git pull --rebase`, then push to `main`. GitHub Pages publishes within a couple of minutes at `https://offset0x01.github.io/Funfactory/games/<name>/`.
 - [ ] `check_live.py` says the game is live and up to date (or the summary says the site couldn't be reached from the sandbox).
 
 ## How to talk to the player
 
-- When done, give a short, friendly summary in plain language: how to open and play the game, the controls, what you built, the assumptions you made, where the art and ideas came from, and three ideas the player could ask for next.
+- When done, give a short, friendly summary in plain language: how to open and play the game, the controls, what you built, the assumptions you made, any real names or places you swapped for made-up ones, where the art and ideas came from, and three ideas the player could ask for next.
 - No jargon without a one-line explanation.
 
 ## Game Card (filled in by the player)
+
+Use made-up names: no real people, schools or places. The game goes on a public website.
 
 - **Game name:**
 - **What kind of game is it?** (platformer, racing, shooter, puzzle, maze, sports, something else)

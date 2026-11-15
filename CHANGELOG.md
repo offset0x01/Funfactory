@@ -4,6 +4,9 @@ Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. New
 
 ## 2026-11-15
 
+- **Privacy review.** New "Privacy" section in `AGENTS.md`: no real people or places (swap for made-up ones, never record the original), no games about real people, no photos or voices of real people, commit as a neutral builder identity, and no chat or agent session links in commit messages. "Keep it appropriate" spelled out. The Game Card and HANDOFF outline say the same.
+- New `test-harness/harness/check_private.py` (run before every push) scans files and unpushed commits for emails, home paths, keys, phone numbers, session links and real-looking commit identities, plus words in an optional git-ignored `.private-words` list. `smoke` runs the file scan on each game folder.
+- Session links removed from every past commit message (history rewritten; old clones must re-clone). The home page, the starter and `lost-luggage-of-the-cosmos` ask search engines not to index them. No existing games still need updating.
 - **The Evolution Bot remembers.** Its best run is saved in `games/<name>/bot-best-run.json` (commit it) and the next `all` starts from it: an unchanged game replays the win in seconds, a changed game is searched from the old run. `--fresh` ignores it. The old ignored copy (`test-results/evolutionary-best-run.json`) is gone.
 - **A bot must win, or `all` fails.** This was a warning unless `--require-win`; now it is the default, and `--allow-no-win` is the exception (explain it in HANDOFF.md).
 - New `test-harness/harness/check_live.py`: after pushing, confirms the live GitHub Pages files match the repo and the game is on the home page. Added to the Done checklist.

@@ -1,12 +1,13 @@
 # Test report: Lost Luggage of the Cosmos
 
-Run at 2026-11-15 12:09:26 · seed 1
+Run at 2026-11-15 13:16:55 · seed 1
 
 ## Smoke tests
 
 | Result | Check | Detail |
 | --- | --- | --- |
 | PASS | BOT-SCORES markers in file | add the markers from spec section 8 |
+| PASS | nothing personal in the game folder | no emails, home paths, keys, phone numbers or session links |
 | PASS | loads without console errors |  |
 | PASS | window.GAME_TEST_HOOK exists |  |
 | PASS | hook.version is 1 | version=1 |
@@ -36,9 +37,9 @@ Run at 2026-11-15 12:09:26 · seed 1
 | PASS | unknown action is rejected |  |
 | PASS | observe() gives text | 769 chars |
 | PASS | same seed + same inputs = same run | run A 100/0.017 vs B 100/0.017 |
-| PASS | full-length run simulates in < 5 s | 0.20 s for 86400 steps |
-| PASS | real keyboard works (right) | idle player {'x': 2.15, 'y': 12.099, 'vx': 0, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none', 'shield': False, 'megaSeconds': 0} vs keys {'x': 9.64, 'y': 12.099, 'vx': 4.2, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none', 'shield': False, 'megaSeconds': 0} |
-| PASS | game screen is drawn (not blank) | pixel std 32.6, ~640 colors |
+| PASS | full-length run simulates in < 5 s | 0.13 s for 86400 steps |
+| PASS | real keyboard works (right) | idle player {'x': 2.15, 'y': 12.099, 'vx': 0, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none', 'shield': False, 'megaSeconds': 0} vs keys {'x': 9.52, 'y': 12.099, 'vx': 4.2, 'vy': 0, 'onGround': True, 'gravity': 'normal', 'fizzyJet': 'none', 'shield': False, 'megaSeconds': 0} |
+| PASS | game screen is drawn (not blank) | pixel std 32.7, ~642 colors |
 | PASS | no console errors while playing |  |
 | PASS | P pauses and resumes | nothing may change while paused, and the smoke action must work again after the second P |
 | PASS | page never scrolls | page is 0 px too wide, 0 px too tall |
@@ -46,7 +47,7 @@ Run at 2026-11-15 12:09:26 · seed 1
 | PASS | storage keys start with the folder name | 1 key(s) checked |
 | PASS | no network requests |  |
 | PASS | title screen has a High scores button | no 'High scores' text on the title screen |
-| PASS | phone touch screen: loads, draws, no scroll | pixel std 36.5, ~1103 colors; overflow [0, 0] |
+| PASS | phone touch screen: loads, draws, no scroll | pixel std 36.5, ~1106 colors; overflow [0, 0] |
 | PASS | title screen shows the bot's best | set window.BOT_SCORES and the number did not appear |
 
 ## Bots

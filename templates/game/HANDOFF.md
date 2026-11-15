@@ -17,7 +17,7 @@ Live: https://offset0x01.github.io/Funfactory/games/<folder>/
 
 ## The Game Card it was built from
 
-(paste the card, then each later change request with its date)
+(paste the card, then each later change request with its date; swap any real names, schools or places for made-up ones first, because this file is public)
 
 ## Decisions
 
@@ -42,6 +42,7 @@ The order of the sections inside `index.html`, and what each one owns. Note anyt
 python3 test-harness/harness/run_tests.py smoke games/<folder>/index.html   # after every change
 python3 games/<folder>/test_game.py
 python3 test-harness/harness/run_tests.py all games/<folder>/index.html     # before committing
+python3 test-harness/harness/check_private.py                                # before pushing
 python3 test-harness/harness/check_live.py games/<folder>                    # after pushing
 ```
 

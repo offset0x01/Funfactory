@@ -8,6 +8,7 @@ test-harness/
   LLM_GUIDED_BOT.md          the Thinking Bot (v2) and the GEPA upgrade path
   harness/run_tests.py       the test runner (run it from the repo root)
   harness/gamebot/           smoke tests, fairness checks, bots, scoreboard
+  harness/check_private.py   before pushing: is anything personal about to be published?
   harness/check_live.py      after pushing: is the live site serving what is in the repo?
   tests/mock_ai_server.py    offline fake LiteLLM + Jev endpoint for testing the plumbing for free
   .env.example               model settings for the AI bots (copy to .env; never commit .env)
@@ -26,7 +27,7 @@ python3 test-harness/harness/run_tests.py all games/<game>/index.html
 
 `all` runs, in order:
 
-1. **Smoke tests** (about 20 s). The page loads with no console errors, the hook follows the spec, the real keyboard moves the player, the screen is actually drawn, the same seed gives the same run, and the title screen shows the bot's best. Then the site rules every game must follow: P pauses, the page never scrolls, bot runs save nothing, storage keys start with the folder name, nothing is fetched from the network, and the game loads and draws on a phone-sized touch screen (spec section 10). If these fail, nothing else runs.
+1. **Smoke tests** (about 20 s). The page loads with no console errors, the hook follows the spec, the real keyboard moves the player, the screen is actually drawn, the same seed gives the same run, and the title screen shows the bot's best. Then the site rules every game must follow: P pauses, the page never scrolls, bot runs save nothing, storage keys start with the folder name, nothing is fetched from the network, nothing personal is in the game folder, and the game loads and draws on a phone-sized touch screen (spec section 10). If these fail, nothing else runs.
 2. **Evolution Bot** (about 2 to 3 min for a short game, the first time). At least 3 passes, getting better each pass. It starts from its saved best run when there is one (see "The bot remembers").
 3. **AI bots** that are configured in `.env` (Jev, Quick-Pick, Thinking). Skipped if not configured.
 4. **Fairness checks.** Standing still at the start is safe; doing nothing or button-mashing doesn't win; **a human-speed bot can win (the run fails if none can, unless `--allow-no-win`)**; and a timing-tolerance test (nudge one input 40 ms early or late and see if the run still works).
@@ -91,6 +92,16 @@ Hand the agent the spec plus this instruction:
 > Read test-harness/GAME_TEST_HOOK_SPEC.md and add the test hook to `games/<game>/index.html`. Use `templates/game/index.html` (search for "TEST HOOK", "Hook.mode" and "BOT-SCORES") as the worked example. Then run the smoke test and fix everything until it passes, then run `all`.
 
 New games start from `templates/game/`, which already has the hook, so this is only for games built another way.
+
+## Before pushing: is anything personal in there?
+
+```bash
+python3 test-harness/harness/check_private.py
+```
+
+Scans every file in the repo and every commit not yet on `origin/main` (author, committer and message) for email addresses, home-folder paths, keys and tokens, phone numbers, links to private chat or agent sessions, and commits made under a real-looking identity. It also blocks any word listed in `.private-words` at the repo root (optional, one per line, git-ignored). Exit code 1 lists each problem and how to fix it. `--all-commits` checks the whole history. `smoke` runs the file part on the game's own folder.
+
+A script can't recognize a made-up name from a real one, or a drawing from a photo of a real person; those rules are in `AGENTS.md` ("Privacy").
 
 ## After pushing: is it live?
 

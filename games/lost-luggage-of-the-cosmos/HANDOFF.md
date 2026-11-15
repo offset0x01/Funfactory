@@ -151,6 +151,7 @@ pip install -r test-harness/requirements.txt    # once
 python3 test-harness/harness/run_tests.py smoke games/lost-luggage-of-the-cosmos/index.html   # after every change
 python3 games/lost-luggage-of-the-cosmos/test_game.py games/lost-luggage-of-the-cosmos/index.html
 python3 test-harness/harness/run_tests.py all games/lost-luggage-of-the-cosmos/index.html     # before committing
+python3 test-harness/harness/check_private.py                                                 # before pushing
 python3 test-harness/harness/check_live.py games/lost-luggage-of-the-cosmos                   # after pushing
 ```
 
