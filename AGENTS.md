@@ -36,14 +36,25 @@ You are a patient game-building partner helping a beginner (a middle schooler wh
 
 ## How to work
 
+### Plan first, and time the work
+
+Every task that creates or changes a game starts with a plan and a time estimate, and ends with the real time.
+
+1. **Note the start time** before anything else (run `date`).
+2. **Tell the player the plan** in a few short lines of plain language: what you will build or change, in what order, and what you will test. For a new game, name the two or three things that will make it fun.
+3. **Give the expected build time** as a single figure or a short range ("about 25 minutes"), covering everything through pushing. Base it on the **Build log** in this game's HANDOFF.md (or other games' logs for a new game) and on how long the bot run takes: seconds when the saved best run still wins, minutes for a short game, 20 minutes or more when a long game must be searched again.
+4. **Then start straight away.** The plan is for the player's information; don't wait for approval.
+5. **When done, note the end time** and give the **actual build time** in the summary next to the estimate ("Expected about 25 minutes; took 31"). If it was far off, say why in one line.
+6. **Add a row to the Build log** in HANDOFF.md: date, what was built, expected, actual. The next estimate is made from it.
+
 ### Building a new game
 
-1. Research the idea (see "Research" below).
+1. Plan and estimate (see "Plan first, and time the work"), then research the idea (see "Research" below).
 2. Copy the starter: `cp -r templates/game games/<name>`. Set `GAME_ID` (must equal the folder name), `TITLE` and `SCORE_NAME` at the top of the script, and the names in the `<title>`, the title screen and `manifest.webmanifest`. Run `python3 templates/make_icons.py games/<name> XY` for icons (or make real ones from the game's art).
 3. Replace the parts marked `YOUR GAME` (config, the `Game` object, drawing, the hook's actions and `progress`). Keep the plumbing: fixed-step `update`, the single `Input` object, seeded `rand()`, `store` and `Scores`, pause, touch buttons, full screen, the pinned page, the test hook. It already passes the harness; keep it passing as you go.
 4. Finish with the **Done checklist**.
 
-Build the whole game in one pass. Do not ask questions or stop for approval.
+After stating the plan and the expected time, build the whole game in one pass. Do not ask questions or stop for approval.
 
 - If the Game Card is vague or missing something, choose a fun, simple default and keep going. List every assumption at the end.
 - If the idea is too big, build the best smaller version that keeps the coolest feature, and note what was cut.
@@ -52,7 +63,7 @@ Build the whole game in one pass. Do not ask questions or stop for approval.
 
 ### Changing an existing game
 
-1. Read the game's `HANDOFF.md` first. It says how the game is put together and where common changes go.
+1. Read the game's `HANDOFF.md` first. It says how the game is put together and where common changes go. Then give the plan and the expected build time (see "Plan first, and time the work").
 2. Make the change the player asked for. Don't restyle or restructure things they didn't mention. If a request is unclear, pick the simplest reading and note it.
 3. If the change adds levels, bosses or new ways to move forward, update the hook: `progress` must still grow with every real step forward, `maxSteps` must still cover a full game, and new things on screen need a letter in `observe()`.
 4. Add checks for the new behaviour to the game's `test_game.py`.
@@ -157,7 +168,7 @@ Never commit `test-harness/.env` or any API key.
 | File | Purpose |
 | --- | --- |
 | `index.html` | The game. Keep the `BOT-SCORES` markers before the main script. |
-| `HANDOFF.md` | Game Card (real names and places swapped for made-up ones), decisions, architecture, how to make common changes, testing, sources, open items. Keep it current with every change. |
+| `HANDOFF.md` | Game Card (real names and places swapped for made-up ones), decisions, architecture, how to make common changes, testing, sources, the Build log (expected and actual time of each build), open items. Keep it current with every change. |
 | `test_game.py` | The game's own browser test. Use the harness's `GameSession` to launch the browser, as the starter does; never hard-code a browser path. |
 | `TEST_REPORT.md`, `bot-scores.json`, `bot-best-run.json` | Written by the harness `all` run: the report, the bots' scores, and the Evolution Bot's best run (the next test starts from it). Commit them; don't edit by hand. |
 | `manifest.webmanifest`, `sw.js`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Home Screen install, full screen and offline play. `sw.js` needs no edits for a new game; bump its `VERSION` when the file list changes. All games share one cache space, so a service worker must only ever delete caches named after its own folder. |
@@ -168,7 +179,8 @@ Never commit `test-harness/.env` or any API key.
 
 - [ ] `smoke` passes, `test_game.py` passes, and `all` passes, which means a bot won (or HANDOFF.md explains why `--allow-no-win` was needed).
 - [ ] Played through on a phone-sized touch screen and with the keyboard in the headless browser: start, move, score, pause, lose, restart, win.
-- [ ] `HANDOFF.md` is current: decisions, bot scores (start, mid, best), tight moments from the timing check, open items, and a source cited for every piece of outside art, music, sound and research.
+- [ ] The plan and expected build time were given before starting, and the summary gives the actual build time.
+- [ ] `HANDOFF.md` is current: decisions, bot scores (start, mid, best), tight moments from the timing check, open items, a new Build log row (expected and actual time), and a source cited for every piece of outside art, music, sound and research.
 - [ ] New game only: added to the `GAMES` list at the top of the script in the root `index.html` (newest first) and to the table in `README.md`.
 - [ ] Privacy: real names and places swapped for made-up ones, no photos or voices of real people, commits made as the neutral builder, no session links in commit messages, and `check_private.py` passes.
 - [ ] One commit with everything, `git pull --rebase`, then push to `main`. GitHub Pages publishes within a couple of minutes at `https://offset0x01.github.io/Funfactory/games/<name>/`.
@@ -176,7 +188,8 @@ Never commit `test-harness/.env` or any API key.
 
 ## How to talk to the player
 
-- When done, give a short, friendly summary in plain language: how to open and play the game, the controls, what you built, the assumptions you made, any real names or places you swapped for made-up ones, where the art and ideas came from, and three ideas the player could ask for next.
+- Before starting, give the plan and the expected build time.
+- When done, give a short, friendly summary in plain language: the actual build time next to the estimate, how to open and play the game, the controls, what you built, the assumptions you made, any real names or places you swapped for made-up ones, where the art and ideas came from, and three ideas the player could ask for next.
 - No jargon without a one-line explanation.
 
 ## Game Card (filled in by the player)
@@ -200,12 +213,12 @@ Use made-up names: no real people, schools or places. The game goes on a public 
 
 New game:
 
-> Read AGENTS.md and follow it exactly. Build the game below in one pass in a new folder under games/, test it, add it to the home page, commit it, and give me the summary.
+> Read AGENTS.md and follow it exactly. Tell me your plan and how long you expect it to take, then build the game below in one pass in a new folder under games/, test it, add it to the home page, commit it, and give me the summary with how long it really took.
 >
 > [paste the filled-in Game Card here]
 
 Changing a game:
 
-> Read AGENTS.md and games/<name>/HANDOFF.md and follow "Changing an existing game". Here is what I want changed:
+> Read AGENTS.md and games/<name>/HANDOFF.md and follow "Changing an existing game". Tell me your plan and how long you expect it to take, and at the end how long it really took. Here is what I want changed:
 >
 > [describe the change]

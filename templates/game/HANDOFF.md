@@ -50,6 +50,14 @@ python3 test-harness/harness/check_live.py games/<folder>                    # a
 - **Bot scores:** start, mid, best; did it win; any flags it needed (`--extra-passes`, `--fresh`, `--allow-no-win` and why).
 - **Tight moments** from the timing-tolerance check, as places to playtest.
 
+## Build log
+
+One row per build or change. The next session's time estimate is made from these.
+
+| Date | What was built | Expected | Actual |
+| --- | --- | --- | --- |
+| | | | |
+
 ## Sources and credits
 
 Research sources, and every downloaded asset (art, music, sound) with where it came from.

@@ -22,13 +22,15 @@ Browser games designed by kids and built with an AI coding agent. Each game is o
 
 Start a coding session on this repo and send:
 
-> Read AGENTS.md and follow it exactly. Build the game below in one pass in a new folder under games/, test it, add it to the home page, commit it, and give me the summary.
+> Read AGENTS.md and follow it exactly. Tell me your plan and how long you expect it to take, then build the game below in one pass in a new folder under games/, test it, add it to the home page, commit it, and give me the summary with how long it really took.
 >
 > [filled-in Game Card from AGENTS.md]
 
 To change a game, send:
 
-> Read AGENTS.md and games/<name>/HANDOFF.md and follow "Changing an existing game". Here is what I want changed: ...
+> Read AGENTS.md and games/<name>/HANDOFF.md and follow "Changing an existing game". Tell me your plan and how long you expect it to take, and at the end how long it really took. Here is what I want changed: ...
+
+Either way the agent states its plan and expected build time first, starts without waiting, and reports the actual time at the end. Each game's HANDOFF.md keeps a Build log of both.
 
 ## Privacy
 

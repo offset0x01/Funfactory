@@ -165,6 +165,16 @@ The game's own test:
 
 `test_game.py` uses Playwright's Chromium with SwiftShader WebGL, or the Chrome at `CHROME_PATH` (default `/usr/bin/google-chrome`) if that is missing. It checks: loads without console errors; title and intro screens; keyboard movement, jumping and scoring; Fizzy Jet; robot hurt and stomp; pause; game over and restart; gravity zone flip; Delivery Pad completion; power-ups (the shield blocks one hit; Mega Fuzz smashes a spiky snail), ice sliding, hot sauce costing a life, spiky snails hurting when stomped, flares leaping and hiding, drones patrolling and hoppers hopping, the boss (locked pad, waking in the arena, 5 stomps, win, throwing suitcases, resetting after a hit); a bot finishing all ten levels (terrain only, enemies and the boss ignored); the demo (plays by itself, stops on a key, ends after 30 s and reaches level 2); no page scrolling even with host padding; a full-screen button always on the title screen that explains itself where full screen is blocked; iPad-portrait touch controls; the tilt maths; and high scores (empty board, initials entry and cleanup, P not pausing while typing, Enter and Save, keeping an unsaved score, ordering and the top-10 cut-off, reload, bot runs never saving, `llotc.` migration, and blocked storage). The test drives the game through `window.__game`.
 
+## Build log
+
+One row per build or change. The next session's time estimate is made from these.
+
+| Date | What was built | Expected | Actual |
+| --- | --- | --- | --- |
+| 2026-11-14 and earlier | First version, test hook, high scores, v2 (levels 4 to 10 and the boss) | not recorded | not recorded |
+
+For estimates: a full bot search of this game from nothing takes 20 to 25 minutes; while the saved best run still wins, the full test takes about 30 seconds.
+
 ## Open items
 
 - **Full screen** is blocked inside the shared Claude artifact viewer (confirmed on iPhone Chrome: the frame does not allow it), and iPhones never allow web pages to go full screen in any browser. On iPhone and iPad the way to get a full-screen game is to host `index.html` and use Share › Add to Home Screen. The title-screen note says this, tailored for iPhone, and ends with a Details line explaining why the request failed.
