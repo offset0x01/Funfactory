@@ -4,13 +4,6 @@ A first-person 3D exploring game on a big alien planet: search hills, mountains,
 
 **Status (2026-11-15):** v2: bigger hilly map with mountains and alien trees, two underground dungeons, four monster kinds, a tougher boss that teleports, slams shockwaves and flies, and no more sky beams on the eggs. Smoke, `test_game.py` and `all` pass (the Evolution Bot won on pass 7 with no hearts lost). Played through in the headless browser with the keyboard and on a phone-sized touch screen. Not yet tried on a real iPad or iPhone (see Open items).
 
-**Build time:**
-
-| Version | Estimated | Actual |
-| --- | --- | --- |
-| v1 (first build) | 75 min | 14 min (13:28 to 13:42, 2026-11-15, US Eastern) |
-| v2 (bigger map, dungeons, monsters, boss) | 60 min | 31 min (13:52 to 14:23, 2026-11-15, US Eastern) |
-
 ## Files
 
 | File | What it is |
@@ -106,7 +99,10 @@ One row per build or change. The next session's time estimate is made from these
 
 | Date | What was built | Expected | Actual |
 | --- | --- | --- | --- |
-| 2026-11-15 | First version | not recorded | not recorded |
+| 2026-11-15 | First version (8 eggs, buddies, Gloomlings, boss) | 75 min | 14 min |
+| 2026-11-15 | v2: bigger map, hills, mountains, trees, 2 dungeons, 4 monster kinds, 3-phase boss, no sky beams | 60 min | 31 min |
+
+For estimates: the v2 bot search from nothing took about 19 minutes (won on pass 7). While the saved best run still wins, `all` takes well under a minute; a change to the map or the early game means another long search.
 
 ## Sources and credits
 
