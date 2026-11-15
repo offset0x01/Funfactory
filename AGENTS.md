@@ -131,7 +131,7 @@ Never commit `test-harness/.env` or any API key.
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | The game. Keep the page content between `<!-- GAME-START -->` and `<!-- GAME-END -->`, and the `BOT-SCORES` markers before the main script. |
+| `index.html` | The game. Keep the `BOT-SCORES` markers before the main script. |
 | `HANDOFF.md` | Game Card, decisions, architecture, how to make common changes, testing, sources, open items. Keep it current with every change. |
 | `test_game.py` | The game's own browser test. Use the harness's `GameSession` to launch the browser, as the starter does; never hard-code a browser path. |
 | `TEST_REPORT.md`, `bot-scores.json` | Written by the harness `all` run. Commit them; don't edit by hand. |

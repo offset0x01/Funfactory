@@ -15,8 +15,6 @@ A ten-level 2D platformer with a boss fight, built from a Game Card as the first
 
 Live site: https://offset0x01.github.io/Funfactory/games/lost-luggage-of-the-cosmos/ (GitHub Pages from the `offset0x01/Funfactory` repo, listed on the root game picker).
 
-Published copy: a Claude artifact titled "Lost Luggage of the Cosmos". It is `index.html` with the wrapper stripped (see "Publishing as a Claude artifact").
-
 ## The Game Card it was built from
 
 - **Name:** Lost Luggage of the Cosmos
@@ -45,7 +43,7 @@ Published copy: a Claude artifact titled "Lost Luggage of the Cosmos". It is `in
 
 | Decision | Why |
 | --- | --- |
-| One self-contained `index.html`, no libraries, no network at runtime | The baseline prompt requires it. It plays offline, works from GitHub Pages, any static host, or a Claude artifact, and keeps working for years. |
+| One self-contained `index.html`, no libraries, no network at runtime | The baseline prompt requires it. It plays offline, works from GitHub Pages or any static host, and keeps working for years. |
 | Plain WebGL (a ~60-line batched triangle renderer) instead of Phaser or Three.js | It was built in a session with no package installs, and the prompt says a no-build-tools session writes plain WebGL. It also keeps the file small (about 130 KB with all ten levels). Swapping in Phaser later is fine if a session can bundle it inline. |
 | All art is drawn in code from rectangles, triangles and circles | No asset files to embed; easy to recolor. Characters are original. |
 | All sound is synthesized with WebAudio | Same reason. Audio starts only after the first tap or key (iOS rule). |
@@ -72,7 +70,7 @@ Published copy: a Claude artifact titled "Lost Luggage of the Cosmos". It is `in
 
 ## Architecture (inside `index.html`)
 
-The page content sits between the `GAME-START` and `GAME-END` comments. The script is one block, in this order:
+The script is one block, in this order:
 
 1. **CONFIG** (`CFG`): every tuning number. Units are tiles and seconds. Jump height ≈ `JUMP_V² / (2·GRAVITY)` ≈ 2.4 tiles; Fizzy Jet adds ≈ 2 tiles.
 2. **LEVELS**: array of level objects (format below).
@@ -88,10 +86,10 @@ The page content sits between the `GAME-START` and `GAME-END` comments. The scri
 12. **Drawing**: background per level (`bgDecor`: `junk`, `ship`, `asteroid`, `ice`, `lava`, `claim`), tiles (including `~` ice and `%` hot sauce), items, enemies (`drawEnemy` picks `drawRobot`, `drawJelly`, `drawHopper`, `drawDrone`, `drawSnail`, `drawFlare`), the boss (`drawBoss`), suitcases (`drawShots`), player (with shield bubble and rainbow glow), particles.
 13. **UI** (including high scores: `UI.endRun` when a run ends, `UI.renderScores` draws the initials form and table, `UI.savePending` saves; the High scores button opens `scrScores`): shows and hides the `<section class="screen">` overlays, HUD, message banner and settings buttons.
 14. **Test hook** (`Hook` near the top, `window.GAME_TEST_HOOK` at the end): see Testing.
-15. **Hosting extras** (end of the script): when the page is served from a `games/<name>/` folder it shows an **All games** link back to the picker, and when it has its manifest link and a secure origin it registers `sw.js`. The artifact copy has neither, so both stay off there.
+15. **Hosting extras** (end of the script): when the page is served from a `games/<name>/` folder it shows an **All games** link back to the picker, and when it has its manifest link and a secure origin it registers `sw.js`.
 16. **Full screen** (`Full`): a tappable **Full screen** button at the top of the title card (always shown), a small HUD button (only where full screen works) and the F key. Uses the Fullscreen API with the `webkit` prefix for Safari. Where full screen is not allowed (iPhone, the Claude app's artifact view), tapping the title button shows a note explaining how to get it: open the game's own page, or use Add to Home Screen on iPad.
 17. **Demo** (`Demo`): the title screen's **Watch demo** button. A scripted bot holds right and presses jump at walls, gaps, spikes and nearby enemies, and burps when a jump falls short. It plays about 30 seconds (`Demo.LENGTH`), which covers level 1 and most of level 2, then returns to the title. Any key or tap stops it. During the demo the input functions read `Demo.axis` / `Demo.held`, getting hit only bounces the courier (`Demo.oops`, no lives lost), finishing a level loads the next one without a screen, and the best score is not saved.
-18. **Main loop and boot**: `requestAnimationFrame` loop, WebGL failure screen, Claude `hot` snapshot hook, and `window.__game` for tests.
+18. **Main loop and boot**: `requestAnimationFrame` loop, WebGL failure screen, and `window.__game` for tests.
 
 ### Gravity zones
 
@@ -160,16 +158,6 @@ The **test harness** (`test-harness/`, spec in `test-harness/GAME_TEST_HOOK_SPEC
 The game's own test:
 
 `test_game.py` uses Playwright's Chromium with SwiftShader WebGL, or the Chrome at `CHROME_PATH` (default `/usr/bin/google-chrome`) if that is missing. It checks: loads without console errors; title and intro screens; keyboard movement, jumping and scoring; Fizzy Jet; robot hurt and stomp; pause; game over and restart; gravity zone flip; Delivery Pad completion; power-ups (the shield blocks one hit; Mega Fuzz smashes a spiky snail), ice sliding, hot sauce costing a life, spiky snails hurting when stomped, flares leaping and hiding, drones patrolling and hoppers hopping, the boss (locked pad, waking in the arena, 5 stomps, win, throwing suitcases, resetting after a hit); a bot finishing all ten levels (terrain only, enemies and the boss ignored); the demo (plays by itself, stops on a key, ends after 30 s and reaches level 2); no page scrolling even with host padding; a full-screen button always on the title screen that explains itself where full screen is blocked; iPad-portrait touch controls; the tilt maths; and high scores (empty board, initials entry and cleanup, P not pausing while typing, Enter and Save, keeping an unsaved score, ordering and the top-10 cut-off, reload, bot runs never saving, `llotc.` migration, and blocked storage). The test drives the game through `window.__game`.
-
-## Publishing as a Claude artifact
-
-The artifact viewer adds its own `<!doctype>`, `<head>` and `<body>`, so publish only the part between `<!-- GAME-START ... -->` and `<!-- GAME-END -->`:
-
-```
-python3 -c "s=open('index.html').read(); a=s.index('-->', s.index('<!-- GAME-START'))+3; b=s.index('<!-- GAME-END'); open('artifact.html','w').write(s[a:b].strip()+'\n')"
-```
-
-Inside the Claude artifact viewer, keyboard and touch work but tilt does not (the viewer blocks motion sensors). For tilt, host `index.html` on HTTPS: GitHub Pages, or Tailscale HTTPS at home.
 
 ## Open items
 

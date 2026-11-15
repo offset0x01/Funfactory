@@ -11,11 +11,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
+<title>Lost Luggage of the Cosmos</title>
 </head>
 <body>
-<!-- GAME-START (everything between GAME-START and GAME-END is the page; the Claude artifact publishes only this part) -->
-<title>Lost Luggage of the Cosmos</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: one full-screen WebGL canvas; HUD, menus and touch controls are HTML layered on top. Single dark space look in every theme. */
 :root{
@@ -1983,24 +1981,19 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-function boot(saved) {
+function boot() {
   if (!initGL()) {
     document.body.insertAdjacentHTML('beforeend', '<section class="screen"><div class="card"><h2>WebGL is switched off</h2><p>This browser could not start WebGL, which the game needs. Try Safari, Chrome or Edge with hardware acceleration on.</p></div></section>');
     $('scrTitle').hidden = true; return;
   }
   UI.syncSound(); UI.syncTilt(); UI.syncBest();
   addEventListener('resize', () => { resize(); if (Game.level) updateCamera(true); });
-  if (saved && typeof saved.levelIdx === 'number' && saved.state && saved.state !== 'title') {
-    Game.score = saved.score || 0; Game.lives = saved.lives || CFG.START_LIVES; Game.levelIdx = clamp(saved.levelIdx, 0, LEVELS.length - 1); Game.showIntro();
-  } else UI.show('scrTitle');
+  UI.show('scrTitle');
   requestAnimationFrame(frame);
 }
-// Keep progress when the Claude viewer swaps in a new version of the page.
-window.claude?.hot?.snapshot?.(() => ({ levelIdx: Game.levelIdx, score: Game.levelStartScore, lives: Game.lives, state: Game.state }));
-window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
+boot();
 
 // Hosted in the Funfactory site: show the "All games" link and keep the game cached for offline play.
-// (Only when the page has its manifest link, which the Claude artifact copy does not.)
 if (/\/games\/[^/]+\/?(index\.html)?$/.test(location.pathname)) $('allGames').hidden = false;
 if ('serviceWorker' in navigator && window.isSecureContext && document.querySelector('link[rel="manifest"]')) {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
@@ -2133,6 +2126,5 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
   };
 })();
 </script>
-<!-- GAME-END -->
 </body>
 </html>

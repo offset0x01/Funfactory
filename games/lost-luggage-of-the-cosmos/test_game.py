@@ -206,7 +206,7 @@ with sync_playwright() as pw:
     check(not r['stillDemo'] and r['state'] == 'title', f'demo ends on its own after about 30 s ({r})')
     check(r['lvl'] >= 1, f'demo reaches level 2 within 30 s ({r})')
 
-    # no scrolling, even with host padding like the Claude artifact viewer adds
+    # no scrolling, even when a host adds padding around the page
     sc = pg.evaluate("""() => { document.documentElement.style.padding='40px 0'; window.scrollTo(0, 500);
       return {sy: window.scrollY, sh: document.scrollingElement.scrollHeight, ch: document.scrollingElement.clientHeight}; }""")
     check(sc['sy'] == 0 and sc['sh'] <= sc['ch'] + 1, f'page cannot scroll ({sc})')

@@ -4,6 +4,7 @@ Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. New
 
 ## 2026-11-14
 
+- Dropped the Claude-artifact leftovers now that GitHub Pages is the only delivery route: the `GAME-START` / `GAME-END` markers are no longer required (removed from `AGENTS.md`, the starter and `lost-luggage-of-the-cosmos`, with its `claude.hot` lines and "Publishing as a Claude artifact" notes). `<title>` now sits in `<head>`. No existing games need changes.
 - `AGENTS.md` "Art, music and sound": outside art is fine when every source is cited and nothing is commercial; citing is now a done-checklist item. Dropped the 2 MB size target; flag it only when embedded art and audio pass 10 MB. No existing games need changes.
 - **Senior review of the build spec; fixes below.** No existing games still need updating (`lost-luggage-of-the-cosmos` was updated in the same commit).
 - New `templates/game/`: the starter every new game is copied from (plain WebGL, touch and keyboard, pause, high scores, full screen, offline files, a complete test hook, its own `test_game.py` and a `HANDOFF.md` outline). It passes the harness. `templates/make_icons.py` makes the Home Screen icons. `AGENTS.md` now says to copy it instead of "copy the pattern" in Lost Luggage. Removed the stale `test-harness/examples/lost-luggage/`.
