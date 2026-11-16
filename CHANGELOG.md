@@ -2,6 +2,11 @@
 
 Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. Newest first. Add a line here whenever you change how games are built or integrated.
 
+## 2026-11-16
+
+- **The bot search is time-boxed.** Run `all` once per build; one more run with `--extra-passes 10` only when the passes were still improving and the run took under 15 minutes. Otherwise fix the spot the bot is stuck on, or use `--allow-no-win` and explain why in HANDOFF.md. Never start a bot run that can't finish in the time left. Space Egg Quest's search had grown to about 2 hours per run, and four builds in a row ran out of time re-running it with no change in the result.
+- New `--no-search` flag for `all`: replays the saved best run in seconds instead of searching, and fails if the game changed so that run plays out differently. The builder robot's own check uses it. `AGENTS.md`, `test-harness/README.md` and the fairness hint updated; no games need changes.
+
 ## 2026-11-15
 
 - The home page has its own icon (a pixel-art arcade cabinet) for bookmarks and Home Screen shortcuts: root `manifest.webmanifest`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` and `favicon.png`. It used to borrow Lost Luggage's. No games need changes.

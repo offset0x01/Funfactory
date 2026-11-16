@@ -43,7 +43,7 @@ python3 test-harness/harness/run_tests.py bots  games/<game>/index.html --bots j
 python3 test-harness/harness/run_tests.py all   games/<game>/index.html --bots evolutionary,jev,enum,llm --passes 5
 ```
 
-Useful flags: `--passes` (minimum and default 3), `--rollouts` (Evolution Bot tries per pass, default 1000), `--extra-passes` (extra Evolution passes allowed while it hasn't won, default 2), `--fresh` (ignore the saved best run and search from scratch), `--allow-no-win` (don't fail when no bot can win), `--max-decisions` (AI bot move limit per pass, caps cost), `--decision-seconds` (how long each AI move is held, default 0.25), `--no-inject` (don't touch the game file), `--seed`.
+Useful flags: `--passes` (minimum and default 3), `--rollouts` (Evolution Bot tries per pass, default 1000), `--extra-passes` (extra Evolution passes allowed while it hasn't won, default 2), `--fresh` (ignore the saved best run and search from scratch), `--no-search` (only replay the saved best run, in seconds; fails if it no longer plays out the same), `--allow-no-win` (don't fail when no bot can win), `--max-decisions` (AI bot move limit per pass, caps cost), `--decision-seconds` (how long each AI move is held, default 0.25), `--no-inject` (don't touch the game file), `--seed`.
 
 ## The bots
 

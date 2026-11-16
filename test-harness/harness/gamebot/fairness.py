@@ -46,7 +46,7 @@ def run_fairness(g: GameSession, info: dict, best_genome=None, best_result=None,
         won = best_result["status"] == "won"
         detail = (f"won with score {best_result['score']}, lives lost {best_result['livesLost']}" if won else
                   f"not proven: best run reached {best_result['progress']:.0%} (level {best_result['level'] + 1}). "
-                  "Either that spot is too hard or the bot needs more tries (--extra-passes 10).")
+                  "Either that spot is too hard or the bot needs more tries (--extra-passes 10, once, if the last run was short).")
         add("a human-speed bot can win", won, detail, "error" if require_win else "warn")
 
     # 6. Timing tolerance: nudge one input change ~40 ms early or late. Does the run still succeed?

@@ -7,7 +7,7 @@
   python3 test-harness/harness/run_tests.py all    path/to/index.html --bots evolutionary,jev,enum,llm --passes 3
 
 `all` writes the report to commit, <game folder>/TEST_REPORT.md, and fails if no bot can win the game
-(--allow-no-win turns that into a warning). The Evolution Bot's best run is saved in
+(--allow-no-win turns that into a warning; --no-search only replays the saved best run, in seconds). The Evolution Bot's best run is saved in
 <game folder>/bot-best-run.json and the next test starts from it (--fresh ignores it). Working files (smoke-report.md, bots-report.md,
 report.json, screenshots) go to <game folder>/test-results/, which git ignores.
 Bot scores go to <game folder>/bot-scores.json and into the game file between the BOT-SCORES markers
@@ -60,6 +60,7 @@ def run_evolution(g, info, a, passes, game: pathlib.Path, log):
 
     Returns (bot result, best genome, full replay of it, how it relates to the saved run):
       "replayed"  = the saved run still wins exactly as before, so nothing was searched;
+      "checked"   = --no-search: the saved run replays exactly as before but hasn't won, and nothing was searched;
       "continued" = the saved run replays exactly as before but hadn't won, so the search carried on;
       "restarted" = the game changed (the saved run plays out differently), search started from the saved run;
       None        = no usable saved run.
@@ -76,10 +77,19 @@ def run_evolution(g, info, a, passes, game: pathlib.Path, log):
             one = {"pass": 1, "score": replay["score"], "status": "won", "progress": round(replay["progress"], 4),
                    "livesLost": replay["livesLost"], "steps": replay["steps"]}
             return ({"bot": "evolutionary", "passes": [one], "won": True, "resumed": "replayed"}, saved["genome"], replay, "replayed")
+        if a.no_search:
+            if not same:
+                sys.exit("--no-search: the saved best run plays out differently now (the game changed), so it proves nothing. Run `all` without --no-search.")
+            log(f"  --no-search: saved best run replays exactly (score {replay['score']}, {replay['progress']:.0%}, {replay['status']}); nothing searched.")
+            one = {"pass": 1, "score": replay["score"], "status": replay["status"], "progress": round(replay["progress"], 4),
+                   "livesLost": replay["livesLost"], "steps": replay["steps"]}
+            return ({"bot": "evolutionary", "passes": [one], "won": False, "resumed": "checked"}, saved["genome"], replay, "checked")
         how = "continued" if same else "restarted"
         log(f"  starting from the saved best run ({'unchanged' if same else 'the game has changed since it was saved'}; "
             f"it now reaches {replay['progress']:.0%})")
         bot.start_from(saved["genome"])
+    elif a.no_search:
+        sys.exit("--no-search: there is no saved best run (bot-best-run.json) to replay. Run `all` without --no-search.")
     r = bot.run(passes, a.extra_passes)
     best = r.pop("best_genome")
     full = g.rollout(best, seed=a.seed, stall_steps=info["maxSteps"])
@@ -122,6 +132,7 @@ def write_report(out: pathlib.Path, report: dict, md: pathlib.Path) -> pathlib.P
                              + (f", ${u['reported_cost_usd']}" if u.get("reported_cost_usd") else ""))
             if b.get("resumed"):
                 L.append({"replayed": "- **Evolution Bot** replayed its saved best run (`bot-best-run.json`): it still wins exactly as before, so nothing was searched. Its earlier passes are in `bot-scores.json`.",
+                          "checked": "- **Evolution Bot** replayed its saved best run (`bot-best-run.json`) exactly, without searching (`--no-search`). It still doesn't win. Its earlier passes are in `bot-scores.json`.",
                           "continued": "- **Evolution Bot** carried on from its saved best run (`bot-best-run.json`); the passes above are the new ones.",
                           "restarted": "- **Evolution Bot** started from its saved best run (`bot-best-run.json`), which plays out differently now that the game has changed."}[b["resumed"]])
             if b.get("strategies"):
@@ -149,6 +160,7 @@ def main():
     ap.add_argument("--extra-passes", type=int, default=2, help="evolution bot: extra passes allowed if it hasn't won yet")
     ap.add_argument("--allow-no-win", action="store_true", help="`all` normally fails when no bot can win; this makes it a warning")
     ap.add_argument("--require-win", action="store_true", help=argparse.SUPPRESS)  # old flag; now the default
+    ap.add_argument("--no-search", action="store_true", help="evolution bot: only replay the saved best run, never search; fails if it no longer replays exactly")
     ap.add_argument("--fresh", action="store_true", help="evolution bot: ignore bot-best-run.json and search from scratch")
     ap.add_argument("--decision-seconds", type=float, default=0.25, help="AI bots: game time each chosen move is held")
     ap.add_argument("--max-decisions", type=int, default=600, help="AI bots: move limit per pass (caps cost)")
@@ -214,10 +226,10 @@ def main():
             report["bots"][bot] = r
             extra = {"model": r["model"]} if r.get("model") else None
             scores = [p["score"] for p in r["passes"]]
-            if bot == "evolutionary" and resumed in ("replayed", "continued"):
+            if bot == "evolutionary" and resumed in ("replayed", "checked", "continued"):
                 # same game as last time: keep the bot's history, so start / mid / best still tell the whole story
                 old = old_entry(game.parent / "bot-scores.json", info["title"], bot)
-                if old and resumed == "replayed":
+                if old and resumed in ("replayed", "checked"):
                     entries[bot] = old
                     continue
                 if old:
