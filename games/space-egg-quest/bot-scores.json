@@ -4,23 +4,44 @@
     "evolutionary": {
       "label": "Evolution Bot",
       "start": 0,
-      "mid": 0,
-      "best": 0,
+      "mid": 6260,
+      "best": 6315,
       "won": false,
       "passes": [
         0,
         0,
-        0,
-        0,
-        0
+        25,
+        125,
+        675,
+        4255,
+        4405,
+        5805,
+        5775,
+        5800,
+        5800,
+        6050,
+        6260,
+        6260,
+        6260,
+        6260,
+        6315,
+        6315,
+        6315,
+        6315,
+        6315,
+        6315,
+        6315,
+        6315,
+        6315,
+        6315
       ]
     }
   },
-  "updated": "2026-11-15T23:28:41Z",
+  "updated": "2026-11-16T23:09:42Z",
   "champion": {
     "bot": "evolutionary",
     "label": "Evolution Bot",
-    "score": 0,
+    "score": 6315,
     "won": false
   }
 }

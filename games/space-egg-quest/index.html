@@ -105,8 +105,8 @@ tr.new td { color: var(--good); font-weight: 700; }
   <div class="card">
     <h1>Space Egg Quest</h1>
     <p>Your ship landed on Planet Wobblor, overrun by monsters. Beat them: some drop alien eggs! Find 20 eggs. Each one hatches into a little buddy who follows you and helps a bit.</p>
-    <p>Three caves (new ones every game) each hide a weapon: the Big Laser, the Grenade Launcher and the Sniper. Find all 20 eggs and MEGA GLOOM comes down from the sky. It can teleport and fly!</p>
-    <p class="note"><b>Keyboard:</b> W / S walk, A / D or Left / Right turn, Up / Down look up and down, Q / E step sideways, Space fires, J or Shift jumps, 1 to 4 or X switch weapons, drag the mouse to look. P pauses, M mutes.<br><b>Touch:</b> the stick walks and turns, drag anywhere to look around and up and down, FIRE, JUMP, and SWAP for weapons.</p>
+    <p>Four caves (new ones every game) hide the Big Laser, the Grenade Launcher, the Sniper and a Jet-Pack. Careful: the caves are trapped! Steel bear traps, trip-wires and swinging axes. Jump the low ones, and never linger on a rusty floor tile.</p>
+    <p class="note"><b>Keyboard:</b> W / S walk, A / D or Left / Right turn, Up / Down look up and down, Q / E step sideways, Space fires, J or Shift jumps, 1 to 5 or X switch weapons (5 is the Jet-Pack: hold Space to fly), drag the mouse to look. P pauses, M mutes.<br><b>Touch:</b> the stick walks and turns, drag anywhere to look around and up and down, FIRE, JUMP, and SWAP for weapons (hold FIRE with the Jet-Pack to fly).</p>
     <p class="note">No aim help: shots go exactly where the crosshair points. The egg sensor at the top points to a dropped egg within 40 m.</p>
     <p id="titleTop"></p>
     <p id="titleBot" class="good"></p>
@@ -150,17 +150,22 @@ tr.new td { color: var(--good); font-weight: 700; }
 </section>
 
 <!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
+<!-- The build number, written by stamp_build.py right before publishing. -->
+<!-- BUILD-START -->
+<script>window.GAME_BUILD = "2026.11.16-1825";</script>
+<!-- BUILD-END -->
 <!-- BOT-SCORES-START -->
-<script>window.BOT_SCORES = {"game":"Space Egg Quest","bots":{"evolutionary":{"label":"Evolution Bot","start":0,"mid":0,"best":0,"won":false,"passes":[0,0,0,0,0]}},"updated":"2026-11-15T23:28:41Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":0,"won":false}};</script>
+<script>window.BOT_SCORES = {"game":"Space Egg Quest","bots":{"evolutionary":{"label":"Evolution Bot","start":0,"mid":6260,"best":6315,"won":false,"passes":[0,0,25,125,675,4255,4405,5805,5775,5800,5800,6050,6260,6260,6260,6260,6315,6315,6315,6315,6315,6315,6315,6315,6315,6315]}},"updated":"2026-11-16T23:09:42Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":6315,"won":false}};</script>
 <!-- BOT-SCORES-END -->
 
 <script>
 'use strict';
 // =====================================================================================
 // SPACE EGG QUEST: a first-person 3D game on an alien planet.
-// Explore a big hilly planet with mountains, alien trees and two underground dungeons.
-// Find 10 alien eggs (each hatches into a buddy who follows you and fights), blast four
-// kinds of monsters, then beat MEGA GLOOM, a giant boss with three angry phases.
+// Explore a big hilly planet with mountains, alien trees and four underground dungeons
+// (each hides a weapon or the Jet-Pack, and every one is sprinkled with traps). Find 20 alien
+// eggs (each hatches into a buddy who follows you and fights), blast four kinds of monsters,
+// then beat MEGA GLOOM, a giant boss with three angry phases.
 // Built from the Funfactory starter: fixed-step update(), one Input object, seeded random
 // numbers, saved high scores, pause, touch controls, full screen and the test hook.
 // =====================================================================================
@@ -173,16 +178,19 @@ const SCORE_NAME = 'points';
 const CFG = {                       // every tuning number lives here
   STEPS_PER_SECOND: 60,             // the simulation always moves in steps of exactly 1/60 s
   WORLD_R: 110,                     // how far from the middle of the map you can walk
-  HEARTS: 5,
+  HEARTS: 7,
   WALK: 9, TURN: 2.6,               // walking speed (units per second) and turning speed (radians per second)
   LOOK_SPEED: 1.6, MAX_PITCH: 1.25, // looking up and down: speed (radians per second) and how far (radians)
   EYE: 1.6,                         // your eyes are this high above the ground
   JUMP_SPEED: 7, GRAVITY: 20,       // jumping: about 1.2 m high, 0.7 s in the air
+  JET_UP: 5.5,                      // the Jet-Pack: how fast you climb while you hold fire
+  JET_MAX: 6.5, JET_MAX_CAVE: 2.4,  // how high the Jet-Pack can take you (cave ceilings are low)
   EGGS: 20, EGG_DROP: 0.10, EGG_REACH: 1.8,   // eggs needed, the chance a beaten monster drops one, pickup reach
   HEART_DROP: 0.04,                 // the chance any beaten monster drops a heart fruit (Rockbacks always do)
   ROCKS: 50, TREES: 46, MOUNTAINS: 7,
   CELL: 4,                          // size of one cave square, in meters
   CAVE_W: 13, CAVE_H: 10,           // cave size in maze rooms (the map is twice that plus one squares each way)
+  CAVE_TRAPS: { bear: 2, wire: 2, axe: 2 },  // traps sprinkled through every cave (placed by the seeded dice)
   SENSOR_RANGE: 40,                 // the egg sensor arrow only shows eggs and stairs this close (meters)
   BUDDY_SHOT_SPEED: 22, BUDDY_FIRE_EVERY: 1.1, BUDDY_RANGE: 15,
   BUDDY_DAMAGE: 0.25,               // a buddy shot does a quarter of a blaster shot
@@ -200,8 +208,9 @@ const WEAPONS = {
   laser:   { name: 'Big Laser',        key: 2, kind: 'beam',    every: 0,    damage: 7,   range: 45, color: '#ff3b5c' }, // damage per second while held
   grenade: { name: 'Grenade Launcher', key: 3, kind: 'grenade', every: 0.8,  damage: 4,   speed: 22, blast: 4.5, color: '#b7ff6b' },
   sniper:  { name: 'Sniper',           key: 4, kind: 'ray',     every: 1.1,  damage: 7,   range: 140, color: '#8ab4ff' },
+  jetpack: { name: 'Jet-Pack',         key: 5, kind: 'jet',     every: 0.13, color: '#ff8a3d' }, // not a gun: hold fire to fly!
 };
-const WEAPON_ORDER = ['blaster', 'laser', 'grenade', 'sniper'];
+const WEAPON_ORDER = ['blaster', 'laser', 'grenade', 'sniper', 'jetpack'];
 // The monsters. r = how big they are (for hits), y = how high their middle floats, speed in meters per second.
 const KINDS = {
   gloom:    { name: 'Gloomling',   hp: 2, speed: 2.4, r: 0.95, y: 1.0, points: 25 }, // floats after you on a wiggly path
@@ -210,8 +219,11 @@ const KINDS = {
   rockback: { name: 'Rockback',    hp: 6, speed: 1.6, r: 1.5,  y: 0.9, points: 60 }, // big, slow and tough; drops a heart fruit
 };
 const MAP_LETTER = { g: 'gloom', z: 'zapbug', s: 'spitter', r: 'rockback' };
+const TRAP_LETTER = { t: 'bear', w: 'wire', a: 'axe' }; // cave traps, placed at random by makeCave()
 // Underground dungeons, each guarding one weapon. # wall, . floor, S stairs (where you arrive),
-// W the weapon, X exit portal, g z s r = monsters waiting there. Kids can redraw these; keep a path from S to W.
+// W the weapon, X exit portal, g z s r = monsters waiting there, t = bear trap, w = trip-wire,
+// a = axe plate (the game sprinkles traps and guards through every generated cave on its own).
+// Kids can redraw these maps; keep a path from S to W.
 const DUNGEONS = [
   { name: 'the Crystal Caves', weapon: 'laser', map: [
     '###############',
@@ -254,6 +266,17 @@ const DUNGEONS = [
     '#...#...#...#',
     '###.#######.#',
     '#XW.....r...#',
+    '#############'] },
+  { name: 'the Rocket Vault', weapon: 'jetpack', map: [
+    '#############',
+    '#S..#....g..#',
+    '#.#.#.####.##',
+    '#.#...#...#.#',
+    '#.#.#.#.#.#.#',
+    '#...#...#...#',
+    '###.#.###.#.#',
+    '#...#...#..z#',
+    '#W#####.##X##',
     '#############'] },
 ];
 const STEP = 1 / CFG.STEPS_PER_SECOND;
@@ -326,6 +349,7 @@ const Sound = {
   zap() { this.tone(1800, 200, 0.4, 'sawtooth', 0.08); },
   boom() { this.tone(120, 30, 0.5, 'sawtooth', 0.14); },
   jump() { this.tone(300, 700, 0.15, 'triangle', 0.06); },
+  rocket() { this.tone(65, 105, 0.16, 'sawtooth', 0.09); this.tone(150, 230, 0.16, 'square', 0.035, 0.02); }, // the Jet-Pack: a chugging rocket rumble
   laser() { this.tone(900, 820, 0.12, 'sawtooth', 0.03); },
   sniper() { this.tone(2400, 120, 0.35, 'square', 0.08); this.tone(80, 40, 0.3, 'sawtooth', 0.1); },
   thump() { this.tone(160, 90, 0.18, 'square', 0.09); },
@@ -375,7 +399,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyP' || e.code === 'Escape') Game.togglePause();
   if (e.code === 'KeyF') Full.toggle();
   if (e.code === 'KeyM') toggleMute();
-  if (/^Digit[1-4]$/.test(e.code)) Input.weaponPick = +e.code.slice(5);
+  if (/^Digit[1-5]$/.test(e.code)) Input.weaponPick = +e.code.slice(5);
   if (e.code === 'KeyX') Input.weaponPick = 'next';
   if (e.code === 'Enter') UI.primary();
 });
@@ -440,11 +464,18 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const Dun = {
   make(i, map) {
     const def = DUNGEONS[i], g = map, H = g.length, W = g[0].length, C = CFG.CELL;
-    const d = { i, name: def.name, weaponKind: def.weapon, taken: false, g, W, H, ox: 1000 + i * 300, oz: 0, spawned: false, guards: [] };
+    const d = { i, name: def.name, weaponKind: def.weapon, taken: false, g, W, H, ox: 1000 + i * 300, oz: 0, spawned: false, guards: [], traps: [] };
     for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
       const ch = g[r][c], pos = this.center(d, c, r);
       if (ch === 'S') d.start = pos; else if (ch === 'W') d.weapon = pos; else if (ch === 'X') d.exit = pos;
       else if (MAP_LETTER[ch]) d.guards.push({ kind: MAP_LETTER[ch], ...pos });
+      else if (TRAP_LETTER[ch]) {
+        // which way a rope hangs / an axe swings: across the passage, between its two walls
+        const axis = g[r][c - 1] === '#' && g[r][c + 1] === '#' ? 'x' : 'z';
+        const trap = { kind: TRAP_LETTER[ch], ...pos, axis, spent: false };
+        if (trap.kind === 'axe') Object.assign(trap, { active: false, timer: 0, phase: 0, hit: false, cool: 0 });
+        d.traps.push(trap);
+      }
     }
     // face the open floor next to the stairs
     for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!this.solidCell(d, this.cellOf(d, d.start.x, d.start.z)[0] + dc, this.cellOf(d, d.start.x, d.start.z)[1] + dr)) { d.startYaw = Math.atan2(dc, dr); break; }
@@ -556,6 +587,20 @@ function makeCave(cw, ch) {
     const [key] = spots.splice(Math.floor(rand() * spots.length), 1)[0], [c, r] = key.split(',').map(Number);
     g[r][c] = letters[Math.floor(rand() * letters.length)];
   }
+  // 6. traps (same dice every time, so the same seed always hides them in the same spots):
+  // t bear trap, w trip-wire, a axe plate. Ropes and axes like a narrow corridor; jaws don't care.
+  const trapSpots = [...far.entries()].filter(([k, d]) => d > 3 && g[+k.split(',')[1]][+k.split(',')[0]] === '.');
+  const corridor = (c, r) => (g[r][c - 1] === '#' && g[r][c + 1] === '#') || (g[r - 1][c] === '#' && g[r + 1][c] === '#');
+  const place = (letter, needCorridor) => {
+    let pool = trapSpots.filter(([k]) => { const [c, r] = k.split(',').map(Number); return needCorridor ? corridor(c, r) : true; });
+    if (!pool.length && needCorridor) pool = trapSpots; // an open room will do
+    if (!pool.length) return;
+    const pick = Math.floor(rand() * pool.length), [c, r] = pool[pick][0].split(',').map(Number);
+    g[r][c] = letter;
+    trapSpots.splice(trapSpots.findIndex(([k]) => k === pool[pick][0]), 1);
+  };
+  for (const [letter, n] of [['t', CFG.CAVE_TRAPS.bear], ['w', CFG.CAVE_TRAPS.wire], ['a', CFG.CAVE_TRAPS.axe]])
+    for (let k = 0; k < n; k++) place(letter, letter !== 't');
   return g.map(row => row.join(''));
 }
 
@@ -566,7 +611,7 @@ const Game = {
   state: 'title', score: 0, hearts: CFG.HEARTS, time: 0,
   player: null, eggs: [], buddies: [], enemies: [], shots: [], orbs: [], bombs: [], waves: [], pickups: [],
   rocks: [], trees: [], mountains: [], dungeons: [], boss: null, bossPending: false,
-  weapon: 'blaster', owned: ['blaster'], beam: null, booms: [],
+  weapon: 'blaster', owned: ['blaster'], beam: null, booms: [], thrust: false,
   eggsFound: 0, killsSinceEgg: 0, dmgSinceEgg: 0, kills: 0, spawnTimer: 0, fireTimer: 0, nav: null, msg: null, fx: [], flash: 0, recoil: 0,
 
   start(seed = (Date.now() >>> 0)) {
@@ -574,7 +619,7 @@ const Game = {
     this.score = 0; this.hearts = CFG.HEARTS; this.time = 0; this.eggsFound = 0; this.killsSinceEgg = 0; this.dmgSinceEgg = 0; this.kills = 0;
     this.player = { x: 0, z: 0, yaw: 0, pitch: 0, h: 0, vy: 0, safe: 0, walked: 0, zone: -1 };
     this.buddies = []; this.enemies = []; this.shots = []; this.orbs = []; this.bombs = []; this.waves = []; this.pickups = []; this.fx = []; this.eggs = []; this.booms = [];
-    this.boss = null; this.bossPending = false; this.weapon = 'blaster'; this.owned = ['blaster']; this.beam = null;
+    this.boss = null; this.bossPending = false; this.weapon = 'blaster'; this.owned = ['blaster']; this.beam = null; this.thrust = false;
     this.spawnTimer = CFG.ENEMY_FIRST; this.fireTimer = 0; this.flash = 0; this.msg = null;
     this.makeWorld();
     this.resetNav();
@@ -675,8 +720,8 @@ const Game = {
     const k = KINDS[kind];
     this.enemies.push({ kind, x, z, zone, hp: k.hp, phase: rand() * 6, t: 1.5 + rand() * 2, dash: 0, dx: 0, dz: 0, hit: 0 });
   },
-  // Where a monster's middle is, in the air.
-  enemyY(e) { return gh(e.x, e.z, e.zone) + KINDS[e.kind].y; },
+  // Where a monster's middle is, in the air. A trip-wire monster drops from the ceiling first.
+  enemyY(e) { return gh(e.x, e.z, e.zone) + (e.fallY !== undefined ? e.fallY : KINDS[e.kind].y); },
 
   // Hurt a monster or the boss. Beaten monsters sometimes drop an egg (a 10% chance, from the seeded dice).
   damage(t, amount) {
@@ -795,7 +840,7 @@ const Game = {
     p.yaw -= Input.turn() * CFG.TURN * dt + Input.takeLook() * 0.006;
     p.pitch = clamp(p.pitch + Input.pitch() * CFG.LOOK_SPEED * dt - Input.takeLookY() * 0.005, -CFG.MAX_PITCH, CFG.MAX_PITCH);
     if (Input.jump() && p.h <= 0) { p.vy = CFG.JUMP_SPEED; Sound.jump(); }
-    if (p.h > 0 || p.vy > 0) { p.vy -= CFG.GRAVITY * dt; p.h = Math.max(0, p.h + p.vy * dt); if (p.h === 0) p.vy = 0; }
+    if (p.h > 0 || p.vy > 0) { p.vy = Math.max(p.vy - CFG.GRAVITY * dt, -14); p.h = Math.max(0, p.h + p.vy * dt); if (p.h === 0) p.vy = 0; } // -14: no screaming-fast falls from jet-pack height
     const f = dirOf(p.yaw), mv = Input.move(), st = Input.strafe();
     let vx = f.x * mv - f.z * st, vz = f.z * mv + f.x * st; // forward plus sideways (right is (-f.z, f.x))
     const len = Math.hypot(vx, vz); if (len > 1) { vx /= len; vz /= len; }
@@ -822,7 +867,7 @@ const Game = {
     if (pick === 'next') this.pickWeapon(this.owned[(this.owned.indexOf(this.weapon) + 1) % this.owned.length]);
     else if (pick) this.pickWeapon(WEAPON_ORDER[pick - 1]);
     const w = WEAPONS[this.weapon], a = this.aim(), o = this.eye(), B = this.boss && p.zone === -1 ? this.boss : null;
-    this.fireTimer -= dt; this.beam = null;
+    this.fireTimer -= dt; this.beam = null; this.thrust = false;
     if (Input.fire()) {
       if (w.kind === 'beam') { // the Big Laser burns whatever the crosshair is on, as long as you hold fire
         const r = this.ray(o, a, w.range);
@@ -831,6 +876,12 @@ const Game = {
         if (this.fireTimer <= 0) { this.fireTimer = 0.12; Sound.laser(); }
         this.recoil = 0.4;
         if (this.state !== 'play') return;
+      } else if (w.kind === 'jet') { // the Jet-Pack: hold fire and you ride your own rocket flame
+        this.thrust = true;
+        const cap = dun ? CFG.JET_MAX_CAVE : CFG.JET_MAX; // cave ceilings are low
+        if (p.h < cap) p.vy = Math.max(p.vy, CFG.JET_UP);
+        else if (p.vy > 0) p.vy = 0; // at the ceiling of your climb: stop, don't overshoot
+        if (this.fireTimer <= 0) { this.fireTimer = w.every; Sound.rocket(); }
       } else if (this.fireTimer <= 0) {
         this.fireTimer = w.every; this.recoil = 1;
         if (w.kind === 'ray') { // the Sniper hits instantly, far away
@@ -861,11 +912,50 @@ const Game = {
       this.resetNav();
     }
 
-    // --- weapons in the caves ---
+    // --- weapons and the jet-pack in the caves ---
     if (dun && !dun.taken && dist(p, dun.weapon) < 1.8) {
-      dun.taken = true; if (!this.owned.includes(dun.weaponKind)) this.owned.push(dun.weaponKind); this.weapon = dun.weaponKind; this.score += CFG.POINTS.weapon;
-      Sound.win(); this.say(`You got the ${WEAPONS[dun.weaponKind].name}! (key ${WEAPONS[dun.weaponKind].key}${isTouch ? ' or SWAP' : ''}) Take the portal back up.`, 4);
-      this.sparkle(dun.weapon.x, 1.2, dun.weapon.z, WEAPONS[dun.weaponKind].color, 30, 5);
+      const wk = dun.weaponKind, jet = wk === 'jetpack';
+      dun.taken = true; if (!this.owned.includes(wk)) this.owned.push(wk); this.weapon = wk; this.score += CFG.POINTS.weapon;
+      Sound.win();
+      this.say(jet ? `You got the Jet-Pack! Hold ${isTouch ? 'FIRE' : 'Space'} to fly! (key 5${isTouch ? ' or SWAP' : ''}) Take the portal back up.`
+        : `You got the ${WEAPONS[wk].name}! (key ${WEAPONS[wk].key}${isTouch ? ' or SWAP' : ''}) Take the portal back up.`, 4);
+      this.sparkle(dun.weapon.x, 1.2, dun.weapon.z, WEAPONS[wk].color, 30, 5);
+    }
+
+    // --- cave traps. They never make a sound on purpose: watch where you step ---
+    if (dun) for (const t of dun.traps) {
+      const td = dist(p, t);
+      if (t.kind === 'bear') { // shiny steel jaws: step in it and they snap shut (jump over them!)
+        if (!t.spent && td < 0.9 && p.h < 0.5) {
+          t.spent = true; this.say('Snap! A steel bear trap!', 2);
+          this.hurt(); if (this.state !== 'play') return;
+        }
+      } else if (t.kind === 'wire') { // a brown rope across the floor: tripping it drops a monster on you
+        if (!t.spent && td < 1.0 && p.h < 0.7) {
+          t.spent = true; this.say('The trip-wire snapped! Something fell from the ceiling!', 2.5);
+          const kind = rand() < 0.6 ? 'gloom' : 'zapbug';
+          this.addEnemy(kind, t.x, t.z, dun.i);
+          const e = this.enemies[this.enemies.length - 1];
+          const ax = t.x - p.x, az = t.z - p.z, al = Math.hypot(ax, az) || 1;
+          e.x = t.x + ax / al * 1.5; e.z = t.z + az / al * 1.5; // lands just past the rope, away from your head
+          Dun.pushOut(dun, e, 0.5);
+          e.fallY = 4.0; // it drops from the cave ceiling
+        }
+      } else { // the axe: a rusty plate on the floor starts a big blade swinging over it
+        if (t.cool > 0) t.cool -= dt;
+        if (!t.active && t.cool <= 0 && td < 1.1) { t.active = true; t.timer = 8; t.phase = Math.PI / 2; t.hit = false; this.say('The axe swings! Time your run!', 2); }
+        if (t.active) {
+          t.timer -= dt; t.phase += dt * 4.2;
+          const swing = Math.sin(t.phase) * 1.05;              // the blade's angle from straight down
+          const bx = t.x + (t.axis === 'x' ? Math.sin(swing) * 2.6 : 0), bz = t.z + (t.axis === 'z' ? Math.sin(swing) * 2.6 : 0);
+          const low = Math.abs(swing) < 0.45;                   // sweeping through the low middle of its arc
+          if (low && !t.hit && Math.hypot(bx - p.x, bz - p.z) < 1.1 && p.h < 1.5) {
+            t.hit = true; this.hurt(); if (this.state !== 'play') return;
+          }
+          if (!low) t.hit = false;                               // ready to clip you on the next sweep
+          if (t.timer <= 0) { t.active = false; t.cool = 2; }
+        }
+      }
     }
 
     // --- heart fruit (Rockbacks drop them) ---
@@ -914,6 +1004,11 @@ const Game = {
     for (const e of this.enemies) {
       if (e.zone !== p.zone || e.hp <= 0) continue;
       const k = KINDS[e.kind];
+      if (e.fallY !== undefined) { // a trip-wire monster: dropping from the ceiling, no walking yet
+        e.fallY = Math.max(k.y, e.fallY - 13 * dt);
+        if (e.fallY === k.y) delete e.fallY;
+        continue;
+      }
       e.phase += dt; e.hit = Math.max(0, e.hit - dt); e.t -= dt;
       const dx = p.x - e.x, dz = p.z - e.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
       if (e.kind === 'gloom' || e.kind === 'rockback') { // drift toward you (Gloomlings wiggle)
@@ -1319,13 +1414,41 @@ function draw(now) {
     if (!d.taken) {
       put(v, MESH.box, d.weapon.x, 0.4, d.weapon.z, 0.7, 0.4, 0.7, 0, hex('#5a4a78'));
       put(glow, MESH.cone, d.weapon.x, 0.8, d.weapon.z, 0.7, 2.6, 0.7, t, hex(wp.color, 0.2));
-      const len = d.weaponKind === 'sniper' ? 1.1 : d.weaponKind === 'laser' ? 0.9 : 0.6, spin = t * 1.5, y = 1.5 + Math.sin(t * 2) * 0.12;
-      put(v, MESH.box, d.weapon.x, y, d.weapon.z, 0.16, 0.16, len, spin, hex('#8a7cc8'));
-      put(v, MESH.box, d.weapon.x + Math.sin(spin) * len * 0.6, y + 0.05, d.weapon.z + Math.cos(spin) * len * 0.6, d.weaponKind === 'grenade' ? 0.22 : 0.08, d.weaponKind === 'grenade' ? 0.22 : 0.08, len * 0.5, spin, hex(wp.color), 0.4);
+      const spin = t * 1.5, y = 1.5 + Math.sin(t * 2) * 0.12;
+      if (d.weaponKind === 'jetpack') { // a chunky backpack with two rocket nozzles
+        put(v, MESH.sphere, d.weapon.x, y + 0.25, d.weapon.z, 0.42, 0.5, 0.28, spin * 0.3, hex('#c05a2a'));
+        put(v, MESH.box, d.weapon.x, y + 0.25, d.weapon.z, 0.44, 0.06, 0.3, spin * 0.3, hex('#7a3a20')); // its strap
+        for (const s of [-1, 1]) put(v, MESH.octa, d.weapon.x + s * 0.26, y - 0.35, d.weapon.z, 0.13, 0.18, 0.13, 0, hex('#8a95b0'), 0.3); // shiny steel nozzles
+        put(glow, MESH.cone, d.weapon.x, y - 0.55, d.weapon.z, 0.35, 0.6, 0.35, 0, hex('#ff8a3d', 0.3)); // a soft flame glow underneath
+      } else {
+        const len = d.weaponKind === 'sniper' ? 1.1 : d.weaponKind === 'laser' ? 0.9 : 0.6;
+        put(v, MESH.box, d.weapon.x, y, d.weapon.z, 0.16, 0.16, len, spin, hex('#8a7cc8'));
+        put(v, MESH.box, d.weapon.x + Math.sin(spin) * len * 0.6, y + 0.05, d.weapon.z + Math.cos(spin) * len * 0.6, d.weaponKind === 'grenade' ? 0.22 : 0.08, d.weaponKind === 'grenade' ? 0.22 : 0.08, len * 0.5, spin, hex(wp.color), 0.4);
+      }
     }
     if (d.taken) {
     for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2 + t * 2; put(glow, MESH.octa, d.exit.x + Math.sin(a) * 1.1, 1.4 + Math.cos(a) * 1.1, d.exit.z, 0.18, 0.18, 0.18, 0, hex('#6bf3ff', 0.9), 0.5); }
     put(glow, MESH.sphere, d.exit.x, 1.4, d.exit.z, 0.8, 0.8, 0.15, 0, hex('#6bf3ff', 0.35), 0.4);
+    }
+    for (const tr of d.traps) { // the cave's traps, drawn where they lie
+      if (tr.kind === 'bear') { // shiny steel jaws, open and waiting (flat once they've snapped)
+        put(v, MESH.cone, tr.x, 0.02, tr.z, 0.55, 0.03, 0.55, 0, hex('#3a3048')); // the dark plate under them
+        if (!tr.spent) {
+          for (const s of [-1, 1]) put(v, MESH.octa, tr.x + s * 0.32, 0.18, tr.z, 0.28, 0.2, 0.3, s * 0.45, hex('#d8dce8', 0.25 + 0.2 * s)); // two toothed halves
+        } else put(v, MESH.octa, tr.x, 0.1, tr.z, 0.6, 0.08, 0.62, 0, hex('#aeb6c8'));
+      } else if (tr.kind === 'wire') { // a brown rope stretched across the corridor (gone once tripped)
+        if (!tr.spent) { const dims = tr.axis === 'x' ? [2, 0.025, 0.05] : [0.05, 0.025, 2]; put(v, MESH.box, tr.x, 0.16, tr.z, dims[0], dims[1], dims[2], 0, hex('#8a6a4a')); }
+      } else { // the axe: a rusty plate on the floor and a big blade swinging above it
+        put(v, MESH.cone, tr.x, 0.02, tr.z, 1.7, 0.035, 1.7, 0, hex(tr.active ? '#a04040' : '#7a3a3a')); // the distinct tile
+        if (tr.active) put(glow, MESH.cone, tr.x, 0.04, tr.z, 1.75, 0.02, 1.75, 0, hex('#ff5d7a', 0.25 + 0.2 * Math.sin(t * 20)));
+        const a = tr.active ? Math.sin(tr.phase) * 1.05 : 0;  // hanging still while it waits
+        const bx = tr.x + (tr.axis === 'x' ? Math.sin(a) * 2.6 : 0), bz = tr.z + (tr.axis === 'z' ? Math.sin(a) * 2.6 : 0);
+        const by = 4.2 - Math.cos(a) * 2.6;
+        const nA = Math.max(2, Math.ceil((4.2 - by) / 0.35));
+        for (let k = 0; k <= nA; k++) { const u = k / nA; put(v, MESH.octa, tr.x + (bx - tr.x) * u, 4.2 - (4.2 - by) * u, tr.z + (bz - tr.z) * u, 0.05, 0.05, 0.05, 0, hex('#5a5560')); } // the chain
+        put(v, MESH.octa, bx, by, bz, 0.42, 0.8, 0.16, tr.axis === 'x' ? 0 : Math.PI / 2, hex('#c8d0dc', 0.15)); // the blade
+        put(v, MESH.box, bx, by + 0.5, bz, 0.1, 0.25, 0.1, 0, hex('#8a95b0')); // its handle
+      }
     }
   }
   for (const h of Game.pickups) if (h.zone === zone) { const y = gh(h.x, h.z) + 0.8 + Math.sin(t * 3) * 0.15; put(v, MESH.sphere, h.x - 0.18, y, h.z, 0.28, 0.28, 0.28, 0, hex('#ff5d7a'), 0.4); put(v, MESH.sphere, h.x + 0.18, y, h.z, 0.28, 0.28, 0.28, 0, hex('#ff5d7a'), 0.4); put(v, MESH.cone, h.x, y + 0.2, h.z, 0.08, 0.3, 0.08, 0, hex('#7dffa0')); }
@@ -1343,7 +1466,7 @@ function draw(now) {
   const eyes = (x, y, z, toP, apart, fwd, size, color) => { for (const side of [-1, 1]) put(v, MESH.sphere, x + Math.sin(toP) * fwd + Math.cos(toP) * side * apart, y, z + Math.cos(toP) * fwd - Math.sin(toP) * side * apart, size, size * 0.7, size, 0, hex(color), 0.5); };
   for (const e of Game.enemies) {
     if (e.zone !== zone) continue;
-    const toP = Math.atan2(p.x - e.x, p.z - e.z), y = gh(e.x, e.z), white = e.hit > 0;
+    const toP = Math.atan2(p.x - e.x, p.z - e.z), y = Game.enemyY(e) - KINDS[e.kind].y, white = e.hit > 0; // enemyY: a trip-wire monster drops in from up high
     if (e.kind === 'gloom') {
       const fl = y + 1.0 + Math.sin(e.phase * 3) * 0.25;
       put(v, MESH.octa, e.x, fl, e.z, 0.75, 0.75, 0.75, e.phase * 2, white ? hex('#ffffff') : hex('#4a1f78'));
@@ -1420,11 +1543,22 @@ function draw(now) {
     const g = [], a = W / H, kick = Game.recoil * 0.05, sway = bob * 0.4;
     const box2 = (x, y, w, h, c) => quad(g, [x, y, 0], [x + w, y, 0], [x + w, y - h, 0], [x, y - h, 0], c);
     const bx = 0.35 / Math.max(1, a * 0.6), by = -0.45 + sway - kick;
-    const wp = WEAPONS[Game.weapon], wk = Game.weapon, long = wk === 'sniper' ? 0.2 : wk === 'laser' ? 0.1 : 0;
+    const wp = WEAPONS[Game.weapon], wk = Game.weapon;
+    if (wk === 'jetpack') { // the Jet-Pack: a nozzle at each bottom corner, with rocket flames while you hold fire
+      const fl = Game.thrust ? 0.16 + Math.random() * 0.14 : 0; // the flames flicker (looks only)
+      for (const s of [-1, 1]) {
+        const nx = s * bx * 1.3 - 0.07;
+        box2(nx, -0.52 + sway, 0.14, 0.1, hex('#8a95b0'));        // a shiny steel nozzle
+        box2(nx + 0.01, -0.42 + sway, 0.12, 0.1, hex('#c05a2a')); // the orange pack above it
+        if (fl) { box2(nx + 0.015, -0.62 + sway, 0.11, fl, hex('#ff8a3d', 0.95)); box2(nx + 0.035, -0.62 + sway, 0.07, fl * 0.6, hex('#ffd36b', 0.95)); }
+      }
+    } else {
+    const long = wk === 'sniper' ? 0.2 : wk === 'laser' ? 0.1 : 0;
     box2(bx - long, by, 0.34 + long, wk === 'grenade' ? 0.3 : 0.22, hex('#8a7cc8')); box2(bx + 0.06, by + 0.06, 0.22, 0.08, hex(wp.color));
     box2(bx + 0.02, by - 0.18, 0.12, 0.4, hex('#5a4a96')); box2(bx - 0.06 - long, by - 0.04, 0.08, wk === 'grenade' ? 0.22 : 0.14, hex(wk === 'blaster' ? '#ff8a3d' : wp.color));
     if (wk === 'sniper') box2(bx + 0.02, by + 0.12, 0.18, 0.07, hex('#222244')); // the scope
     if (Game.recoil > 0.6 || Game.beam) box2(bx - 0.14 - long, by + 0.04, 0.1, 0.12, hex(wp.color, Math.max(Game.recoil, 0.6)));
+    }
     drawList(R.buf, g, g.length / 7, M4.ident, 0);
   }
 }
@@ -1584,7 +1718,7 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, KINDS, WEAPONS, Dun, store
       spec: 1, title: TITLE, stepsPerSecond: CFG.STEPS_PER_SECOND, levelCount: 1, scoreName: SCORE_NAME,
       maxSteps: MAX_STEPS, actions: ACTIONS.map(a => ({ ...a })),
       keys: { forward: ['KeyW'], turnleft: ['ArrowLeft'], turnright: ['ArrowRight'], fire: ['Space'], jump: ['KeyJ'], lookup: ['ArrowUp'], lookdown: ['ArrowDown'] }, smokeAction: 'forward',
-      stallSeconds: 8,
+      stallSeconds: 16,
     }),
     reset({ seed = 1, level = 0, realtime = false } = {}) {
       Input.clear(); UI.pending = null;
@@ -1626,7 +1760,10 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, KINDS, WEAPONS, Dun, store
         if (r >= 0 && r < ROWS && c >= 0 && c < COLS) grid[r][c] = ch;
       };
       if (!d) { for (const r of Game.rocks) mark(r.x, r.z, '#'); for (const t of Game.trees) mark(t.x, t.z, 'T'); for (const dd of Game.dungeons) mark(dd.door.x, dd.door.z, 'D'); }
-      else { mark(d.exit.x, d.exit.z, 'X'); if (!d.taken) mark(d.weapon.x, d.weapon.z, 'W'); }
+      else {
+        mark(d.exit.x, d.exit.z, 'X'); if (!d.taken) mark(d.weapon.x, d.weapon.z, 'W');
+        for (const tr of d.traps) if (tr.kind === 'axe' || !tr.spent) mark(tr.x, tr.z, tr.kind === 'bear' ? 't' : tr.kind === 'wire' ? 'w' : 'a'); // sprung traps are gone for good (axes re-arm)
+      }
       for (const b of Game.buddies) mark(b.x, b.z, 'b');
       for (const e of Game.eggs) if (!e.found && e.zone === p.zone) mark(e.x, e.z, 'E');
       for (const h of Game.pickups) if (h.zone === p.zone) mark(h.x, h.z, 'h');
@@ -1640,7 +1777,7 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, KINDS, WEAPONS, Dun, store
       let closest = null, cd = 1e9; for (const e of Game.enemies) { if (e.zone !== p.zone) continue; const dd = dist(e, p); if (dd < cd) { cd = dd; closest = e; } }
       return {
         text: `${d ? 'Underground in ' + d.name : 'On the surface'}. Map seen from above, you (@) face UP, each cell is ${CELL} m.\n` +
-          'Legend: E egg (walk into it), D stairs down to a weapon cave, W weapon (walk into it), X exit portal, b buddy, h heart fruit, g Gloomling, z Zapbug (dashes), s Goo Spitter, r Rockback (tough), B MEGA GLOOM, o orb or goo (dodge), * goo bomb landing spot, # rock or wall, M mountain, T tree\n' +
+          'Legend: E egg (walk into it), D stairs down to a weapon cave, W weapon (walk into it), X exit portal, b buddy, h heart fruit, g Gloomling, z Zapbug (dashes), s Goo Spitter, r Rockback (tough), B MEGA GLOOM, o orb or goo (dodge), * goo bomb landing spot, # rock or wall, M mountain, T tree, t bear trap (jump it!), w trip-wire (jump it, or fight what drops), a axe plate (the blade swings: time your run)\n' +
           grid.map(r => r.join('')).join('\n'),
         facts: {
           hearts: Game.hearts, eggs: `${Game.eggsFound} of ${CFG.EGGS}`, buddies: Game.buddies.length, weapon: WEAPONS[Game.weapon].name,
@@ -1658,6 +1795,9 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, KINDS, WEAPONS, Dun, store
         const [sc, sr] = Dun.cellOf(d, d.start.x, d.start.z);
         if (d.toWeapon[sr * d.W + sc] < 0) out.push({ level: 0, severity: 'error', message: `In ${d.name} the weapon can't be reached from the stairs.` });
         if (d.toExit[sr * d.W + sc] < 0) out.push({ level: 0, severity: 'error', message: `In ${d.name} the exit portal can't be reached.` });
+        const kinds = new Set(d.traps.map(t => t.kind));
+        for (const k of ['bear', 'wire', 'axe']) if (!kinds.has(k)) out.push({ level: 0, severity: 'error', message: `${d.name} is missing its ${k} trap.` });
+        for (const t of d.traps) if (t.x === d.start.x && t.z === d.start.z) out.push({ level: 0, severity: 'error', message: `${d.name} has a trap right on the stairs.` });
       }
       for (const e of Game.eggs) {
         if (e.zone >= 0 || e.found) continue;

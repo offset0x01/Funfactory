@@ -35,7 +35,8 @@ with GameSession(str(GAME)) as g:
     check(pg.is_visible("#scrTitle") and pg.is_visible("#btnScores"), "title screen shows with a High scores button")
     pg.keyboard.press("Enter")
     check(js("__game.Game.state") == "play" and pg.is_visible("#hud") and pg.is_visible("#cross"), "Enter starts the game and shows the HUD and crosshair")
-    check(js("__game.Game.eggs.length") == 0 and js("__game.Game.dungeons.length") == 3, "no eggs lying around at the start, and 3 weapon caves")
+    check(js("__game.Game.eggs.length") == 0 and js("__game.Game.dungeons.length") == 4 and js("__game.Game.hearts") == 7,
+          "no eggs lying around at the start, 4 caves (3 weapons + the Jet-Pack) and 7 hearts")
 
     # walking (W), turning, looking up and down (arrows), jumping
     r = js(f"""() => {{ const {{ Game, Input }} = __game; const p = Game.player; p.x = 0; p.z = 0; p.yaw = 0; p.pitch = 0;
@@ -120,8 +121,8 @@ with GameSession(str(GAME)) as g:
     r = js("""() => { const { Game } = __game;
               const maps = Game.dungeons.map(d => d.g.join('\\n')); const W = Game.dungeons[0].W, H = Game.dungeons[0].H;
               const open = Game.dungeons[0].g.join('').split('').filter(c => c !== '#').length;
-              return { different: new Set(maps).size === 3, W, H, open }; }""")
-    check(r["different"] and r["W"] >= 25 and r["H"] >= 19 and r["open"] > 250, f"three different, bigger caves ({r})")
+              return { different: new Set(maps).size === 4, W, H, open }; }""")
+    check(r["different"] and r["W"] >= 25 and r["H"] >= 19 and r["open"] > 250, f"four different, bigger caves ({r})")
     r = js("""() => { const h = window.GAME_TEST_HOOK; h.reset({ seed: 5 }); const a = __game.Game.dungeons.map(d => d.g.join('')).join('|');
               h.reset({ seed: 6 }); const b = __game.Game.dungeons.map(d => d.g.join('')).join('|'); h.reset({ seed: 5 }); const c = __game.Game.dungeons.map(d => d.g.join('')).join('|');
               return { newEachGame: a !== b, sameSeedSame: a === c }; }""")
@@ -132,7 +133,7 @@ with GameSession(str(GAME)) as g:
                 for (let r = 0; r < d.H; r++) for (let c = 0; c < d.W; c++) { if (d.g[r][c] === '#') continue; cells++; if (c + 1 < d.W && d.g[r][c + 1] !== '#') edges++; if (r + 1 < d.H && d.g[r + 1][c] !== '#') edges++; }
                 if (edges > cells) loops++; }
               return { loops, problems: h.selfCheck().filter(x => x.severity === 'error').length }; }""")
-    check(r == {"loops": 3, "problems": 0}, f"every cave has loops, and the self-check finds every weapon and portal reachable ({r})")
+    check(r == {"loops": 4, "problems": 0}, f"every cave has loops, and the self-check finds every weapon, portal and trap in place ({r})")
     r = js(f"""() => {{ const {{ Game, Dun, CFG }} = __game; const p = Game.player, d = Game.dungeons[1]; Game.enemies = []; Game.hearts = 5;
               p.x = d.door.x; p.z = d.door.z; Game.update({STEP}); const inside = p.zone === 1, guards = Game.enemies.filter(e => e.zone === 1).length;
               p.safe = 99; const w = Dun.center(d, 1, 0); p.x = w.x; p.z = w.z + 0.3; Game.update({STEP}); const blocked = !Dun.solidAt(d, p.x, p.z);
@@ -145,6 +146,40 @@ with GameSession(str(GAME)) as g:
     check(r["inside"] and r["guards"] >= 8 and r["blocked"] and r["far"] >= 20 and r["portalShutTillWeapon"] and r["got"] == "grenade"
           and r["owned"] == ["blaster", "grenade"] and r["back"] and r["sealed"],
           f"cave stairs lead to a maze with guards; the weapon is far in; the portal opens once you have it; the stairs seal after ({r})")
+
+    # v4: every cave hides all three trap kinds, and the Jet-Pack cave exists
+    r = js("""() => { const { Game } = __game;
+              return { caves: Game.dungeons.length,
+                       jetCave: Game.dungeons.some(d => d.weaponKind === 'jetpack'),
+                       allTrapped: Game.dungeons.every(d => ['bear', 'wire', 'axe'].every(k => d.traps.some(t => t.kind === k))),
+                       trapCount: Game.dungeons.map(d => d.traps.length).join(',') }; }""")
+    check(r["caves"] == 4 and r["jetCave"] and r["allTrapped"] and all(int(n) >= 6 for n in r["trapCount"].split(",")),
+          f"four caves, one with the Jet-Pack, and each with bear traps, trip-wires and axe plates ({r})")
+
+    # the traps: silent, one-shot (the axe re-arms), and the steel ones can be jumped
+    r = js(f"""() => {{ const {{ Game, Dun }} = __game; const p = Game.player; const d = Game.dungeons[2];
+              Game.enemies = []; p.x = d.door.x; p.z = d.door.z; Game.update({STEP});       // down the stairs of the still-open cave
+              const inside = p.zone === 2;
+              const bear = d.traps.find(t => t.kind === 'bear'), wire = d.traps.find(t => t.kind === 'wire'), axe = d.traps.find(t => t.kind === 'axe');
+              Game.enemies = []; Game.hearts = 7; p.safe = 0; p.h = 0; p.x = bear.x; p.z = bear.z; Game.update({STEP});
+              const bear1 = Game.hearts; Game.update({STEP}); const bear2 = Game.hearts;              // sprung: safe to walk over now
+              p.safe = 0; bear.spent = false; p.x = bear.x; p.z = bear.z; p.h = 1.2; Game.update({STEP});
+              const bearJump = Game.hearts;                                                        // a jump sails over the jaws
+              Game.enemies = []; p.h = 0; p.safe = 99; p.x = wire.x; p.z = wire.z; Game.update({STEP});
+              const dropped = Game.enemies.length, falling = Game.enemies[0] && Game.enemies[0].fallY > 3;    // it falls from the ceiling...
+              let fell = false; for (let i = 0; i < 60; i++) {{ Game.update({STEP}); if (Game.enemies[0] && Game.enemies[0].fallY === undefined) {{ fell = true; break; }} }}
+              Game.enemies = []; const h0 = Game.hearts; p.safe = 0; p.h = 0; p.x = axe.x; p.z = axe.z; Game.update({STEP});
+              const started = axe.active; let axed = false;
+              for (let i = 0; i < 90 && !axed; i++) {{ Game.update({STEP}); if (Game.hearts < h0) axed = true; }}   // ...and the axe blade sweeps through you
+              p.x = d.start.x; p.z = d.start.z; for (let i = 0; i < 700; i++) Game.update({STEP});                     // walk away: it stops and re-arms
+              const stopped = !axe.active && axe.cool <= 0;
+              p.x = d.weapon.x; p.z = d.weapon.z; Game.update({STEP});                                                 // take the Sniper so the portal opens
+              p.x = d.exit.x; p.z = d.exit.z; Game.update({STEP});                                                      // back out through the portal
+              return {{ inside, bear1, bear2, bearJump, dropped, falling, fell, started, axed, stopped, out: p.zone === -1 }}; }}""")
+    check(r["inside"] and r["bear1"] == 6 and r["bear2"] == 6 and r["bearJump"] == 6,
+          f"a steel bear trap costs a heart once, then is safe; a jump sails over it ({r})")
+    check(r["dropped"] == 1 and r["falling"] and r["fell"], f"a tripped rope drops a monster from the ceiling, and it lands ({r})")
+    check(r["started"] and r["axed"] and r["stopped"] and r["out"], f"the axe plate starts the blade swinging, it hits, then stops and re-arms ({r})")
 
     # the weapons: switch with keys; the Big Laser burns while held, grenades blow up a crowd, the Sniper hits hard far away
     r = js(f"""() => {{ const {{ Game, Input }} = __game; const p = Game.player; Game.owned = ['blaster', 'laser', 'grenade', 'sniper']; Game.buddies = []; Game.spawnTimer = 999; p.safe = 999; p.h = 0;
@@ -169,10 +204,21 @@ with GameSession(str(GAME)) as g:
               for (const e of Game.enemies) e.phase = 0; p.yaw = ang; p.pitch = aimPitch - 0.2; // grenades arc, so aim a little low
               Input.keys.add('Space'); Game.update({STEP}); Input.keys.delete('Space'); for (let i = 0; i < 120; i++) {{ for (const e of Game.enemies) {{ e.x = e.x; }} Game.update({STEP}); }}
               out.grenadeLeft = Game.enemies.length; return out; }}""")
-    check(r["key2"] == "laser" and r["next"] == "grenade", f"keys 1 to 4 and X switch weapons ({r})")
+    check(r["key2"] == "laser" and r["next"] == "grenade", f"keys 1 to 5 and X switch weapons ({r})")
     check(0.5 < r["laserSeconds"] < 1.5, f"the Big Laser melts a Rockback in about a second while you hold fire ({r['laserSeconds']} s)")
     check(r["sniperFar"], "the Sniper takes out a Goo Spitter 80 m away in one shot")
     check(r["grenadeLeft"] == 0, f"one grenade takes out a group of three Gloomlings ({r['grenadeLeft']} left)")
+
+    # the Jet-Pack (the fourth cave's item, slot 5): hold fire to fly, let go to land
+    r = js(f"""() => {{ const {{ Game, Input, CFG, WEAPONS }} = __game; const p = Game.player; Game.enemies = []; Game.boss = null; Game.bossPending = false; Game.spawnTimer = 999;
+              p.x = 0; p.z = 0; p.zone = -1; p.h = 0; p.vy = 0; Game.owned = ['blaster', 'jetpack'];
+              Input.weaponPick = 5; Game.update({STEP}); const got = Game.weapon, slot5 = WEAPONS.jetpack.key;
+              Input.keys.add('Space'); let top = 0; for (let i = 0; i < 240; i++) {{ Game.update({STEP}); top = Math.max(top, p.h); }}
+              const thrust = Game.thrust, high = +top.toFixed(2);
+              Input.keys.delete('Space'); let landed = false, steps = 0; for (let i = 0; i < 400; i++) {{ Game.update({STEP}); steps++; if (p.h === 0 && p.vy === 0) {{ landed = true; break; }} }}
+              return {{ got, slot5, thrust, high, landed }}; }}""")
+    check(r["got"] == "jetpack" and r["slot5"] == 5 and r["thrust"] and 6.3 <= r["high"] <= 6.7 and r["landed"],
+          f"key 5 takes the Jet-Pack (one inventory slot); holding fire flies you up to about 6.5 m, then you land ({r})")
 
     # 20 eggs bring MEGA GLOOM down; a shockwave can be jumped over
     r = js(f"""() => {{ const {{ Game, CFG }} = __game; const p = Game.player; Game.enemies = []; Game.eggs = []; p.safe = 999; p.h = 0; Game.eggsFound = CFG.EGGS - 1;
@@ -209,7 +255,7 @@ with GameSession(str(GAME)) as g:
 
     # losing all hearts: game over, P in the initials box doesn't pause, play again
     pg.click("#btnAgain")
-    check(js("__game.Game.state") == "play" and js("__game.Game.hearts") == 5, "Play again starts a fresh run with 5 hearts")
+    check(js("__game.Game.state") == "play" and js("__game.Game.hearts") == 7, "Play again starts a fresh run with 7 hearts")
     js("""() => { const { Game } = __game; Game.score = 10; Game.hearts = 1; Game.player.safe = 0; Game.hurt(); }""")
     check(js("__game.Game.state") == "lost" and pg.is_visible("#scrEnd") and "over" in pg.inner_text("#endTitle").lower(), "losing the last heart shows Game over")
     pg.fill("#initials", "p1q")
