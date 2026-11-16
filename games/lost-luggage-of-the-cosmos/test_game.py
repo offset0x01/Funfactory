@@ -2,8 +2,9 @@
 Usage: python3 test_game.py [path/to/index.html] [screenshot_dir]
 Checks: loads with no console errors, movement, scoring, Fizzy Jet, gravity zone,
 getting hurt, game over + restart, level completion, power-ups (Bubble Shield, Mega Fuzz),
-new monsters (snail, flare, hopper, drone), ice and hot sauce, the Baggage Beast boss,
-and that a simple bot can finish every level (terrain reachability)."""
+new monsters (snail, flare, hopper, drone), the Baggage Beast boss, the Grand Saucier
+mini-boss, the post-boss Cosmic Vault levels, the coin bank and 150-coin extra life,
+hidden spare slippers, the shop, and that a simple bot can finish every level (terrain)."""
 import os, sys, pathlib
 from playwright.sync_api import sync_playwright
 
@@ -77,12 +78,14 @@ with sync_playwright() as pw:
 
     pg.click('#btnStart'); pg.wait_for_timeout(200)
     check(pg.is_visible('#scrIntro'), 'level intro shows')
+    check(pg.evaluate("document.getElementById('introEyebrow').textContent").startswith('Level 1 of 13'), 'level count updated on the intro')
     pg.click('#btnGo'); pg.wait_for_timeout(200)
     x0 = pg.evaluate('__game.Game.player.x')
     pg.keyboard.down('ArrowRight'); pg.wait_for_timeout(1300); pg.keyboard.up('ArrowRight')
     x1 = pg.evaluate('__game.Game.player.x')
     check(x1 > x0 + 3, f'player moves right with keyboard ({x0:.1f} -> {x1:.1f})')
     check(pg.evaluate('__game.Game.score') >= 20, 'collecting bolts scores points')
+    check(pg.is_visible('#hudCoins'), 'HUD shows the coin meter')
     y0 = pg.evaluate('__game.Game.player.y'); pg.keyboard.down('Space'); pg.wait_for_timeout(180)
     check(pg.evaluate('__game.Game.player.y') < y0 - 0.5, 'player jumps'); pg.keyboard.up('Space')
     pg.wait_for_timeout(800)
@@ -173,7 +176,7 @@ with sync_playwright() as pw:
       return {lockedState, awake, hits, alive:B.alive, state:Game.state}; }""")
     check(r['lockedState'] == 'play', f'the Delivery Pad is locked while the Baggage Beast stands ({r})')
     check(r['awake'] and r['hits'] == 5 and not r['alive'], f'the Beast wakes in the arena and goes down after 5 stomps ({r})')
-    check(r['state'] == 'win', f'beating the Beast unlocks the pad and wins the game ({r})')
+    check(r['state'] == 'complete', f'beating the Beast unlocks the pad; the win now waits after the vault ({r})')
     lvl(9)
     r = pg.evaluate("""() => { const {Game}=__game, L=Game.level, p=Game.player, B=L.boss; p.x=L.fenceX+3; p.y=12;
       let thrown=0, hurt=false; for (let i=0;i<120*20;i++){ Game.update(1/120); thrown=Math.max(thrown, L.shots.length); if (Game.lives<5) { hurt=true; break; } }
@@ -183,6 +186,43 @@ with sync_playwright() as pw:
         pg.evaluate("""() => { const {Game}=__game; Game.lives=5; Game.levelIdx=9; Game.showIntro(); Game.beginLevel(); const p=Game.player; p.x=Game.level.fenceX+6; p.y=12; p.invuln=99;
           for(let i=0;i<120*2.2;i++) Game.update(1/120); }""")
         pg.wait_for_timeout(300); pg.screenshot(path=str(SHOTS / 'boss.png'))
+
+    # ---- the mini-boss: the Grand Saucier in level 6 ----
+    lvl(5)
+    r = pg.evaluate("""() => { const {Game}=__game, L=Game.level, p=Game.player, B=L.boss, g=L.goal;
+      const kind = B && B.kind, maxHp = B && B.max;
+      p.x=g.x; p.y=g.y-0.5; Game.update(1/120); const lockedState=Game.state;
+      p.x=L.fenceX+3; p.y=12; Game.update(1/120); const awake=B.awake;
+      let hits=0;
+      for (let k=0;k<20 && B.alive;k++) { B.inv=0; p.invuln=0; p.x=B.x+B.w/2-p.w/2; p.y=B.y-p.h+0.3; p.vy=6; p.gs=1; const hp=B.hp; Game.update(1/120); if (B.hp<hp) hits++; }
+      p.x=g.x; p.y=g.y-0.5; p.vy=0; p.invuln=99; L.shots=[]; Game.update(1/120);
+      return {lockedState, awake, hits, kind, maxHp, alive:B.alive, state:Game.state}; }""")
+    check(r['lockedState'] == 'play' and r['kind'] == 'saucier' and r['maxHp'] == 3, f'level 6 holds the Grand Saucier mini-boss and its pad is locked ({r})')
+    check(r['awake'] and r['hits'] == 3 and not r['alive'], f'the Saucier wakes at the fence and takes 3 stomps ({r})')
+    check(r['state'] == 'complete', f'beating the Saucier unlocks the pad and completes level 6 ({r})')
+    lvl(5)
+    r = pg.evaluate("""() => { const {Game}=__game, L=Game.level, p=Game.player, B=L.boss;
+      p.x=L.fenceX+4; p.y=12; let sawBlob=false;
+      for (let i=0;i<120*12 && B.alive;i++){ p.invuln=99; Game.update(1/120); if (L.shots.some(s=>s.blob)) { sawBlob=true; break; } }
+      return {sawBlob}; }""")
+    check(r['sawBlob'], 'the Saucier throws sauce blobs')
+
+    # ---- the Cosmic Vault: three levels after the final boss ----
+    n = pg.evaluate('__game.LEVELS.length')
+    check(n == 13, f'thirteen levels after the boss update ({n})')
+    names = pg.evaluate('__game.LEVELS.map(l => l.name)')
+    check(names[10:] == ['The Vault Doors', 'The Vault of Forgotten Socks', 'The Treasure Room'], f'three vault levels follow the boss ({names[10:]})')
+    check(pg.evaluate('__game.LEVELS.slice(10).every(l => l.bgDecor === "vault")'), 'vault levels use the vault biome')
+    secs = pg.evaluate("() => __game.LEVELS.map((l,i) => l.map.some(r => r.includes('1')) ? i+1 : 0).filter(Boolean)")
+    check(secs == [1, 12], f'exactly two hidden spare slippers, in level 1 and level 12 ({secs})')
+    r = pg.evaluate("""() => { const {Game}=__game; Game.lives=5; Game.levelIdx=9; Game.showIntro(); Game.beginLevel();
+      Game.completeLevel();
+      return {shown: !document.getElementById('scrComplete').hidden, text: document.getElementById('completeText').textContent}; }""")
+    check(r['shown'] and 'STAR COMPASS' in r['text'], f'level 10 completes with the Star Compass outro, it no longer wins the game ({r})')
+    r = pg.evaluate("""() => { const {Game}=__game; Game.lives=5; Game.levelIdx=12; Game.showIntro(); Game.beginLevel();
+      const g=Game.level.goal, p=Game.player; p.x=g.x; p.y=g.y-0.5; Game.update(1/120);
+      return {shown: !document.getElementById('scrWin').hidden, state: Game.state}; }""")
+    check(r['shown'] and r['state'] == 'win', f'finishing level 13 wins the game ({r})')
 
     # bot playthroughs
     for i in range(pg.evaluate('__game.LEVELS.length')):
@@ -295,6 +335,72 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(100)
     check(pg.evaluate(f"localStorage.getItem('{KEY}')") == before and not pg.is_visible('#hsOver .hsForm'), 'bot runs never save scores')
     hctx.close()
+
+    # ---- coin bank, extra lives and the shop (fresh browser profile) ----
+    BANK_KEY = 'lost-luggage-of-the-cosmos.bank'
+    SHOP_KEY = 'lost-luggage-of-the-cosmos.shop'
+    cctx = b.new_context(viewport={'width': 1024, 'height': 768})
+    pg = cctx.new_page(); pg.on('pageerror', lambda e: errors.append(str(e)))
+    pg.goto(HTML.as_uri()); pg.wait_for_timeout(400)
+    check(pg.inner_text('#bankCoins') == '0', 'coin bank starts at zero on the title screen')
+    pg.click('#btnShop'); pg.wait_for_timeout(150)
+    check(pg.is_visible('#scrShop') and 'Coin bank: 0' in pg.inner_text('#scrShop'), 'the shop opens from the title screen')
+    n_items = len(pg.evaluate("[...document.querySelectorAll('.shopRow')].map(r => r.dataset.id)"))
+    check(n_items == 13, f'the shop lists skins, hats, fun items and boosts ({n_items} rows)')
+    check(pg.evaluate("() => document.querySelector('.shopRow[data-id=skinGold] button').disabled"), 'items too dear for the bank cannot be bought')
+    pg.click('#btnShopBack'); pg.wait_for_timeout(100)
+    # earn coins by playing level 1
+    pg.click('#btnStart'); pg.click('#btnGo'); pg.wait_for_timeout(150)
+    r = pg.evaluate("""() => { const G=__game.Game;
+      const its=G.level.items.filter(i=>i.type==='bolt').slice(0,3);
+      for (const it of its){ G.player.x=it.x; G.player.y=it.y; G.player.invuln=99; G.update(1/120); }
+      return {bolts: its.length, bank: __game.Bank.get(), coins: G.coinsRun}; }""")
+    check(r['coins'] == 9 and r['bank'] == 9, f'every bolt pays 3 coins into the bank ({r})')
+    pg.wait_for_timeout(200)
+    check(pg.inner_text('#hudCoinNum') == '9/150', f"the HUD shows the run's coin meter ({pg.inner_text('#hudCoinNum')!r})")
+    # the 150-coin extra life
+    r = pg.evaluate("""() => { const G=__game.Game; G.lives=4; G.coinMeter=148;
+      const it=G.level.items.find(i=>i.type==='bolt'&&!i.got);
+      if (it) { G.player.x=it.x; G.player.y=it.y; G.player.invuln=99; G.update(1/120); }
+      return {lives: G.lives, meter: G.coinMeter}; }""")
+    check(r['lives'] == 5 and r['meter'] == 1, f'collecting 150 coins in a run earns an extra slipper ({r})')
+    # the hidden spare slipper gives a life back
+    r = pg.evaluate("""() => { const G=__game.Game; G.levelIdx=0; G.lives=3; G.showIntro(); G.beginLevel();
+      const it=G.level.items.find(i=>i.type==='life');
+      G.player.x=it.x; G.player.y=it.y; G.player.invuln=99; G.update(1/120);
+      return {lives: G.lives, got: it.got}; }""")
+    check(r['lives'] == 4 and r['got'], f'the secret spare slipper gives a life back ({r})')
+    # the bank survives a reload
+    bank = pg.evaluate(f"JSON.parse(localStorage.getItem('{BANK_KEY}'))")
+    pg.reload(); pg.wait_for_timeout(400)
+    check(pg.inner_text('#bankCoins') == str(bank) and bank > 0, 'the coin bank survives a reload')
+    # shop: buy a hat, wear it, and it persists
+    pg.evaluate("() => __game.Bank.add(200)")
+    pg.click('#btnShop'); pg.wait_for_timeout(150)
+    pg.click(".shopRow[data-id=hatParty] button"); pg.wait_for_timeout(150)
+    check(pg.evaluate("__game.Shop.data.hat") == 'hatParty' and pg.evaluate(f"JSON.parse(localStorage.getItem('{SHOP_KEY}')).hat") == 'hatParty',
+          'buying a hat wears it and saves it')
+    check(pg.inner_text(".shopRow[data-id=hatParty] button") == 'Take off', 'a worn hat can be taken off')
+    check(pg.evaluate("() => document.querySelector('.shopRow[data-id=skinGold] button').disabled"), 'still not rich enough for the golden suit')
+    pg.click('#btnShopBack'); pg.wait_for_timeout(100)
+    # a bought boost is used by the next run
+    pg.evaluate("() => __game.Bank.add(300)")
+    pg.click('#btnShop'); pg.wait_for_timeout(150)
+    pg.click(".shopRow[data-id=boostLife] button"); pg.wait_for_timeout(150)
+    check(pg.evaluate("__game.Shop.boostsLeft('boostLife')") == 1, 'a bought boost waits for the next run')
+    pg.click('#btnShopBack'); pg.click('#btnStart'); pg.wait_for_timeout(150)
+    check(pg.evaluate('__game.Game.lives') == 6 and pg.evaluate("() => __game.Shop.boostsLeft('boostLife')") == 0,
+          'the bonus-life boost is spent on the next run (6 slippers)')
+    pg.click('#btnGo'); pg.wait_for_timeout(150)
+    # demo and test-hook runs never change the bank
+    b0 = pg.evaluate('__game.Bank.get()')
+    pg.evaluate("() => __game.Game.toMenu()"); pg.click('#btnDemo'); pg.wait_for_timeout(2500)
+    pg.keyboard.press('KeyX'); pg.wait_for_timeout(150)
+    check(pg.evaluate('__game.Bank.get()') == b0, 'the demo never changes the coin bank')
+    pg.evaluate("() => GAME_TEST_HOOK.reset({seed:1})")
+    pg.evaluate("() => { for (let i=0;i<300;i++) GAME_TEST_HOOK.step('right',1); }")
+    check(pg.evaluate('__game.Bank.get()') == b0, 'test-hook bot runs never change the coin bank')
+    cctx.close()
 
     # migration from the old 'llotc.' keys
     mctx = b.new_context()

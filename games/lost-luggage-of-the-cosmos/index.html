@@ -51,6 +51,7 @@ body{
 .chip .label{color:var(--muted);font-size:.75em;letter-spacing:.06em;text-transform:uppercase}
 #hudLevel{color:var(--ink)}
 #hudLives{color:var(--slipper)}
+#hudCoins{color:#ffd34d}
 #hudFizz{color:var(--fizz)}
 #hudFizz.off{opacity:.35}
 #hudShield{color:#8fe8ff}
@@ -120,6 +121,20 @@ p{margin:0;line-height:1.45;color:var(--ink)}
 .hsTable tr.new td{background:rgba(255,111,181,.22);color:var(--ink)}
 .hsTable tr.new td.ini{color:var(--slipper)}
 .hsEmpty{color:var(--muted);font-size:15px}
+/* Shop */
+.shopBank{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.shopBank .stat span{color:#ffd34d}
+.shopCat{font:800 13px var(--font-display);text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:6px 0 -4px}
+.shopRow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid rgba(67,55,140,.5)}
+.shopRow:last-child{border-bottom:0}
+.shopRow .nm{font:800 16px var(--font-display)}
+.shopRow .bl{font-size:13px;color:var(--muted);line-height:1.3}
+.shopRow .buy{min-height:44px;font:800 14px/1.2 var(--font-display);color:#1a0f2e;background:#ffd34d;border:0;border-radius:999px;padding:10px 14px;cursor:pointer;box-shadow:0 4px 0 #a87f10;white-space:nowrap}
+.shopRow .buy:active{transform:translateY(2px);box-shadow:0 2px 0 #a87f10}
+.shopRow .buy.alt{background:#2b2366;color:var(--ink);box-shadow:0 4px 0 #120d33;border:2px solid var(--panel-edge)}
+.shopRow .buy.worn{background:#7dffa0;box-shadow:0 4px 0 #2f8f4a}
+.shopRow .buy:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.shopRow .price{color:#ffd34d;font-weight:800}
 
 /* Touch controls */
 #touch{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none;
@@ -140,9 +155,10 @@ p{margin:0;line-height:1.45;color:var(--ink)}
 <canvas id="game" aria-label="Lost Luggage of the Cosmos game screen"></canvas>
 
 <div id="hud" hidden>
-  <div class="chip" id="hudLevel">Level 1</div>
-  <div class="chip"><span class="label">Bolts</span><span id="hudScore">0</span></div>
-  <div class="chip" id="hudLives">&#9829; 5</div>
+    <div class="chip" id="hudLevel">Level 1</div>
+    <div class="chip"><span class="label">Bolts</span><span id="hudScore">0</span></div>
+    <div class="chip" id="hudCoins"><span class="label">Coins</span><span id="hudCoinNum">0/150</span></div>
+    <div class="chip" id="hudLives">&#9829; 5</div>
   <div class="chip off" id="hudFizz">Fizzy Jet</div>
   <div class="chip" id="hudShield" hidden>&#9711; Shield</div>
   <div class="chip" id="hudMega" hidden>&#9733; Mega 8</div>
@@ -169,10 +185,11 @@ p{margin:0;line-height:1.45;color:var(--ink)}
     <div class="cardTop"><div class="eyebrow">Interstellar parcel service</div><div class="row"><a class="pillBtn" id="allGames" href="../../" hidden>&#8592; All games</a><button class="pillBtn" id="btnFull2">&#9974; Full screen</button></div></div>
     <p class="note" id="fullNote" hidden></p>
     <h1>Lost Luggage of the <span class="pink">Cosmos</span></h1>
-    <p>You are a space courier in fuzzy slippers. Deliver the mystery parcel across ten stops: a junkyard planet, a wobbly cruise ship, a talking asteroid, an icy comet, a hot sauce moon and the Galactic Lost &amp; Found, where the Baggage Beast is waiting.</p>
+    <p>You are a space courier in fuzzy slippers. Deliver the mystery parcel across thirteen stops: a junkyard planet, a wobbly cruise ship, a talking asteroid, an icy comet, a hot sauce moon and the Galactic Lost &amp; Found, where the Baggage Beast is waiting. Then follow the Star Compass into the Cosmic Vault.</p>
     <div class="row">
       <button class="btn" id="btnStart">Start delivery</button>
       <button class="btn pink" id="btnDemo">Watch demo</button>
+      <button class="btn alt" id="btnShop">Shop</button>
       <button class="btn alt" id="btnTilt" hidden>Use tilt</button>
       <button class="btn alt" id="btnScores">High scores</button>
       <button class="btn alt" id="btnSound">Sound: on</button>
@@ -184,10 +201,12 @@ p{margin:0;line-height:1.45;color:var(--ink)}
       <dt>Stomp</dt><dd>Land on robots, jellies, hoppers and drones. Touching them from the side costs a slipper (a life).</dd>
       <dt>Ouch!</dt><dd>Spiky snails and fire flares can't be stomped: jump over them. Stay out of the hot sauce.</dd>
       <dt>Power-ups</dt><dd>Blue bubble: a shield that blocks one hit. Rainbow star: Mega Fuzz, 8 seconds of smashing through everything.</dd>
+      <dt>Coins</dt><dd>Every bolt pays 3 coins into your bank. Collect 150 coins in a run and you earn an extra slipper, on the spot!</dd>
+      <dt>Shop</dt><dd>Spend saved coins on skins, hats, fun items and next-run power-ups. Look for hidden spare slippers on high shelves!</dd>
       <dt>Purple zones</dt><dd>Gravity flips! Walk on the ceiling.</dd>
       <dt>Pause</dt><dd>P or Esc. M turns sound on or off. F toggles full screen.</dd>
     </dl>
-    <p class="note" id="titleNote">Top score: <span id="bestScore">0</span></p>
+    <p class="note" id="titleNote">Top score: <span id="bestScore">0</span> &middot; Coin bank: <span id="bankCoins">0</span></p>
     <p class="note" id="botNote" hidden></p>
   </div>
 </section>
@@ -249,9 +268,9 @@ p{margin:0;line-height:1.45;color:var(--ink)}
 <!-- Win -->
 <section class="screen" id="scrWin" hidden>
   <div class="card">
-    <div class="eyebrow">All deliveries complete</div>
-    <h2>The parcel has arrived!</h2>
-    <p>You beat the Baggage Beast and delivered the parcel. Inside: a second, slightly smaller mystery parcel. Customer satisfaction is off the charts.</p>
+    <div class="eyebrow">Vault opened</div>
+    <h2>The Cosmic Vault is yours!</h2>
+    <p>You beat the Baggage Beast, delivered the parcel, followed the Star Compass and opened the Cosmic Vault. The treasure: a mountain of forgotten socks, three bars of star gold and one very soft blanket. Customer satisfaction: immeasurable.</p>
     <p class="stat">Final bolts: <span id="winScore">0</span></p>
     <p class="stat beat" id="winBeat" hidden>You beat the bot!</p>
     <div class="hs" id="hsWin"></div>
@@ -269,8 +288,20 @@ p{margin:0;line-height:1.45;color:var(--ink)}
   </div>
 </section>
 
+<!-- Shop -->
+<section class="screen" id="scrShop" hidden>
+  <div class="card">
+    <div class="eyebrow">Spend your saved coins</div>
+    <h2>The Shop at the End of the Galaxy</h2>
+    <p class="shopBank"><span class="note">Coins are earned by collecting bolts. Every 150 coins also earns an extra slipper mid-run.</span>
+      <span class="stat">Coin bank: <span id="shopBank">0</span></span></p>
+    <div id="shopList"></div>
+    <div class="row"><button class="btn" id="btnShopBack">Back to title</button></div>
+  </div>
+</section>
+
 <!-- BOT-SCORES-START -->
-<script>window.BOT_SCORES = {"game":"Lost Luggage of the Cosmos","bots":{"evolutionary":{"label":"Evolution Bot","start":895,"mid":3080,"best":6045,"won":true,"passes":[895,975,1940,2440,3080,4055,4525,4860,4885,6045]}},"updated":"2026-11-15T18:17:26Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":6045,"won":true}};</script>
+<script>window.BOT_SCORES = {"game":"Lost Luggage of the Cosmos","bots":{"evolutionary":{"label":"Evolution Bot","start":2770,"mid":5165,"best":8335,"won":true,"passes":[2770,3600,4325,4590,5165,5560,5575,6850,7795,8335]}},"updated":"2026-11-16T03:49:19Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":8335,"won":true}};</script>
 <!-- BOT-SCORES-END -->
 
 <script>
@@ -309,6 +340,9 @@ const CFG = {
   MEGA_TIME: 8,          // seconds of Mega Fuzz
   MEGA_SPEED: 1.3,       // Mega Fuzz runs this much faster
   BOSS_HP: 5,            // stomps to beat the Baggage Beast
+  MINI_HP: 3,            // stomps to beat the Grand Saucier (level 6 mini-boss)
+  COINS_PER_BOLT: 3,     // every bolt drops this many coins into your bank
+  COINS_PER_LIFE: 150,   // collect this many coins in a run to earn an extra slipper
 };
 
 /* ---------- LEVELS ----------
@@ -322,10 +356,13 @@ const CFG = {
    ~ slippery ice (solid)            % hot sauce / lava (hurts, not solid)
    S Bubble Shield (blocks one hit)  M Mega Fuzz (8 s unstoppable rainbow run)
    H Comet Hopper (jumps at you)     U Snoop Drone (flies back and forth)
-   K Spiky Space Snail (can't be stomped: jump over it)
-   F Fire Flare (leaps out of the sauce it sits in; can't be stomped)
-   X the Baggage Beast (boss)        ! boss fence (invisible; the boss can't go left of it)
-   Level options: speed (enemy speed, 1 = normal), boss: true (the Delivery Pad stays locked until the boss is beaten).
+    K Spiky Space Snail (can't be stomped: jump over it)
+    F Fire Flare (leaps out of the sauce it sits in; can't be stomped)
+    X the Baggage Beast (boss)        Y the Grand Saucier (mini-boss, 3 stomps)
+    1 a secret spare slipper (+1 life; hidden off the main path)
+    ! boss fence (invisible; the boss can't go left of it, and wakes up when the courier passes it)
+    Level options: speed (enemy speed, 1 = normal), boss: true (the Delivery Pad stays locked until the boss is beaten),
+    miniboss: true (same lock, but the intro says Mini-boss), outro (text shown on the level-complete screen).
    Rows can be different lengths; short rows are padded with spaces. */
 const LEVELS = [
   {
@@ -337,6 +374,7 @@ const LEVELS = [
       { x: 4, who: 'Dispatch', text: 'Courier! This parcel must reach the Delivery Pad. Do not shake it. It hums.' },
       { x: 23, who: 'Dispatch', text: 'Vending robots ahead. They are grumpy because nobody ever has exact change. Stomp them!' },
       { x: 58, who: 'Dispatch', text: 'A Fizzy Jet can! Jump, then press jump again in the air for a burp boost.' },
+      { x: 86, who: 'Dispatch', text: 'Psst. Courier rumour: a spare slipper hides on the high shelf by the exit. Burp-jump up and look around!' },
       { x: 97, who: 'Dispatch', text: 'The Delivery Pad is just ahead. Walk onto the glowing light.' },
     ],
     map: [
@@ -345,7 +383,7 @@ const LEVELS = [
       '',
       '',
       '',
-      '                                                                                         *',
+      '                                                                                        1*',
       '                                                                                        ===',
       '                                                                             **',
       '                                          *',
@@ -476,15 +514,17 @@ const LEVELS = [
   },
   {
     name: 'Hot Sauce Moon',
-    intro: 'A moon covered in bubbling hot sauce. Do not step in it! Fire Flares jump out of the sauce, and the rainbow Mega Fuzz makes you unstoppable.',
+    intro: 'A moon covered in bubbling hot sauce. Do not step in it! Fire Flares leap from the sauce, the rainbow Mega Fuzz makes you unstoppable, and the GRAND SAUCIER guards the exit. Stomp its lid 3 times!',
     sky: ['#1a0505', '#8a2a12'], rock: ['#5a2f2a', '#b5604a'], metal: ['#7c5a52', '#d49a82'], bgDecor: 'lava', speed: 1.1,
+    miniboss: true,
     music: { root: 57, scale: [0, 3, 5, 6, 7, 10], tempo: 0.13 },
     messages: [
       { x: 4, who: 'Dispatch', text: 'Hot Sauce Moon. The orange stuff is extra spicy. One touch costs a slipper.' },
       { x: 34, who: 'Dispatch', text: 'Fire Flares leap out of the sauce. Wait for them to drop, then jump.' },
       { x: 45, who: 'Dispatch', text: 'A rainbow Mega Fuzz! For 8 seconds you run faster and smash anything you touch. GO GO GO!' },
       { x: 95, who: 'Dispatch', text: 'Fizzy Jet can before the cliff. You know what to do.' },
-      { x: 150, who: 'Dispatch', text: 'Hop the last pits and you are done here.' },
+      { x: 118, who: 'Dispatch', text: 'Something big stirs the sauce ahead: the GRAND SAUCIER. It runs every sauce trade on this moon, and it hates couriers.' },
+      { x: 128, who: 'Dispatch', text: 'Stomp the Saucier\u2019s lid 3 times to unlock the Delivery Pad. Dodge the sauce blobs, or stomp them back for bolts!' },
     ],
     map: [
       '',
@@ -493,15 +533,15 @@ const LEVELS = [
       '',
       '',
       '',
-      '',
-      '',
-      '',
-      '                                                                                                             * *      C    R',
-      '                                        *        M                             *                            ##################         *    *',
-      '                  *                             ###                                                         ##################',
-      '  P  * * *                 R   * *                      R   K   R    *  C              H    S     *  B  *   ##################                         K   * *     D',
-      '#################%%%##################%%F%####################################%F%######################################################%%F####%%F###################',
-      '####################################################################################################################################################################',
+      '                                                                                                                          ***',
+      '                                                                                                                          ===',
+      '                                                                                                      *    *    *',
+      '                                                                                                   ##################               *    *    *',
+      '                                                M                                                  ##################',
+      '                                               ###                                                 ##################',
+      '  P  * * *              R   * *             R     K   R    *    C     H             * * * S K C  B ##################   *  *    !     Y               D',
+      '#################%%%##################%%F%####################################%F%###########################################################################',
+      '############################################################################################################################################################',
     ],
   },
   {
@@ -595,9 +635,10 @@ const LEVELS = [
   },
   {
     name: 'The Baggage Beast',
-    intro: 'The Baggage Beast is a giant angry suitcase guarding the last Delivery Pad. Jump on its head 5 times. Dodge the suitcases it throws!',
+    intro: 'The Baggage Beast is a giant angry suitcase guarding the parcel\u2019s Delivery Pad. Jump on its head 5 times. Dodge the suitcases it throws!',
     sky: ['#14081c', '#4a1838'], rock: ['#3f2848', '#9a5aa8'], metal: ['#6b5a80', '#e0c8f0'], bgDecor: 'claim', speed: 1.3,
     boss: true,
+    outro: 'The parcel is delivered! The customer tears it open and finds\u2026 a glowing STAR COMPASS, pointing past the Lost & Found, into the cosmic dark. Three stops to go!',
     music: { root: 55, scale: [0, 3, 5, 7, 10], tempo: 0.14 },
     messages: [
       { x: 4, who: 'Warehouse bot', text: 'Grab the bubble and the fizzy can. Then step into the arena.' },
@@ -619,6 +660,101 @@ const LEVELS = [
       '  P  * * *      *     B     C   !                      X     D      ==',
       '======================================================================',
       '######################################################################',
+    ],
+  },
+
+  /* ---- THE COSMIC VAULT: three bonus levels after the final boss.
+     The delivered parcel held a Star Compass pointing here. New biome 'vault'. */
+  {
+    name: 'The Vault Doors',
+    intro: 'The parcel held a surprise: a STAR COMPASS pointing past the Lost & Found. Follow it to the Cosmic Vault. Mind the security drones, the gaps and the tall doors.',
+    sky: ['#0d0718', '#3a2160'], rock: ['#4a3a6a', '#8a6aa8'], metal: ['#c9a24a', '#ffe9a8'], bgDecor: 'vault', speed: 1.15,
+    music: { root: 64, scale: [0, 2, 4, 7, 9], tempo: 0.13 },
+    messages: [
+      { x: 3, who: 'The Star Compass', text: 'The parcel is delivered — and inside it was ME, the Star Compass! I point at treasure. Follow me!' },
+      { x: 18, who: 'The Star Compass', text: 'The Cosmic Vault: where the galaxy stores things it forgot it had. Mind the gaps.' },
+      { x: 48, who: 'The Star Compass', text: 'A Fizzy Jet can! The Vault Doors ahead are tall. Burp over them.' },
+      { x: 62, who: 'The Star Compass', text: 'Vault security: hoppers and drones. They are paid in lint. Do not tell them.' },
+      { x: 96, who: 'The Star Compass', text: 'That Mega Fuzz is on loan from the Vault lost-and-found. Return it fully smashed.' },
+      { x: 116, who: 'The Star Compass', text: 'The Doors open for couriers with clean slippers. Yours are\u2026 acceptable.' },
+    ],
+    map: [
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '                                                       *',
+      '                                                      ####          U',
+      '                          U                           ####                                                U',
+      '                    *                                 ####',
+      '  P  * * *  R     C     *   *   R     K     C     B   ####    H * *   *   C M       R   R   K   S   *   C   * *         D',
+      '####################  ########################   ##############################   ##############################################',
+      '####################  ########################   ##############################   ##############################################',
+    ],
+  },
+  {
+    name: 'The Vault of Forgotten Socks',
+    intro: 'Deep in the Vault: mountains of single socks, spare gravity in the purple room, and the best-hidden spare slipper in the galaxy. Walk on the ceiling past the icicles.',
+    sky: ['#0a0614', '#2a1a4e'], rock: ['#3f3260', '#7a68a8'], metal: ['#c9a24a', '#ffe9a8'], bgDecor: 'vault', speed: 1.2,
+    music: { root: 62, scale: [0, 3, 5, 7, 10], tempo: 0.125 },
+    messages: [
+      { x: 3, who: 'The Star Compass', text: 'Psst — mind the lint above the door. Lost things love gathering there.' },
+      { x: 14, who: 'The Star Compass', text: 'A Fizzy Jet can! Some shelves in this Vault are taller than they look.' },
+      { x: 44, who: 'The Star Compass', text: 'Purple gravity room! The Vault stores spare gravity here. Walk on the ceiling and hop the icicles.' },
+      { x: 82, who: 'The Vault', text: 'Welcome to the Vault of Forgotten Socks. Single socks only. The pairs are legend.' },
+      { x: 108, who: 'The Vault', text: 'A Mega Fuzz! The sock guardians will remember this day.' },
+      { x: 126, who: 'The Vault', text: 'The last shelf. Behind it: the Treasure Room. Mind the snail; it is wearing a sock.' },
+    ],
+    map: [
+      '############################################################################################################################################',
+      '############################################################################################################################################',
+      '                                                          GGGGGGGGvvGGGGGvvGGGG',
+      '                                                          GG*GGGGGGGGG*GGGGG*GG',
+      '                                                          GGGGGGGGGGGGGGGGGGGGG',
+      '                                                          GGGGGGGGGGGGGGGGGGGGG',
+      '                                                          GGGGGGGGGGGGGGGGGGGGG',
+      '                                                          GGGGGGGGGGGGGGGGGGGGG',
+      '       1                                                  GGGGGGGGGGGGGGGGGGGGG',
+      '      ===       ####                                      GGGGGGGGGGGGGGGGGGGGG',
+      '                                     U                    GGGGGGGGGGGGGGGGGGGGG',
+      '                                     *                    GGGGGGGGGGGGGGGGGGGGG',
+      '  P  * * *    B ####    R     C  K          C     H * *   GGGGGGGGGGGGGGGGGGGGG   * * * S   R   C   K     * * * M   R * R * K *     D',
+      '####################################   #####################################################################################################',
+      '####################################   #####################################################################################################',
+    ],
+  },
+  {
+    name: 'The Treasure Room',
+    intro: 'The Vault opens its last door: the Treasure Room. Guardian goo, a treasure chute, one last Mega Fuzz — and a pile of star gold by the exit.',
+    sky: ['#140a20', '#4a2a6e'], rock: ['#4a3a6a', '#9a7ac8'], metal: ['#d4ac4a', '#fff0b8'], bgDecor: 'vault', speed: 1.1,
+    music: { root: 60, scale: [0, 2, 4, 5, 7, 9, 11], tempo: 0.12 },
+    messages: [
+      { x: 3, who: 'The Vault', text: 'The Treasure Room. Take what you can carry. The socks are worth more than the gold, honestly.' },
+      { x: 24, who: 'The Vault', text: 'The treasure chute! It sweeps lost treasure (and couriers) along. Ride it.' },
+      { x: 46, who: 'The Vault', text: 'The guardian goo jellies bounce. A friendly stomp says hello.' },
+      { x: 60, who: 'The Vault', text: 'One Mega Fuzz, on the house. Smash responsibly.' },
+      { x: 82, who: 'The Vault', text: 'The treasure pile! And there, past the last guardians: the way out. It has been quite a journey.' },
+    ],
+    map: [
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '                                    J                                                         J',
+      '              J                                       J                                   J',
+      '                                                          *',
+      '  P  ****   *   *   R C     * * *     * * *   S   C           M * R * R * K *   C   *****             D',
+      '########################   >>>>>>>#######################   ##################################################',
+      '########################   >>>>>>>#######################   ##################################################',
     ],
   },
 ];
@@ -678,6 +814,75 @@ const Scores = {
     return i < this.MAX ? i : -1;
   },
   cleanInitials(v) { return (v || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); },
+};
+
+// ---------- COIN BANK: saved between visits, spent in the Shop ----------
+// Every bolt drops CFG.COINS_PER_BOLT coins here. Bot and demo runs never touch it
+// (same rule as high scores), so tests never change a player's bank.
+const Bank = {
+  get() { const n = parseInt(store.get('bank', 0), 10); return Number.isFinite(n) ? Math.max(0, n) : 0; },
+  add(n) {
+    if (Game.demo || Hook.mode || !n) return;               // never in demo or test runs
+    store.set('bank', Math.max(0, this.get() + n));
+  },
+};
+
+// ---------- SHOP: skins, hats, fun items and one-run boosts bought with bank coins ----------
+// Skins recolour the courier, hats sit on the helmet, fun items add little jokes,
+// boosts are consumed by the next real run (Game.startRun). All saved in localStorage.
+const Shop = {
+  CATALOG: [
+    { id: 'skinClassic', kind: 'skin', name: 'Classic Courier', blurb: 'The orange suit you already love.', price: 0 },
+    { id: 'skinMint', kind: 'skin', name: 'Mint Suit', blurb: 'Cool mint jacket. Extra fresh.', price: 250 },
+    { id: 'skinGrape', kind: 'skin', name: 'Grape Nova', blurb: 'Deep purple. Very cosmic.', price: 400 },
+    { id: 'skinGold', kind: 'skin', name: 'Golden Courier', blurb: 'Gold jacket, gold helmet. Fancy.', price: 800 },
+    { id: 'hatParty', kind: 'hat', name: 'Party Hat', blurb: 'A cone hat with a pom. Party on.', price: 150 },
+    { id: 'hatBeanie', kind: 'hat', name: 'Propeller Beanie', blurb: 'The propeller spins. It does not fly. Yet.', price: 300 },
+    { id: 'hatTop', kind: 'hat', name: 'Top Hat of Deliveries', blurb: 'For fancy parcels only.', price: 500 },
+    { id: 'funShades', kind: 'fun', name: 'Star Shades', blurb: 'Sunglasses. In space. Obviously.', price: 250 },
+    { id: 'funTrail', kind: 'fun', name: 'Confetti Trail', blurb: 'Leave a tiny party behind you.', price: 350 },
+    { id: 'funHonk', kind: 'fun', name: 'Honk Slippers', blurb: 'Your jumps honk like a space goose.', price: 200 },
+    { id: 'boostShield', kind: 'boost', name: 'Shield Start', blurb: 'Your next run starts with a Bubble Shield.', price: 150 },
+    { id: 'boostLife', kind: 'boost', name: 'Bonus Life', blurb: 'Your next run starts with one extra slipper.', price: 300 },
+    { id: 'boostDouble', kind: 'boost', name: 'Double Coins Run', blurb: 'Next run, every bolt pays double coins.', price: 500 },
+  ],
+  data: store.get('shop', { owned: [], skin: 'skinClassic', hat: '', fun: [], boosts: {} }),
+  save() { store.set('shop', this.data); },
+  item(id) { return this.CATALOG.find(i => i.id === id); },
+  owned(id) { return id === 'skinClassic' || this.data.owned.includes(id); },
+  wearCount() { return this.data.owned.filter(id => this.item(id) && this.item(id).kind !== 'boost').length; },
+  // buy: returns true if it worked (enough coins, not already owned)
+  buy(id) {
+    const it = this.item(id); if (!it || this.owned(id) || Bank.get() < it.price) return false;
+    Bank.add(-it.price);
+    if (it.kind === 'boost') this.data.boosts[id] = (this.data.boosts[id] || 0) + 1;
+    else {
+      this.data.owned.push(id);
+      if (it.kind === 'skin') this.data.skin = id;   // wear it straight away
+      if (it.kind === 'hat') this.data.hat = id;
+    }
+    this.save(); return true;
+  },
+  wear(id) {
+    const it = this.item(id); if (!it || !this.owned(id)) return;
+    if (it.kind === 'skin') this.data.skin = id;
+    if (it.kind === 'hat') this.data.hat = this.data.hat === id ? '' : id;
+    if (it.kind === 'fun') this.data.fun = this.data.fun.includes(id) ? this.data.fun.filter(f => f !== id) : this.data.fun.concat(id);
+    this.save();
+  },
+  hasFun(id) { return this.data.fun.includes(id); },
+  // boosts: one use per purchase, consumed by the next real run
+  boostsLeft(id) { return this.data.boosts[id] || 0; },
+  takeBoost(id) { if (this.boostsLeft(id) > 0) { this.data.boosts[id]--; this.save(); return true; } return false; },
+  // colours for the courier, per worn skin
+  look() {
+    return {
+      skinClassic: { jacket: '#ff8a3d', belt: '#c75f1d', helmet: '#e8f0ff', visor: '#2fd2ff' },
+      skinMint: { jacket: '#5fe8b0', belt: '#2fa07a', helmet: '#eafff4', visor: '#2fd2ff' },
+      skinGrape: { jacket: '#a06fe8', belt: '#6b3fa8', helmet: '#f0e8ff', visor: '#ffd24d' },
+      skinGold: { jacket: '#ffd34d', belt: '#c98f1a', helmet: '#fff3c8', visor: '#5dc8ff' },
+    }[this.data.skin] || { jacket: '#ff8a3d', belt: '#c75f1d', helmet: '#e8f0ff', visor: '#2fd2ff' };
+  },
 };
 
 // test hook state (the hook itself is defined at the end of this script; see TEST HOOK)
@@ -745,6 +950,9 @@ const Sound = {
       case 'throw': this.tone(220, 0.15, { type: 'square', slide: 300, vol: 0.12 }); break;
       case 'bossHit': this.tone(160, 0.3, { type: 'sawtooth', slide: -100, vol: 0.35 }); this.tone(880, 0.1, { vol: 0.15, delay: 0.05 }); break;
       case 'bossDown': [196, 165, 131, 98].forEach((f, i) => this.tone(f, 0.3, { type: 'sawtooth', vol: 0.3, delay: i * 0.15 })); this.noise(1, { vol: 0.25, freq: 400, delay: 0.5 }); break;
+      case 'life': [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.14, { type: 'triangle', vol: 0.2, delay: i * 0.08 })); break;
+      case 'honk': this.tone(196, 0.12, { type: 'square', slide: 60, vol: 0.22 }); this.tone(147, 0.16, { type: 'square', slide: 40, vol: 0.2, delay: 0.11 }); break;
+      case 'buy': this.tone(988, 0.08, { vol: 0.2 }); this.tone(1319, 0.14, { vol: 0.2, delay: 0.07 }); this.tone(196, 0.16, { type: 'triangle', vol: 0.25, delay: 0.05 }); break;
     }
   },
   // Tiny step sequencer: bass on beats, an arpeggio from the level's scale.
@@ -965,14 +1173,17 @@ function loadLevel(idx) {
       else if (ch === 'B') { L.items.push({ type: 'can', x, y, got: false }); grid[y][x] = ' '; }
       else if (ch === 'S') { L.items.push({ type: 'shield', x, y, got: false }); grid[y][x] = ' '; }
       else if (ch === 'M') { L.items.push({ type: 'mega', x, y, got: false }); grid[y][x] = ' '; }
+      else if (ch === '1') { L.items.push({ type: 'life', x, y, got: false }); grid[y][x] = ' '; }
       else if (ch === 'R') foe({ type: 'robot', x: x + 0.1, y: y + 0.05, w: 0.8, h: 0.95, vx: -CFG.ROBOT_SPEED * sp });
       else if (ch === 'J') foe({ type: 'jelly', x: x + 0.1, y: y + 0.1, baseY: y + 0.1, w: 0.8, h: 0.8 });
       else if (ch === 'H') foe({ type: 'hopper', x: x + 0.12, y: y + 0.3, w: 0.76, h: 0.7, wait: CFG.HOPPER_WAIT * (0.5 + (x % 3) * 0.25) });
       else if (ch === 'U') foe({ type: 'drone', x: x + 0.1, y: y + 0.15, baseY: y + 0.15, homeX: x + 0.1, w: 0.8, h: 0.6, vx: -CFG.DRONE_SPEED * sp });
       else if (ch === 'K') foe({ type: 'snail', x: x + 0.1, y: y + 0.3, w: 0.8, h: 0.7, vx: -CFG.SNAIL_SPEED * sp, spiky: true });
       else if (ch === 'F') { foe({ type: 'flare', x: x + 0.15, y: y + 0.6, baseY: y + 0.2, w: 0.7, h: 0.7, t: (x * 0.37) % CFG.FLARE_PERIOD, spiky: true }); grid[y][x] = '%'; }
-      else if (ch === 'X') { L.boss = { x: x, y: y + 1 - 2.0, w: 2.4, h: 2.0, home: { x, y: y + 1 - 2.0 }, vx: 0, vy: 0, hp: CFG.BOSS_HP, max: CFG.BOSS_HP,
+      else if (ch === 'X') { L.boss = { kind: 'beast', x: x, y: y + 1 - 2.0, w: 2.4, h: 2.0, home: { x, y: y + 1 - 2.0 }, vx: 0, vy: 0, hp: CFG.BOSS_HP, max: CFG.BOSS_HP,
         alive: true, awake: false, onGround: false, inv: 0, hopT: 2.5, throwT: 2, t: 0, face: -1, dead: 0, mouth: 0 }; grid[y][x] = ' '; }
+      else if (ch === 'Y') { L.boss = { kind: 'saucier', x: x + 0.1, y: y + 1 - 1.6, w: 1.8, h: 1.6, home: { x: x + 0.1, y: y + 1 - 1.6 }, vx: 0, vy: 0, hp: CFG.MINI_HP, max: CFG.MINI_HP,
+        alive: true, awake: false, onGround: false, inv: 0, hopT: 2.0, throwT: 1.6, t: 0, face: -1, dead: 0, mouth: 0 }; grid[y][x] = ' '; }
       else if (ch === '!') { L.fenceX = x; grid[y][x] = ' '; }
       else if (ch === 'C') { L.checkpoints.push({ x, y, on: false }); grid[y][x] = ' '; }
       else if (ch === 'D') { L.goal = { x, y }; grid[y][x] = ' '; }
@@ -984,7 +1195,7 @@ function loadLevel(idx) {
     for (let x = 0; x < W; x++) {
       const raw = rows[y][x] || ' ';
       const near = k => (rows[y][x + k] || ' ') === 'G';
-      L.zone[y][x] = raw === 'G' || ('v^*BRJCSMHUK'.includes(raw) && (near(-1) || near(1) || near(-2) || near(2)));
+      L.zone[y][x] = raw === 'G' || ('v^*BRJCSMHUK1'.includes(raw) && (near(-1) || near(1) || near(-2) || near(2)));
       if (raw === 'G') grid[y][x] = ' ';
     }
   }
@@ -1033,14 +1244,28 @@ const Game = {
       hasFizz: false, burpUsed: false, invuln: 0, walk: 0, respawn: { x: at.x, y: at.y }, standTile: null,
       shield: false, mega: 0 };   // power-ups: Bubble Shield (blocks one hit) and Mega Fuzz (seconds left)
   },
-  startRun() { this.score = 0; this.lives = CFG.START_LIVES; this.levelIdx = 0; this.showIntro(); },
+  startRun() {
+    this.score = 0; this.lives = CFG.START_LIVES; this.coinsRun = 0; this.coinMeter = 0; this.coinMult = 1;
+    this.startShield = false; this.boostNote = null;
+    // one-run boosts bought in the Shop (bots and the demo never start runs this way, so they never use them)
+    const used = [];
+    if (Shop.takeBoost('boostLife')) { this.lives++; used.push('an extra slipper'); }
+    if (Shop.takeBoost('boostShield')) { this.startShield = true; used.push('a Bubble Shield'); }
+    if (Shop.takeBoost('boostDouble')) { this.coinMult = 2; used.push('double coins'); }
+    if (used.length) this.boostNote = 'Shop boosts on: ' + used.join(' + ') + '!';
+    this.levelIdx = 0; this.showIntro();
+  },
   showIntro() {
     this.level = loadLevel(this.levelIdx); this.player = this.newPlayer(this.level.start);
+    if (this.startShield) { this.player.shield = true; this.startShield = false; }  // shield boost: only the very first spawn
     this.levelStartScore = this.score; this.particles = []; this.banner = null;
     resize(); updateCamera(true);
     this.state = 'intro'; UI.show('scrIntro');
   },
-  beginLevel() { this.state = 'play'; UI.show(null); Sound.startMusic(this.level.def.music); },
+  beginLevel() {
+    this.state = 'play'; UI.show(null); Sound.startMusic(this.level.def.music);
+    if (this.boostNote && this.levelIdx === 0) { this.say('Shop', this.boostNote); this.boostNote = null; }
+  },
   restartLevel() { this.score = this.levelStartScore; this.showIntro(); },
   togglePause() {
     if (this.state === 'play') { this.state = 'paused'; UI.show('scrPause'); Sound.stopMusic(); }
@@ -1079,7 +1304,7 @@ const Game = {
     if (this.levelIdx >= LEVELS.length - 1) { document.getElementById('winScore').textContent = this.score; UI.beatBot('winBeat'); UI.endRun('hsWin', 'Delivered!'); UI.show('scrWin'); this.state = 'win'; return; }
     document.getElementById('completeScore').textContent = this.score;
     document.getElementById('completeTitle').textContent = LEVELS[this.levelIdx].name + ' done!';
-    document.getElementById('completeText').textContent = 'Next stop: ' + LEVELS[this.levelIdx + 1].name + '.';
+    document.getElementById('completeText').textContent = LEVELS[this.levelIdx].outro || 'Next stop: ' + LEVELS[this.levelIdx + 1].name + '.';
     UI.show('scrComplete');
   },
   nextLevel() { this.levelIdx++; this.showIntro(); },
@@ -1120,7 +1345,7 @@ const Game = {
     else p.jumpBuf = Math.max(0, p.jumpBuf - dt);
     p.coyote = p.onGround ? CFG.COYOTE : Math.max(0, p.coyote - dt);
     if (p.jumpBuf > 0 && p.coyote > 0) {
-      p.vy = -CFG.JUMP_V * p.gs; p.jumpBuf = 0; p.coyote = 0; p.onGround = false; Sound.sfx('jump');
+      p.vy = -CFG.JUMP_V * p.gs; p.jumpBuf = 0; p.coyote = 0; p.onGround = false; Sound.sfx(Shop.hasFun('funHonk') ? 'honk' : 'jump');
     } else if (p.jumpBuf > 0 && !p.onGround && p.hasFizz && !p.burpUsed && p.jumpBuf >= CFG.JUMP_BUFFER - dt) {
       // THE FIZZY JET: mid-air burp double jump
       p.vy = -CFG.BURP_V * p.gs; p.burpUsed = true; p.jumpBuf = 0; Sound.sfx('burp'); this.shake = 0.12;
@@ -1141,6 +1366,12 @@ const Game = {
     p.standTile = landed ? (p.gs > 0 ? hit.tileBelow : hit.tileAbove) : null;
     p.walk += Math.abs(p.vx) * dt * 2.2;
     if (p.invuln > 0) p.invuln -= dt;
+    // Confetti Trail (Shop fun item): a tiny party behind you while you move
+    if (Shop.hasFun('funTrail') && Math.abs(p.vx) > 1 && Math.random() < 0.35) {
+      this.particles.push({ x: p.x + p.w / 2 + (Math.random() - 0.5) * 0.4, y: p.gs > 0 ? p.y + p.h - 0.1 : p.y + 0.1,
+        vx: -p.vx * 0.2 + (Math.random() - 0.5), vy: (Math.random() * 2 - 1) * p.gs, life: 0.5, max: 0.5,
+        col: RAINBOW[Math.floor(Math.random() * 6)], size: 0.07 + Math.random() * 0.06 });
+    }
     if (p.mega > 0) {
       p.mega -= dt;
       if (Math.random() < 0.5) this.particles.push({ x: p.x + Math.random() * p.w, y: p.y + Math.random() * p.h, vx: -p.face * 2, vy: -1, life: 0.4, max: 0.4, col: RAINBOW[Math.floor(Game.t * 20 + Math.random() * 6) % 6], size: 0.12 });
@@ -1167,7 +1398,24 @@ const Game = {
       if (it.got) continue;
       if (overlap(p, { x: it.x + 0.2, y: it.y + 0.2, w: 0.6, h: 0.6 })) {
         it.got = true;
-        if (it.type === 'bolt') { this.score += 10; Sound.sfx('bolt'); this.burst(it.x + 0.5, it.y + 0.5, hex('#ffd34d'), 8, 4); }
+        if (it.type === 'bolt') {
+          this.score += 10; Sound.sfx('bolt'); this.burst(it.x + 0.5, it.y + 0.5, hex('#ffd34d'), 8, 4);
+          // COINS: every bolt pays coins into your bank; every 150 coins earns an extra slipper
+          const c = CFG.COINS_PER_BOLT * (this.coinMult || 1);
+          this.coinsRun = (this.coinsRun || 0) + c; this.coinMeter = (this.coinMeter || 0) + c; Bank.add(c);
+          if (!this.demo && !Hook.mode) {
+            while (this.coinMeter >= CFG.COINS_PER_LIFE) {
+              this.coinMeter -= CFG.COINS_PER_LIFE; this.lives++; Sound.sfx('life'); this.shake = 0.2;
+              this.burst(p.x + p.w / 2, p.y, hex('#ff6fb5'), 24, 6);
+              this.say('Dispatch', CFG.COINS_PER_LIFE + ' coins collected — an extra slipper earned! Keep going!');
+            }
+          }
+        }
+        else if (it.type === 'life') { // a secret spare slipper, hidden off the main path
+          if (!this.demo && !Hook.mode) this.lives++;
+          Sound.sfx('life'); this.burst(it.x + 0.5, it.y + 0.5, hex('#ff6fb5'), 26, 6);
+          this.say('Dispatch', 'A secret spare slipper! You feel cozier already.');
+        }
         else if (it.type === 'shield') { p.shield = true; this.score += 25; Sound.sfx('shield'); this.burst(it.x + 0.5, it.y + 0.5, hex('#8fe8ff'), 22, 6);
           this.say('Bubble Shield', 'Bubble on! The next thing that hits you just pops the bubble.'); }
         else if (it.type === 'mega') { p.mega = CFG.MEGA_TIME; this.score += 25; Sound.sfx('mega'); this.burst(it.x + 0.5, it.y + 0.5, hex('#ffffff'), 30, 7);
@@ -1255,9 +1503,9 @@ const Game = {
     // suitcases fly in arcs; stomp them for a few bolts, or dodge them
     for (const s of L.shots) {
       s.vy += 20 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.spin += dt * 8;
-      if (isSolid(L, Math.floor(s.x + s.w / 2), Math.floor(s.y + s.h / 2)) || s.y > L.H + 2) { s.dead = true; this.burst(s.x + s.w / 2, s.y + s.h / 2, hex('#c08a4a'), 8, 3); continue; }
+      if (isSolid(L, Math.floor(s.x + s.w / 2), Math.floor(s.y + s.h / 2)) || s.y > L.H + 2) { s.dead = true; this.burst(s.x + s.w / 2, s.y + s.h / 2, hex(s.blob ? '#ff8a1f' : '#c08a4a'), 8, 3); continue; }
       if (overlap(p, s)) {
-        if (p.vy > 0 && (p.y + p.h) - s.y < 0.45 && p.gs > 0) { s.dead = true; this.score += 20; Sound.sfx('stomp'); p.vy = -CFG.STOMP_BOUNCE; p.burpUsed = false; this.burst(s.x + s.w / 2, s.y, hex('#c08a4a'), 10, 4); }
+        if (p.vy > 0 && (p.y + p.h) - s.y < 0.45 && p.gs > 0) { s.dead = true; this.score += 20; Sound.sfx('stomp'); p.vy = -CFG.STOMP_BOUNCE; p.burpUsed = false; this.burst(s.x + s.w / 2, s.y, hex(s.blob ? '#ff8a1f' : '#c08a4a'), 10, 4); }
         else if (p.invuln <= 0 && p.mega <= 0) { s.dead = true; this.hurt(); return true; }
       }
     }
@@ -1267,16 +1515,18 @@ const Game = {
     if (!B.awake) {
       if (p.x > L.fenceX + 1.5) {
         B.awake = true; B.hopT = 2.0; B.throwT = 1.5; Sound.sfx('roar'); this.shake = 0.5;
-        this.say('The Baggage Beast', 'WHO TOUCHED MY LUGGAGE?! Nothing leaves the Lost and Found. NOTHING!');
+        if (B.kind === 'saucier') this.say('The Grand Saucier', 'WHO tracks sauce through MY kitchen?! ...Fine. Wrong moon. STILL! Taste the ladle!');
+        else this.say('The Baggage Beast', 'WHO TOUCHED MY LUGGAGE?! Nothing leaves the Lost and Found. NOTHING!');
         Sound.startMusic(BOSS_SONG);
       }
       return false;
     }
     B.t += dt; B.inv = Math.max(0, B.inv - dt); B.mouth = Math.max(0, B.mouth - dt);
     const anger = 1 + (B.max - B.hp) * 0.15;            // faster after every stomp
+    const mini = B.kind === 'saucier';                 // the Grand Saucier: smaller, quicker, throws sauce blobs
     const dx = (p.x + p.w / 2) - (B.x + B.w / 2), dir = dx >= 0 ? 1 : -1;
     if (B.onGround) {
-      const want = B.inv > 0 ? -dir * 3.2 : dir * 1.9 * anger;   // backs off for a moment after being stomped
+      const want = B.inv > 0 ? -dir * 3.2 : dir * (mini ? 1.7 : 1.9) * anger;   // backs off for a moment after being stomped
       B.vx += clamp(want - B.vx, -20 * dt, 20 * dt);
       B.face = dir;
     }
@@ -1287,26 +1537,32 @@ const Game = {
     if (hit.left || hit.right) B.vx = 0;
     if (B.x < L.fenceX + 1) { B.x = L.fenceX + 1; B.vx = 0; }
     B.hopT -= dt;
-    if (B.hopT <= 0 && B.onGround) { B.vy = -12; B.hopT = 2.8 / anger; }
+    if (B.hopT <= 0 && B.onGround) { B.vy = mini ? -10 : -12; B.hopT = (mini ? 2.2 : 2.8) / anger; }
     B.throwT -= dt;
     if (B.throwT <= 0) {
-      B.throwT = 3.4 / anger; B.mouth = 0.4; Sound.sfx('throw');
-      L.shots.push({ x: B.x + B.w / 2 - 0.3, y: B.y - 0.3, w: 0.6, h: 0.5, vx: dir * 4.5, vy: -9, spin: 0, col: SUITCASE_COLORS[(B.max - B.hp + L.shots.length) % SUITCASE_COLORS.length] });
+      B.throwT = (mini ? 2.6 : 3.4) / anger; B.mouth = 0.4; Sound.sfx('throw');
+      L.shots.push({ x: B.x + B.w / 2 - 0.3, y: B.y - 0.3, w: 0.6, h: 0.5, vx: dir * (mini ? 4.2 : 4.5), vy: mini ? -7.5 : -9,
+        spin: 0, blob: mini, col: SUITCASE_COLORS[(B.max - B.hp + L.shots.length) % SUITCASE_COLORS.length] });
     }
-    // touching the Beast: stomp its head, or get hurt
+    // touching the boss: stomp its head, or get hurt
     if (overlap(p, B)) {
       const feetGap = (p.y + p.h) - B.y;
       if (p.gs > 0 && p.vy > 0 && feetGap < 0.8) {
         p.vy = -CFG.STOMP_BOUNCE * 1.2; p.burpUsed = false;
         if (B.inv <= 0) {
-          B.hp--; B.inv = 1.3; this.score += 100; Sound.sfx('bossHit'); this.shake = 0.4;
+          B.hp--; B.inv = mini ? 1.2 : 1.3; this.score += 100; Sound.sfx('bossHit'); this.shake = 0.4;
           this.burst(p.x + p.w / 2, B.y, hex('#ffd34d'), 20, 6);
           if (B.hp <= 0) {
-            B.alive = false; this.score += 500; Sound.sfx('bossDown'); this.shake = 0.8; L.shots = [];
-            for (let i = 0; i < 4; i++) this.burst(B.x + Math.random() * B.w, B.y + Math.random() * B.h, hex(SUITCASE_COLORS[i]), 18, 8);
-            this.say('The Baggage Beast', 'Okay, OKAY! Take your parcel! ...Can I keep the lamp?');
+            B.alive = false; this.score += mini ? 300 : 500; Sound.sfx('bossDown'); this.shake = 0.8; L.shots = [];
+            for (let i = 0; i < 4; i++) this.burst(B.x + Math.random() * B.w, B.y + Math.random() * B.h, hex(mini ? '#ff8a1f' : SUITCASE_COLORS[i]), 18, 8);
+            if (mini) this.say('The Grand Saucier', 'Okay, OKAY! The moon is yours. Take the pad. Mind the sauce on your way out. It stains.');
+            else this.say('The Baggage Beast', 'Okay, OKAY! Take your parcel! ...Can I keep the lamp?');
             Sound.startMusic(L.def.music);
-          } else this.say('The Baggage Beast', ['OOF! My zipper!', 'Hey! That is my good handle!', 'Grrr! Stop stomping my stickers!', 'One more and I am filing a complaint!'][B.max - B.hp - 1] || 'OOF!');
+          } else this.say(B.kind === 'saucier' ? 'The Grand Saucier' : 'The Baggage Beast',
+            (mini
+              ? ['MY LID! My beautiful lid!', 'Hey! That was my tasting spoon!', 'One more stomp and I retire to make fondue!']
+              : ['OOF! My zipper!', 'Hey! That is my good handle!', 'Grrr! Stop stomping my stickers!', 'One more and I am filing a complaint!']
+            )[B.max - B.hp - 1] || 'OOF!');
         }
       } else if (p.mega > 0 || p.invuln > 0) {
         p.vx = -dir * 8; // bounce off
@@ -1438,6 +1694,27 @@ function drawBackground(L) {
       tri(lx - T * 0.6, R.H * 0.1 + T * 0.4, lx, R.H * 0.1, lx + T * 0.6, R.H * 0.1 + T * 0.4, hex('#8c80b0'));
       tri(lx - T * 0.6, R.H * 0.1 + T * 0.4, lx + T * 0.6, R.H * 0.1 + T * 0.4, lx, R.H * 0.6, hex('#ffe9a8', 0.06));
     }
+  } else if (def.bgDecor === 'vault') {
+    // VAULT BIOME: a giant golden vault door, sock-shaped hills and rising sparkles
+    const cx = R.W * 0.68 + par(0.04), cy = R.H * 0.36, r = R.H * 0.24;
+    scircle(cx, cy, r, hex('#6a5620', 0.9), 40, hex('#3a2f10', 0.9));
+    for (let i = 0; i < 8; i++) { // spokes of the door
+      const a1 = i / 8 * Math.PI * 2 + 0.2, a2 = (i + 0.5) / 8 * Math.PI * 2 + 0.2;
+      tri(cx, cy, cx + Math.cos(a1) * r * 0.94, cy + Math.sin(a1) * r * 0.94, cx + Math.cos(a2) * r * 0.94, cy + Math.sin(a2) * r * 0.94, hex('#8a7428', 0.55));
+    }
+    scircle(cx, cy, r * 0.2, hex('#c9a24a', 0.95), 24, hex('#8a7428', 0.95));
+    scircle(cx, cy, r * 0.07, hex('#ffe9a8', 0.95), 16);
+    const rr = rng(17); // single socks, of course
+    for (let i = 0; i < 12; i++) {
+      const w2 = R.H * (0.28 + rr() * 0.22), h2 = R.H * (0.14 + rr() * 0.16), x2 = ((i * R.H * 0.5 + par(0.22)) % (R.W + R.H * 2.4)) - R.H * 0.5;
+      tri(x2, R.H, x2 + w2 * 0.42, R.H - h2, x2 + w2 * 0.76, R.H, hex('#241a3a', 0.95));
+      scircle(x2 + w2 * 0.88, R.H - h2 * 0.42, h2 * 0.52, hex('#241a3a', 0.95), 16);
+    }
+    for (let i = 0; i < 46; i++) { // golden sparkles drifting up
+      const s = STARS[i], ex = ((s.x * R.W * 2 + par(0.35)) % R.W + R.W) % R.W;
+      const ey = R.H - ((s.y * R.H + Game.t * R.H * 0.045 * (0.5 + s.d)) % R.H), z = 2.6 * R.dpr * s.s * 0.6;
+      srect(ex, ey, z, z, hex('#ffe9a8', 0.55 * (ey / R.H)));
+    }
   }
 }
 
@@ -1528,6 +1805,13 @@ function drawItems(L) {
         wtri(cx + Math.cos(a) * 0.42, cy + Math.sin(a) * 0.42, cx + Math.cos(b1) * 0.17, cy + Math.sin(b1) * 0.17, cx + Math.cos(b2) * 0.17, cy + Math.sin(b2) * 0.17, RAINBOW[(i + Math.floor(Game.t * 6)) % 6]);
       }
       wcircle(cx, cy, 0.18, RAINBOW[Math.floor(Game.t * 6) % 6], 12);
+    } else if (it.type === 'life') { // secret spare slipper: a glowing pink heart
+      const cx = it.x + 0.5, cy = it.y + 0.5 + bob, beat = 1 + Math.sin(Game.t * 6) * 0.08;
+      wcircle(cx, cy, 0.44 * beat, hex('#ff6fb5', 0.14 + 0.08 * Math.sin(Game.t * 5)), 20);
+      wcircle(cx - 0.13 * beat, cy - 0.1, 0.16 * beat, hex('#ff8fc8'), 14);
+      wcircle(cx + 0.13 * beat, cy - 0.1, 0.16 * beat, hex('#ff8fc8'), 14);
+      wtri(cx - 0.28 * beat, cy + 0.0, cx + 0.28 * beat, cy + 0.0, cx, cy + 0.32 * beat, hex('#ff8fc8'));
+      wcircle(cx - 0.16 * beat, cy - 0.14, 0.05, hex('#ffe0f0'), 8);
     } else { // Fizzy Jet can
       const x = it.x + 0.3, y = it.y + 0.18 + bob;
       wcircle(it.x + 0.5, it.y + 0.5 + bob, 0.48, hex('#7dffa0', 0.18 + 0.1 * Math.sin(Game.t * 6)), 20);
@@ -1628,6 +1912,7 @@ function drawFlare(e) { // Fire Flare: a bouncing fireball with a flickering tai
   wcircle(cx - 0.12, cy - 0.04, 0.06, hex('#3a0a00', a), 8); wcircle(cx + 0.12, cy - 0.04, 0.06, hex('#3a0a00', a), 8);
 }
 function drawBoss(B) { // THE BAGGAGE BEAST: a giant angry suitcase with stickers, a handle and a zipper mouth
+  if (B.kind === 'saucier') { drawSaucier(B); return; }
   if (!B.alive && B.dead > 1.2) return;
   const fade = B.alive ? 1 : 1 - B.dead / 1.2, flash = B.inv > 0 && Math.floor(B.inv * 14) % 2 === 0;
   const squash = B.alive ? 1 + (B.onGround ? 0.03 * Math.sin(B.t * 8) : -0.06) : 1 - B.dead * 0.6;
@@ -1653,9 +1938,48 @@ function drawBoss(B) { // THE BAGGAGE BEAST: a giant angry suitcase with sticker
   // little wheels
   for (const s of [0.3, w - 0.6]) wcircle(x + s + 0.15, y + h + 0.05, 0.14, hex('#1b1e26', fade), 10);
 }
+function drawSaucier(B) { // THE GRAND SAUCIER (mini-boss): a big walking saucepan with a golden lid
+  if (!B.alive && B.dead > 1.2) return;
+  const fade = B.alive ? 1 : 1 - B.dead / 1.2, flash = B.inv > 0 && Math.floor(B.inv * 14) % 2 === 0;
+  const squash = B.alive ? 1 + (B.onGround ? 0.04 * Math.sin(B.t * 9) : -0.05) : 1 - B.dead * 0.6;
+  const w = B.w * (2 - squash), h = B.h * squash, x = B.x + (B.w - w) / 2, y = B.y + B.h - h;
+  const pot = flash ? hex('#ffffff', fade) : hex('#3a2f3f', fade), dark = flash ? hex('#e0e0e0', fade) : hex('#241c28', fade);
+  // stubby shuffling legs
+  const step = Math.sin(B.t * 14) * 0.05;
+  wrect(x + 0.15, y + h, 0.22, 0.13 + step, dark); wrect(x + w - 0.37, y + h, 0.22, 0.13 - step, dark);
+  // pot body with side handles
+  wrect(x, y + 0.3, w, h - 0.3, pot, dark);
+  wrect(x - 0.14, y + 0.45, 0.18, 0.1, dark); wrect(x + w - 0.04, y + 0.45, 0.18, 0.1, dark);
+  // bubbling sauce inside
+  const wob = Math.sin(Game.t * 6) * 0.03;
+  wrect(x + 0.06, y + 0.32, w - 0.12, 0.14, hex('#ff8a1f', fade), hex('#b3200f', fade));
+  wcircle(x + w * 0.3 + wob, y + 0.34, 0.05, hex('#ffe066', fade), 8); wcircle(x + w * 0.72 - wob, y + 0.33, 0.04, hex('#ffe066', fade), 8);
+  // the golden lid (the stomp target), tilting the way it faces
+  const tilt = B.face * 0.1;
+  wtri(x - 0.08, y + 0.36, x + w + 0.08, y + 0.36, x + w * (0.5 + tilt), y - 0.2, flash ? hex('#ffffff', fade) : hex('#c9a24a', fade));
+  wcircle(x + w * (0.5 + tilt), y - 0.22, 0.07, hex('#ffe9a8', fade), 10);
+  // angry eyes and eyebrows
+  const lk = B.face * 0.07;
+  for (const s of [-1, 1]) {
+    const ex = x + w / 2 + s * 0.42;
+    wcircle(ex, y + 0.85, 0.16, hex('#fff6d6', fade), 12);
+    wcircle(ex + lk, y + 0.88, 0.07, hex('#1b1530', fade), 10);
+    wtri(ex - 0.2, y + 0.66 + (s < 0 ? 0 : 0.1), ex + 0.2, y + 0.66 + (s < 0 ? 0.1 : 0), ex, y + 0.78, dark);
+  }
+  // grumpy mouth, opens when throwing or hurt
+  const open = B.mouth > 0 || B.inv > 0 || !B.alive ? 0.2 : 0.06;
+  wrect(x + w / 2 - 0.32, y + h - 0.38, 0.64, open, hex('#1b1530', fade));
+}
 function drawShots(L) {
   for (const s of L.shots) {
-    const cx = s.x + s.w / 2, cy = s.y + s.h / 2, c = Math.cos(s.spin), sn = Math.sin(s.spin), hw = s.w / 2, hh = s.h / 2;
+    const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+    if (s.blob) { // sauce blob from the Grand Saucier: a droplet with a drip tail
+      wcircle(cx, cy + 0.1, 0.3, hex('#ff8a1f'), 14, hex('#b3200f'));
+      wcircle(cx - 0.06, cy - 0.02, 0.09, hex('#ffe066'), 8);
+      for (let k = 1; k <= 2; k++) wcircle(cx - s.vx * 0.03 * k, cy + 0.25 + k * 0.12, 0.1 - k * 0.03, hex('#ff8a1f', 0.6 - k * 0.2), 8);
+      continue;
+    }
+    const c = Math.cos(s.spin), sn = Math.sin(s.spin), hw = s.w / 2, hh = s.h / 2;
     const pt = (u, v) => [cx + u * c - v * sn, cy + u * sn + v * c];
     const [a, b, d, e] = [pt(-hw, -hh), pt(hw, -hh), pt(hw, hh), pt(-hw, hh)], col = hex(s.col);
     wtri(a[0], a[1], b[0], b[1], d[0], d[1], col); wtri(a[0], a[1], d[0], d[1], e[0], e[1], col);
@@ -1678,15 +2002,29 @@ function drawPlayer(p) {
     wrect(p.x + X, p.y + Y, lw, lh, c);
   };
   const step = p.onGround && Math.abs(p.vx) > 0.5 ? Math.sin(p.walk * 3) * 0.05 : 0, air = !p.onGround;
+  const look = Shop.look();   // skin colours from the Shop
   part(0.0, 0.3, 0.24, 0.28, hex('#b07a45'));          // parcel on back
   part(0.0, 0.42, 0.24, 0.04, hex('#e8d7a8'));          // parcel tape
-  part(0.12, 0.36, 0.48, 0.38, hex('#ff8a3d'));         // jacket
-  part(0.12, 0.6, 0.48, 0.05, hex('#c75f1d'));          // belt
-  part(0.16, 0.0, 0.46, 0.38, hex('#e8f0ff'));          // helmet
-  part(0.36, 0.09, 0.27, 0.18, hex('#2fd2ff'));         // visor
+  part(0.12, 0.36, 0.48, 0.38, hex(look.jacket));        // jacket (skin)
+  part(0.12, 0.6, 0.48, 0.05, hex(look.belt));           // belt (skin)
+  part(0.16, 0.0, 0.46, 0.38, hex(look.helmet));         // helmet (skin)
+  part(0.36, 0.09, 0.27, 0.18, hex(look.visor));         // visor (skin)
   part(0.48, 0.11, 0.08, 0.06, hex('#d9f8ff'));         // visor shine
   part(0.24, -0.08, 0.04, 0.1, hex('#c9cde0'));         // antenna
   part(0.21, -0.12, 0.09, 0.06, hex('#ff6fb5'));
+  if (Shop.hasFun('funShades')) { part(0.17, 0.08, 0.44, 0.15, hex('#141024')); part(0.21, 0.10, 0.09, 0.05, hex('#8fe8ff')); } // Star Shades
+  const hat = Shop.data.hat;                            // hats from the Shop, drawn on the helmet
+  if (hat === 'hatParty') {
+    part(0.24, -0.26, 0.32, 0.10, hex('#ff5d6c')); part(0.28, -0.36, 0.24, 0.10, hex('#ffd34d'));
+    part(0.31, -0.44, 0.18, 0.08, hex('#ff5d6c')); part(0.34, -0.52, 0.12, 0.09, hex('#ffffff'));
+  } else if (hat === 'hatBeanie') {
+    part(0.20, -0.13, 0.40, 0.15, hex('#3aa0ff')); part(0.34, -0.19, 0.12, 0.08, hex('#ffd34d'));
+    const pw = 0.38 * Math.abs(Math.sin(Game.t * 9));    // the propeller spins!
+    part(0.40 - pw / 2, -0.27, pw, 0.06, hex('#e6e9f2'));
+  } else if (hat === 'hatTop') {
+    part(0.14, -0.05, 0.52, 0.07, hex('#1b1530')); part(0.22, -0.36, 0.36, 0.32, hex('#241c38'));
+    part(0.22, -0.13, 0.36, 0.08, hex('#ff6fb5'));
+  }
   part(0.18 + step, 0.72, 0.13, air ? 0.08 : 0.12, hex('#24305e'));   // legs
   part(0.42 - step, 0.72, 0.13, air ? 0.08 : 0.12, hex('#24305e'));
   const slip = p.mega > 0 ? RAINBOW[Math.floor(Game.t * 12) % 6] : hex('#ff6fb5'); // rainbow during Mega Fuzz
@@ -1721,7 +2059,7 @@ function render() {
 // ---------- UI / SCREENS ----------
 const $ = id => document.getElementById(id);
 const UI = {
-  screens: ['scrTitle', 'scrIntro', 'scrPause', 'scrComplete', 'scrOver', 'scrWin', 'scrScores'],
+  screens: ['scrTitle', 'scrIntro', 'scrPause', 'scrComplete', 'scrOver', 'scrWin', 'scrScores', 'scrShop'],
   pending: null, lastInitials: store.get('initials', ''),
   current: 'scrTitle', toastTimer: null,
   show(id) {
@@ -1733,22 +2071,24 @@ const UI = {
     $('touch').hidden = !(playing && isTouch);
     if (id === 'scrIntro') {
       const d = LEVELS[Game.levelIdx];
-      $('introEyebrow').textContent = `Level ${Game.levelIdx + 1} of ${LEVELS.length}` + (d.boss ? ' \u00b7 Boss fight!' : '');
+      $('introEyebrow').textContent = `Level ${Game.levelIdx + 1} of ${LEVELS.length}` + (d.boss ? ' \u00b7 Boss fight!' : d.miniboss ? ' \u00b7 Mini-boss!' : '');
       $('introName').textContent = d.name; $('introText').textContent = d.intro;
     }
-    const focusBtn = { scrTitle: 'btnStart', scrIntro: 'btnGo', scrPause: 'btnResume', scrComplete: 'btnNext', scrOver: 'btnRetry', scrWin: 'btnAgain', scrScores: 'btnScoresBack' }[id];
+    if (id === 'scrTitle') this.syncBank();
+    const focusBtn = { scrTitle: 'btnStart', scrIntro: 'btnGo', scrPause: 'btnResume', scrComplete: 'btnNext', scrOver: 'btnRetry', scrWin: 'btnAgain', scrScores: 'btnScoresBack', scrShop: 'btnShopBack' }[id];
     if (focusBtn && !isTouch && !this.pending) setTimeout(() => $(focusBtn).focus({ preventScroll: true }), 30);
     if (playing) document.activeElement && document.activeElement.blur && document.activeElement.blur();
     this.syncHud();
   },
   primaryAction() {
-    const map = { scrTitle: 'btnStart', scrIntro: 'btnGo', scrComplete: 'btnNext', scrOver: 'btnRetry', scrWin: 'btnAgain', scrPause: 'btnResume', scrScores: 'btnScoresBack' };
+    const map = { scrTitle: 'btnStart', scrIntro: 'btnGo', scrComplete: 'btnNext', scrOver: 'btnRetry', scrWin: 'btnAgain', scrPause: 'btnResume', scrScores: 'btnScoresBack', scrShop: 'btnShopBack' };
     const id = map[this.current]; if (id && document.activeElement?.tagName !== 'BUTTON') $(id).click();
   },
   syncHud() {
     if (!Game.level) return;
     $('hudLevel').textContent = `${Game.levelIdx + 1}. ${Game.level.def.name}`;
     $('hudScore').textContent = Game.score;
+    $('hudCoinNum').textContent = `${Math.min(Game.coinMeter || 0, CFG.COINS_PER_LIFE)}/${CFG.COINS_PER_LIFE}`;
     $('hudLives').textContent = '♥ ' + Math.max(0, Game.lives);
     $('hudFizz').classList.toggle('off', !(Game.player && Game.player.hasFizz));
     const pl = Game.player, B = Game.level.boss;
@@ -1756,9 +2096,10 @@ const UI = {
     $('hudMega').hidden = !(pl && pl.mega > 0);
     if (pl && pl.mega > 0) $('hudMega').textContent = '\u2605 Mega ' + Math.ceil(pl.mega);
     $('hudBoss').hidden = !(B && B.awake && B.alive);
-    if (B && B.awake && B.alive && $('hudBoss').dataset.hp !== String(B.hp)) {
-      $('hudBoss').dataset.hp = B.hp;
-      $('hudBoss').innerHTML = '<span class="label">Beast</span>' + Array.from({ length: B.max }, (_, i) => `<span class="pip${i < B.hp ? '' : ' off'}"></span>`).join('');
+    if (B && B.awake && B.alive && ($('hudBoss').dataset.hp !== String(B.hp) || $('hudBoss').dataset.kind !== String(B.kind))) {
+      $('hudBoss').dataset.hp = B.hp; $('hudBoss').dataset.kind = B.kind;
+      $('hudBoss').innerHTML = '<span class="label">' + (B.kind === 'saucier' ? 'Saucier' : 'Beast') + '</span>'
+        + Array.from({ length: B.max }, (_, i) => `<span class="pip${i < B.hp ? '' : ' off'}"></span>`).join('');
     }
     // move the message box to the bottom when the courier is near the top (walking on a ceiling)
     if (Game.player) $('banner').classList.toggle('low', sy(Game.player.y) < R.H * 0.35);
@@ -1832,9 +2173,61 @@ const UI = {
   },
   syncBest() {
     $('bestScore').textContent = Scores.top();
+    this.syncBank();
     const champ = window.BOT_SCORES?.champion;
     $('botNote').hidden = !champ;
     if (champ) $('botNote').textContent = `Bot's best: ${champ.score} bolts. Can you beat it?`;
+  },
+  syncBank() {
+    const n = Bank.get();
+    if ($('bankCoins')) $('bankCoins').textContent = n;
+    if ($('shopBank')) $('shopBank').textContent = n;
+  },
+  // ----- shop -----
+  renderShop() {
+    this.syncBank();
+    const box = $('shopList'); box.replaceChildren();
+    const cats = { skin: 'Skins', hat: 'Hats', fun: 'Fun items', boost: 'Power-ups for your next run' };
+    let lastCat = null;
+    for (const it of Shop.CATALOG) {
+      if (it.kind !== lastCat) {
+        const h = document.createElement('p'); h.className = 'shopCat'; h.textContent = cats[it.kind];
+        box.append(h); lastCat = it.kind;
+      }
+      const row = document.createElement('div'); row.className = 'shopRow'; row.dataset.id = it.id;
+      const info = document.createElement('div');
+      const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = it.name;
+      const bl = document.createElement('div'); bl.className = 'bl'; bl.textContent = it.blurb;
+      info.append(nm, bl);
+      const btn = document.createElement('button'); btn.className = 'buy';
+      const owned = Shop.owned(it.id);
+      if (it.kind === 'skin') {
+        if (!owned) { btn.textContent = `Buy \u00b7 ${it.price}`; btn.disabled = Bank.get() < it.price; btn.onclick = () => this.buyItem(it.id); }
+        else if (Shop.data.skin === it.id) { btn.textContent = 'Wearing'; btn.classList.add('worn'); btn.disabled = true; }
+        else { btn.textContent = 'Wear'; btn.classList.add('alt'); btn.onclick = () => { Shop.wear(it.id); this.renderShop(); }; }
+      } else if (it.kind === 'hat') {
+        if (!owned) { btn.textContent = `Buy \u00b7 ${it.price}`; btn.disabled = Bank.get() < it.price; btn.onclick = () => this.buyItem(it.id); }
+        else if (Shop.data.hat === it.id) { btn.textContent = 'Take off'; btn.classList.add('alt'); btn.onclick = () => { Shop.wear(it.id); this.renderShop(); }; }
+        else { btn.textContent = 'Wear'; btn.classList.add('alt'); btn.onclick = () => { Shop.wear(it.id); this.renderShop(); }; }
+      } else if (it.kind === 'fun') {
+        if (!owned) { btn.textContent = `Buy \u00b7 ${it.price}`; btn.disabled = Bank.get() < it.price; btn.onclick = () => this.buyItem(it.id); }
+        else if (Shop.hasFun(it.id)) { btn.textContent = 'On'; btn.classList.add('worn'); btn.disabled = true; }
+        else { btn.textContent = 'Turn on'; btn.classList.add('alt'); btn.onclick = () => { Shop.wear(it.id); this.renderShop(); }; }
+      } else { // boost: buy uses, each use is consumed by one run
+        const left = Shop.boostsLeft(it.id);
+        btn.textContent = `Buy \u00b7 ${it.price}` + (left ? ` (${left} saved)` : '');
+        btn.disabled = Bank.get() < it.price;
+        btn.onclick = () => this.buyItem(it.id);
+      }
+      row.append(info, btn); box.append(row);
+    }
+    if (!store.ok) { const n = document.createElement('p'); n.className = 'note'; n.textContent = 'Purchases can\u2019t be saved in this browser, so the Shop is closed for now.'; box.append(n); box.querySelectorAll('button').forEach(b => (b.disabled = true)); }
+  },
+  buyItem(id) {
+    const it = Shop.item(id);
+    if (Shop.buy(id)) { Sound.sfx('buy'); this.toast(it.name + (it.kind === 'boost' ? ' bought! It will be used on your next run.' : ' bought and ready!')); }
+    else this.toast('Not enough coins yet. Collect more bolts!');
+    this.renderShop();
   },
   // "You beat the bot!" when a real player's run tops the champion bot
   beatBot(id) {
@@ -1856,6 +2249,8 @@ click('btnMenu', () => Game.toMenu());
 click('btnMenu2', () => Game.toMenu());
 click('btnScores', () => { UI.renderScores('hsList', -1); UI.show('scrScores'); });
 click('btnScoresBack', () => UI.show('scrTitle'));
+click('btnShop', () => { UI.renderShop(); UI.show('scrShop'); });
+click('btnShopBack', () => UI.show('scrTitle'));
 click('btnAgain', () => Game.startRun());
 click('btnSound', () => Sound.setMuted(!Sound.muted));
 click('btnSound2', () => Sound.setMuted(!Sound.muted));
@@ -1913,6 +2308,7 @@ const Demo = {
   start() {
     Game.demo = true; this.t = 0; this.held = false;
     Game.score = 0; Game.lives = CFG.START_LIVES; Game.levelIdx = 0;
+    Game.coinsRun = 0; Game.coinMeter = 0; Game.coinMult = 1;
     this.load(0);
     $('demoPill').hidden = false;
     Game.say('Demo', 'Watch the courier run, stomp robots and burp-jump over the big wall.');
@@ -1932,7 +2328,8 @@ const Demo = {
   stop() {
     if (!Game.demo) return;
     Game.demo = false; $('demoPill').hidden = true; Game.banner = null; UI.setBanner(null);
-    Game.score = 0; Game.lives = CFG.START_LIVES; Game.level = null; Game.player = null;
+    Game.score = 0; Game.lives = CFG.START_LIVES; Game.coinsRun = 0; Game.coinMeter = 0; Game.coinMult = 1;
+    Game.level = null; Game.player = null;
     Game.toMenu();
   },
   // a hit during the demo: bounce back a little instead of losing a life
@@ -2001,7 +2398,7 @@ if ('serviceWorker' in navigator && window.isSecureContext && document.querySele
 }
 
 // Test / debug hook (used by the automated browser test; harmless for players).
-window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
+window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel, Bank, Shop, store };
 
 // ---------- TEST HOOK (spec v1) ----------
 // Lets the test harness and its bots play the game. See GAME_TEST_HOOK_SPEC.md.
@@ -2016,7 +2413,7 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
     { id: 'left_jump', desc: 'Walk left and jump' },
   ];
   const MOVES = { idle: [0, false], right: [1, false], left: [-1, false], jump: [0, true], right_jump: [1, true], left_jump: [-1, true] };
-  const MAX_STEPS = 120 * 720; // 12 minutes of game time for all ten levels
+  const MAX_STEPS = 120 * 900; // 15 minutes of game time for all thirteen levels, both bosses and the vault
 
   Hook.levelDone = () => {
     Hook.levelsCompleted++;
@@ -2051,6 +2448,7 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
       Hook.mode = realtime ? 'realtime' : 'bot'; Hook.seed = seed; Hook.steps = 0; Hook.levelsCompleted = 0;
       Hook.axis = 0; Hook.held = false; Hook.prevJump = false;
       Game.score = 0; Game.lives = CFG.START_LIVES; Game.levelIdx = clamp(level, 0, LEVELS.length - 1);
+      Game.coinsRun = 0; Game.coinMeter = 0; Game.coinMult = 1; Game.startShield = false; Game.boostNote = null;
       Game.level = loadLevel(Game.levelIdx); Game.player = Game.newPlayer(Game.level.start);
       Game.levelStartScore = 0; Game.particles = []; Game.banner = null; UI.setBanner(null);
       Game.state = 'play'; UI.show(null); resize(); updateCamera(true);
@@ -2075,7 +2473,7 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
         player: p ? { x: +p.x.toFixed(3), y: +p.y.toFixed(3), vx: +p.vx.toFixed(2), vy: +p.vy.toFixed(2), onGround: p.onGround,
           gravity: p.gs > 0 ? 'normal' : 'flipped', fizzyJet: !p.hasFizz ? 'none' : p.burpUsed ? 'used' : 'ready',
           shield: p.shield, megaSeconds: +Math.max(0, p.mega).toFixed(1) } : null,
-        boss: Game.level && Game.level.boss ? { hp: Game.level.boss.hp, awake: Game.level.boss.awake } : null,
+        boss: Game.level && Game.level.boss ? { hp: Game.level.boss.hp, awake: Game.level.boss.awake, kind: Game.level.boss.kind } : null,
       };
     },
     observe() {
@@ -2093,11 +2491,14 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
         rows.push(r.split(''));
       }
       const put = (x, y, ch) => { x = Math.floor(x); y = Math.floor(y); if (y >= 0 && y < L.H && x >= x0 && x <= x1) rows[y][x - x0] = ch; };
-      for (const it of L.items) if (!it.got) put(it.x, it.y, { bolt: '*', can: 'B', shield: 'S', mega: 'M' }[it.type]);
+      for (const it of L.items) if (!it.got) put(it.x, it.y, { bolt: '*', can: 'B', shield: 'S', mega: 'M', life: '1' }[it.type]);
       if (L.goal) put(L.goal.x, L.goal.y, L.boss && L.boss.alive ? 'd' : 'D');
       const FOE = { robot: 'R', jelly: 'J', hopper: 'H', drone: 'U', snail: 'K', flare: 'F' };
       for (const e of L.enemies) if (e.alive && (e.type !== 'flare' || e.out)) put(e.x + e.w / 2, e.y + e.h / 2, FOE[e.type]);
-      if (L.boss && L.boss.alive) for (let bx = 0; bx < L.boss.w; bx++) for (let by = 0; by < L.boss.h; by++) put(L.boss.x + bx + 0.2, L.boss.y + by + 0.2, 'X');
+      if (L.boss && L.boss.alive) {
+        const ch = L.boss.kind === 'saucier' ? 'Y' : 'X';
+        for (let bx = 0; bx < L.boss.w; bx++) for (let by = 0; by < L.boss.h; by++) put(L.boss.x + bx + 0.2, L.boss.y + by + 0.2, ch);
+      }
       for (const s of L.shots) put(s.x + s.w / 2, s.y + s.h / 2, 'o');
       put(p.x + p.w / 2, p.y + p.h / 2, '@');
       const st = this.getState();
@@ -2107,8 +2508,9 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
         shield: p.shield, megaSeconds: st.player.megaSeconds, boss: st.boss,
       };
       const text = 'Legend: @ you, # solid, ~ slippery ice (solid), > < conveyor, ^ v spikes, % hot sauce (hurts), G flipped gravity, '
-        + 'R robot, J jelly, H hopper, U drone, K spiky snail (never stomp), F fire flare (never stomp), X Baggage Beast (stomp its head), o thrown suitcase, '
-        + '* bolt, B Fizzy Jet can, S bubble shield, M Mega Fuzz, D goal, d locked goal (beat the boss first), . empty\n'
+        + 'R robot, J jelly, H hopper, U drone, K spiky snail (never stomp), F fire flare (never stomp), X Baggage Beast (stomp its head), '
+        + 'Y Grand Saucier mini-boss (stomp its lid 3 times), o thrown suitcase or sauce blob (stompable), '
+        + '* bolt, B Fizzy Jet can, S bubble shield, M Mega Fuzz, 1 secret spare slipper (+1 life), D goal, d locked goal (beat the boss first), . empty\n'
         + `Columns ${x0}..${x1}, row 0 is the top. Stomp enemies from above; touching them from the side hurts. Falling off the bottom costs a life.\n`
         + rows.map(r => r.join('')).join('\n');
       return { text, facts };
@@ -2120,6 +2522,7 @@ window.__game = { Game, Input, Tilt, Demo, Full, LEVELS, CFG, loadLevel };
         if (!L.goal) out.push({ level: i, severity: 'error', message: 'Level has no Delivery Pad (D).' });
         if (!def.map.some(r => r.includes('P'))) out.push({ level: i, severity: 'error', message: 'Level has no player start (P).' });
         if (def.boss && !L.boss) out.push({ level: i, severity: 'error', message: 'Boss level has no Baggage Beast (X).' });
+        if (def.miniboss && !L.boss) out.push({ level: i, severity: 'error', message: 'Mini-boss level has no Grand Saucier (Y).' });
         if (L.boss && !def.map.some(r => r.includes('!'))) out.push({ level: i, severity: 'warning', message: 'Boss level has no boss fence (!).' });
       });
       return out;

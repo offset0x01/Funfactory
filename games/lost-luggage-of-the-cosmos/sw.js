@@ -5,7 +5,7 @@
 // Every game on the site shares one cache space, so this file only ever touches caches named
 // after its own folder. Nothing here needs editing for a new game. Bump VERSION when the list
 // of FILES changes.
-const VERSION = 2;
+const VERSION = 3;
 const FOLDER = new URL('./', self.location).pathname.split('/').filter(Boolean).pop() || 'game';
 const CACHE = `${FOLDER}-v${VERSION}`;
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
