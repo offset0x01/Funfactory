@@ -110,6 +110,7 @@ tr.new td { color: var(--good); font-weight: 700; }
     <p class="note">No aim help: shots go exactly where the crosshair points. The egg sensor at the top points to a dropped egg within 40 m.</p>
     <p id="titleTop"></p>
     <p id="titleBot" class="good"></p>
+    <p id="titleBuild" class="note"></p>
     <div class="row">
       <button class="primary" id="btnPlay">Play</button>
       <button id="btnScores">High scores</button>
@@ -152,7 +153,7 @@ tr.new td { color: var(--good); font-weight: 700; }
 <!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
 <!-- The build number, written by stamp_build.py right before publishing. -->
 <!-- BUILD-START -->
-<script>window.GAME_BUILD = "2026.11.16-1825";</script>
+<script>window.GAME_BUILD = "2026.11.16-1842";</script>
 <!-- BUILD-END -->
 <!-- BOT-SCORES-START -->
 <script>window.BOT_SCORES = {"game":"Space Egg Quest","bots":{"evolutionary":{"label":"Evolution Bot","start":0,"mid":6260,"best":6315,"won":false,"passes":[0,0,25,125,675,4255,4405,5805,5775,5800,5800,6050,6260,6260,6260,6260,6315,6315,6315,6315,6315,6315,6315,6315,6315,6315]}},"updated":"2026-11-16T23:09:42Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":6315,"won":false}};</script>
@@ -1584,6 +1585,7 @@ const UI = {
     const top = Scores.top(), bot = window.BOT_SCORES && window.BOT_SCORES.champion;
     $('titleTop').textContent = top ? `Top score: ${top} ${SCORE_NAME}` : '';
     $('titleBot').textContent = bot && bot.score > 0 ? `Bot's best: ${bot.score} ${SCORE_NAME}. Can you beat it?` : '';
+    $('titleBuild').textContent = window.GAME_BUILD ? `Build ${window.GAME_BUILD}` : '';
   },
   syncHud() {
     const G = Game, p = G.player;
