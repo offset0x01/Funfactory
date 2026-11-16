@@ -185,6 +185,7 @@ p{margin:0;line-height:1.45;color:var(--ink)}
     <div class="cardTop"><div class="eyebrow">Interstellar parcel service</div><div class="row"><a class="pillBtn" id="allGames" href="../../" hidden>&#8592; All games</a><button class="pillBtn" id="btnFull2">&#9974; Full screen</button></div></div>
     <p class="note" id="fullNote" hidden></p>
     <h1>Lost Luggage of the <span class="pink">Cosmos</span></h1>
+    <p class="note" id="buildNote" hidden></p>
     <p>You are a space courier in fuzzy slippers. Deliver the mystery parcel across thirteen stops: a junkyard planet, a wobbly cruise ship, a talking asteroid, an icy comet, a hot sauce moon and the Galactic Lost &amp; Found, where the Baggage Beast is waiting. Then follow the Star Compass into the Cosmic Vault.</p>
     <div class="row">
       <button class="btn" id="btnStart">Start delivery</button>
@@ -300,6 +301,10 @@ p{margin:0;line-height:1.45;color:var(--ink)}
   </div>
 </section>
 
+<!-- The build number, written by stamp_build.py right before publishing. -->
+<!-- BUILD-START -->
+<script>window.GAME_BUILD = "2026.11.16-0650";</script>
+<!-- BUILD-END -->
 <!-- BOT-SCORES-START -->
 <script>window.BOT_SCORES = {"game":"Lost Luggage of the Cosmos","bots":{"evolutionary":{"label":"Evolution Bot","start":2770,"mid":5165,"best":8335,"won":true,"passes":[2770,3600,4325,4590,5165,5560,5575,6850,7795,8335]}},"updated":"2026-11-16T03:49:19Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":8335,"won":true}};</script>
 <!-- BOT-SCORES-END -->
@@ -2177,6 +2182,8 @@ const UI = {
     const champ = window.BOT_SCORES?.champion;
     $('botNote').hidden = !champ;
     if (champ) $('botNote').textContent = `Bot's best: ${champ.score} bolts. Can you beat it?`;
+    $('buildNote').hidden = !window.GAME_BUILD;
+    if (window.GAME_BUILD) $('buildNote').textContent = `Build ${window.GAME_BUILD}`;
   },
   syncBank() {
     const n = Bank.get();

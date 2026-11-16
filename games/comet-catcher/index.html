@@ -92,6 +92,7 @@ tr.new td { color: var(--good); font-weight: 700; }
     Catch a magnet bone and comets fly into your net for 5 seconds. Ten catches in a row win a miss back.</p>
     <p id="titleTop"></p>
     <p id="titleBot" class="good"></p>
+    <p id="titleBuild" class="note"></p>
     <div class="row">
       <button class="primary" id="btnPlay">Play</button>
       <button id="btnScores">High scores</button>
@@ -133,6 +134,10 @@ tr.new td { color: var(--good); font-weight: 700; }
 </section>
 
 <!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
+<!-- The build number, written by stamp_build.py right before publishing. -->
+<!-- BUILD-START -->
+<script>window.GAME_BUILD = "2026.11.15-1807";</script>
+<!-- BUILD-END -->
 <!-- BOT-SCORES-START -->
 <script>window.BOT_SCORES = {"game":"Comet Catcher","bots":{"evolutionary":{"label":"Evolution Bot","start":1040,"mid":1065,"best":1065,"won":true,"passes":[1040,1065,1065]}},"updated":"2026-11-15T21:13:19Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":1065,"won":true}};</script>
 <!-- BOT-SCORES-END -->
@@ -637,6 +642,7 @@ const UI = {
     const top = Scores.top(), bot = window.BOT_SCORES && window.BOT_SCORES.champion;
     $('titleTop').textContent = top ? `Top score: ${top} ${SCORE_NAME}` : '';
     $('titleBot').textContent = bot ? `Bot's best: ${bot.score} ${SCORE_NAME}. Can you beat it?` : '';
+    $('titleBuild').textContent = window.GAME_BUILD ? `Build ${window.GAME_BUILD}` : '';
   },
   syncHud() {
     const g = Game;

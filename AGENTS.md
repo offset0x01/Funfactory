@@ -59,7 +59,7 @@ After stating the plan and the expected time, build the whole game in one pass. 
 
 - If the Game Card is vague or missing something, choose a fun, simple default and keep going. List every assumption at the end.
 - If the idea is too big, build the best smaller version that keeps the coolest feature, and note what was cut.
-- Every game must include: a title screen with how-to-play, the core gameplay loop, a score or progress display, win and lose conditions, a game-over screen with restart, pause on P or Escape plus an on-screen pause button, and sound.
+- Every game must include: a title screen with how-to-play, the core gameplay loop, a score or progress display, win and lose conditions, a game-over screen with restart, pause on P or Escape plus an on-screen pause button, sound, and the build number (`window.GAME_BUILD`, shown as "Build 2026.11.16-1101") in small text on the title screen so players can tell an update came through.
 - Keep code tidy and commented in plain English so a beginner can read it.
 
 ### Changing an existing game
@@ -169,7 +169,8 @@ Never commit `test-harness/.env` or any API key.
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | The game. Keep the `BOT-SCORES` markers before the main script. |
+| `index.html` | The game. Keep the `BUILD` and `BOT-SCORES` markers before the main script. |
+| `build.json` | The build number the home page shows on the game's card. Written by `stamp_build.py`; don't edit by hand. |
 | `HANDOFF.md` | Game Card (real names and places swapped for made-up ones), decisions, architecture, how to make common changes, testing, sources, the Build log (expected and actual time of each build), open items. Keep it current with every change. |
 | `test_game.py` | The game's own browser test. Use the harness's `GameSession` to launch the browser, as the starter does; never hard-code a browser path. |
 | `TEST_REPORT.md`, `bot-scores.json`, `bot-best-run.json` | Written by the harness `all` run: the report, the bots' scores, and the Evolution Bot's best run (the next test starts from it). Commit them; don't edit by hand. |
@@ -185,6 +186,7 @@ Never commit `test-harness/.env` or any API key.
 - [ ] `HANDOFF.md` is current: decisions, bot scores (start, mid, best), tight moments from the timing check, open items, a new Build log row (expected and actual time), and a source cited for every piece of outside art, music, sound and research.
 - [ ] New game only: added to the `GAMES` list at the top of the script in the root `index.html` (newest first) and to the table in `README.md`.
 - [ ] Privacy: real names and places swapped for made-up ones, no photos or voices of real people, commits made as the neutral builder, no session links in commit messages, and `check_private.py` passes.
+- [ ] Right before the commit, `python3 test-harness/harness/stamp_build.py games/<name>` sets the build number (US Eastern date and time, like `2026.11.16-1101`) in `index.html` and `build.json`. Game Studio builds are stamped again when they are published.
 - [ ] One commit with everything, `git pull --rebase`, then push to `main`. GitHub Pages publishes within a couple of minutes at `https://offset0x01.github.io/Funfactory/games/<name>/`.
 - [ ] `check_live.py` says the game is live and up to date (or the summary says the site couldn't be reached from the sandbox).
 

@@ -38,6 +38,7 @@ h1 span{color:var(--pink)}
 .card .body{display:flex;flex-direction:column;gap:8px;min-width:0}
 .card h2{margin:0;font:800 22px/1.15 var(--display)}
 .card p{margin:0;color:var(--ink)}
+.card .build{font-size:13px;color:var(--muted)}
 .tags{display:flex;flex-wrap:wrap;gap:6px}
 .tag{font:800 12px var(--display);letter-spacing:.04em;color:var(--green);border:2px solid #2f6b4a;border-radius:999px;padding:3px 9px}
 .play{align-self:flex-start;margin-top:4px;font:800 17px/1 var(--display);color:#1a0f2e;background:var(--orange);border-radius:999px;padding:13px 22px;
@@ -97,8 +98,12 @@ for (const g of GAMES) {
   const p = document.createElement('p'); p.textContent = g.blurb;
   const tags = document.createElement('div'); tags.className = 'tags';
   for (const t of g.tags || []) { const s = document.createElement('span'); s.className = 'tag'; s.textContent = t; tags.append(s); }
+  // The build number (Eastern date and time it was published) lets players see that an update came through.
+  const b = document.createElement('p'); b.className = 'build'; b.hidden = true;
+  fetch(`games/${g.slug}/build.json`, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && j.build) { b.textContent = `Build ${j.build}`; b.hidden = false; } }).catch(() => {});
   const a = document.createElement('a'); a.className = 'play'; a.href = `games/${g.slug}/`; a.textContent = 'Play';
-  body.append(h, p, tags, a); card.append(img, body); grid.append(card);
+  body.append(h, p, tags, b, a); card.append(img, body); grid.append(card);
 }
 
 // twinkling starfield

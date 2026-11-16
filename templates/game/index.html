@@ -77,6 +77,7 @@ tr.new td { color: var(--good); font-weight: 700; }
     <p class="note">Move with the arrow keys or WASD, or the on-screen arrows on a phone or tablet. P pauses.</p>
     <p id="titleTop"></p>
     <p id="titleBot" class="good"></p>
+    <p id="titleBuild" class="note"></p>
     <div class="row">
       <button class="primary" id="btnPlay">Play</button>
       <button id="btnScores">High scores</button>
@@ -116,6 +117,10 @@ tr.new td { color: var(--good); font-weight: 700; }
   </div>
 </section>
 
+<!-- The build number, written by stamp_build.py right before publishing. -->
+<!-- BUILD-START -->
+<script>window.GAME_BUILD = null;</script>
+<!-- BUILD-END -->
 <!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
 <!-- BOT-SCORES-START -->
 <script>window.BOT_SCORES = null;</script>
@@ -382,6 +387,7 @@ const UI = {
     const top = Scores.top(), bot = window.BOT_SCORES && window.BOT_SCORES.champion;
     $('titleTop').textContent = top ? `Top score: ${top} ${SCORE_NAME}` : '';
     $('titleBot').textContent = bot ? `Bot's best: ${bot.score} ${SCORE_NAME}. Can you beat it?` : '';
+    $('titleBuild').textContent = window.GAME_BUILD ? `Build ${window.GAME_BUILD}` : '';
   },
   syncHud() { $('hudScore').textContent = `Stars: ${Game.stars} of ${CFG.STARS_TO_WIN}`; $('hudLives').textContent = `Lives: ${Game.lives}`; },
   table(newRow = -1) { // newRow: which row to highlight
