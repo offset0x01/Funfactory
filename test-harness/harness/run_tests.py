@@ -90,7 +90,9 @@ def run_evolution(g, info, a, passes, game: pathlib.Path, log):
         bot.start_from(saved["genome"])
     elif a.no_search:
         sys.exit("--no-search: there is no saved best run (bot-best-run.json) to replay. Run `all` without --no-search.")
-    r = bot.run(passes, a.extra_passes)
+    r = bot.run(passes, a.extra_passes, deadline=time.time() + a.max_minutes * 60 if a.max_minutes else None)
+    if r.get("time_limited"):
+        log(f"  search stopped at the {a.max_minutes:g}-minute limit (--max-minutes); the best run so far is kept.")
     best = r.pop("best_genome")
     full = g.rollout(best, seed=a.seed, stall_steps=info["maxSteps"])
     path.write_text(json.dumps({"seed": a.seed, "actions": [x["id"] for x in info["actions"]],
@@ -135,6 +137,8 @@ def write_report(out: pathlib.Path, report: dict, md: pathlib.Path) -> pathlib.P
                           "checked": "- **Evolution Bot** replayed its saved best run (`bot-best-run.json`) exactly, without searching (`--no-search`). It still doesn't win. Its earlier passes are in `bot-scores.json`.",
                           "continued": "- **Evolution Bot** carried on from its saved best run (`bot-best-run.json`); the passes above are the new ones.",
                           "restarted": "- **Evolution Bot** started from its saved best run (`bot-best-run.json`), which plays out differently now that the game has changed."}[b["resumed"]])
+            if b.get("time_limited"):
+                L.append("- **Evolution Bot** stopped searching at the time limit (`--max-minutes`); the best run so far is saved.")
             if b.get("strategies"):
                 L += ["", f"Final strategy written by the Thinking Bot's reviewer:", "", "> " + b["strategies"][-1].replace("\n", "\n> ")]
         L.append("")
@@ -162,6 +166,7 @@ def main():
     ap.add_argument("--require-win", action="store_true", help=argparse.SUPPRESS)  # old flag; now the default
     ap.add_argument("--no-search", action="store_true", help="evolution bot: only replay the saved best run, never search; fails if it no longer replays exactly")
     ap.add_argument("--fresh", action="store_true", help="evolution bot: ignore bot-best-run.json and search from scratch")
+    ap.add_argument("--max-minutes", type=float, default=None, help="evolution bot: stop searching after this many minutes and keep the best run so far")
     ap.add_argument("--decision-seconds", type=float, default=0.25, help="AI bots: game time each chosen move is held")
     ap.add_argument("--max-decisions", type=int, default=600, help="AI bots: move limit per pass (caps cost)")
     ap.add_argument("--seed", type=int, default=1)

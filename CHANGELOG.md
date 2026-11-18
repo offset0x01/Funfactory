@@ -2,6 +2,10 @@
 
 Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. Newest first. Add a line here whenever you change how games are built or integrated.
 
+## 2026-11-18
+
+- **Changes to existing games cap the bot search at 10 minutes.** A change runs `all --max-minutes 10 --allow-no-win` once: a saved win still replays in seconds, and when the change makes the saved run play out differently the bot searches for 10 minutes, keeps its best run and stops. HANDOFF.md says whether it won. The game's own `test_game.py` checks for the changed parts are now the main proof for a change. New games still need a bot win (unchanged). New `--max-minutes` flag for the Evolution Bot. Space Egg Quest's search had grown to 45–115 minutes per build with no change in the result. `AGENTS.md` and `test-harness/README.md` updated; no games need changes.
+
 ## 2026-11-16
 
 - **Build numbers.** Every game shows its build number, the US Eastern date and time it was published (`2026.11.16-1101`), on its title screen and on its card on the home page, so players can tell an update came through. New `test-harness/harness/stamp_build.py games/<name>` writes it between new `BUILD` markers in `index.html` (as `window.GAME_BUILD`) and to `games/<name>/build.json` (read by the home page); run it right before the commit. Game Studio's publisher stamps every build it publishes. The starter shows it under the bot's best. `comet-catcher` and `lost-luggage-of-the-cosmos` show it and are stamped with their last build times; `space-egg-quest` has its `build.json` and gets the title-screen line with its next build.

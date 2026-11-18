@@ -116,15 +116,20 @@ class EvolutionaryBot:
         """Begin the search from a run saved earlier (bot-best-run.json) instead of from nothing."""
         self._consider([list(s) for s in genome], self._search_eval(genome))
 
-    def run(self, passes: int = 3, extra_passes_for_win: int = 0) -> dict:
+    def run(self, passes: int = 3, extra_passes_for_win: int = 0, deadline: float | None = None) -> dict:
+        """`deadline` (a time.time() value) stops the search early; the pass in progress still counts, so the best run so far is kept."""
         if not self.elite:
             g0 = [self._rand_segment(Counter()) for _ in range(6)]
             self._consider(g0, self._search_eval(g0))
         pass_results = []
         t0 = time.time()
         p = 0
-        while p < passes or (p < passes + extra_passes_for_win and not any(r["status"] == "won" for r in pass_results)):
+        timed_out = False
+        while not timed_out and (p < passes or (p < passes + extra_passes_for_win and not any(r["status"] == "won" for r in pass_results))):
             for _ in range(self.R):
+                if deadline is not None and time.time() >= deadline:
+                    timed_out = True
+                    break
                 parent = self.elite[0] if self.rng.random() < 0.7 else self.rng.choice(self.elite)
                 child = self._mutate(parent[1], parent[2])
                 r = self._search_eval(child)
@@ -142,5 +147,5 @@ class EvolutionaryBot:
             p += 1
         best_genome = self.elite[0][1]
         return {"bot": self.name, "passes": pass_results, "best_genome": best_genome,
-                "won": any(r["status"] == "won" for r in pass_results),
+                "won": any(r["status"] == "won" for r in pass_results), "time_limited": timed_out,
                 "settings": {"rollouts_per_pass": self.R, "min_hold_steps": self.min_hold, "seed": self.seed}}
