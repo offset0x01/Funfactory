@@ -35,8 +35,9 @@ with GameSession(str(GAME)) as g:
     check(pg.is_visible("#scrTitle") and pg.is_visible("#btnScores"), "title screen shows with a High scores button")
     pg.keyboard.press("Enter")
     check(js("__game.Game.state") == "play" and pg.is_visible("#hud") and pg.is_visible("#cross"), "Enter starts the game and shows the HUD and crosshair")
-    check(js("__game.Game.eggs.length") == 0 and js("__game.Game.dungeons.length") == 4 and js("__game.Game.hearts") == 7,
-          "no eggs lying around at the start, 4 caves (3 weapons + the Jet-Pack) and 7 hearts")
+    check(js("__game.Game.eggs.length") == 0 and js("__game.Game.dungeons.length") == 4 and js("__game.Game.hearts") == 7
+          and js("__game.Game.fuel") == 0 and not pg.is_visible("#hudFuel"),
+          "no eggs lying around at the start, 4 caves (3 weapons + the Jet-Pack), 7 hearts, an empty fuel tank (no fuel bar yet)")
 
     # walking (W), turning, looking up and down (arrows), jumping
     r = js(f"""() => {{ const {{ Game, Input }} = __game; const p = Game.player; p.x = 0; p.z = 0; p.yaw = 0; p.pitch = 0;
@@ -147,39 +148,88 @@ with GameSession(str(GAME)) as g:
           and r["owned"] == ["blaster", "grenade"] and r["back"] and r["sealed"],
           f"cave stairs lead to a maze with guards; the weapon is far in; the portal opens once you have it; the stairs seal after ({r})")
 
-    # v4: every cave hides all three trap kinds, and the Jet-Pack cave exists
+    # every cave hides all seven trap kinds (roughly double the traps of v4), and the Jet-Pack cave exists
     r = js("""() => { const { Game } = __game;
               return { caves: Game.dungeons.length,
                        jetCave: Game.dungeons.some(d => d.weaponKind === 'jetpack'),
-                       allTrapped: Game.dungeons.every(d => ['bear', 'wire', 'axe'].every(k => d.traps.some(t => t.kind === k))),
-                       trapCount: Game.dungeons.map(d => d.traps.length).join(',') }; }""")
-    check(r["caves"] == 4 and r["jetCave"] and r["allTrapped"] and all(int(n) >= 6 for n in r["trapCount"].split(",")),
-          f"four caves, one with the Jet-Pack, and each with bear traps, trip-wires and axe plates ({r})")
+                       allTrapped: Game.dungeons.every(d => ['bear', 'wire', 'axe', 'spike', 'laser', 'mover', 'debris']
+                         .every(k => d.traps.some(t => t.kind === k))),
+                       trapCount: Game.dungeons.map(d => d.traps.length).join(','),
+                       kinds: [...new Set(Game.dungeons.flatMap(d => d.traps.map(t => t.kind)))].sort().join(',') }; }""")
+    check(r["caves"] == 4 and r["jetCave"] and r["allTrapped"] and r["kinds"] == "axe,bear,debris,laser,mover,spike,wire"
+          and all(int(n) >= 11 for n in r["trapCount"].split(",")),
+          f"four caves, one with the Jet-Pack, and each with all seven trap kinds, about twice as many as before ({r})")
 
-    # the traps: silent, one-shot (the axe re-arms), and the steel ones can be jumped
-    r = js(f"""() => {{ const {{ Game, Dun }} = __game; const p = Game.player; const d = Game.dungeons[2];
-              Game.enemies = []; p.x = d.door.x; p.z = d.door.z; Game.update({STEP});       // down the stairs of the still-open cave
+    # the traps, one by one: fixed seed, so the checks always test the same caves.
+    # Silent by design, one-shot (the axe re-arms), and the low ones can be jumped.
+    r = js(f"""() => {{ const h = window.GAME_TEST_HOOK; h.reset({{ seed: 60 }});
+              const {{ Game }} = __game; const p = Game.player; const d = Game.dungeons[2];
+              p.x = d.door.x; p.z = d.door.z; Game.update({STEP});       // down the stairs of the still-open cave
               const inside = p.zone === 2;
-              const bear = d.traps.find(t => t.kind === 'bear'), wire = d.traps.find(t => t.kind === 'wire'), axe = d.traps.find(t => t.kind === 'axe');
+              // bear trap: one heart once, then sprung for good; a jump sails over the jaws
+              const bear = d.traps.find(t => t.kind === 'bear');
               Game.enemies = []; Game.hearts = 7; p.safe = 0; p.h = 0; p.x = bear.x; p.z = bear.z; Game.update({STEP});
               const bear1 = Game.hearts; Game.update({STEP}); const bear2 = Game.hearts;              // sprung: safe to walk over now
               p.safe = 0; bear.spent = false; p.x = bear.x; p.z = bear.z; p.h = 1.2; Game.update({STEP});
               const bearJump = Game.hearts;                                                        // a jump sails over the jaws
+              // trip-wire: a monster drops from the ceiling and lands
+              const wire = d.traps.find(t => t.kind === 'wire');
               Game.enemies = []; p.h = 0; p.safe = 99; p.x = wire.x; p.z = wire.z; Game.update({STEP});
               const dropped = Game.enemies.length, falling = Game.enemies[0] && Game.enemies[0].fallY > 3;    // it falls from the ceiling...
               let fell = false; for (let i = 0; i < 60; i++) {{ Game.update({STEP}); if (Game.enemies[0] && Game.enemies[0].fallY === undefined) {{ fell = true; break; }} }}
+              // axe plate: the blade starts, sweeps through you, then stops and re-arms
+              const axe = d.traps.find(t => t.kind === 'axe');
               Game.enemies = []; const h0 = Game.hearts; p.safe = 0; p.h = 0; p.x = axe.x; p.z = axe.z; Game.update({STEP});
               const started = axe.active; let axed = false;
               for (let i = 0; i < 90 && !axed; i++) {{ Game.update({STEP}); if (Game.hearts < h0) axed = true; }}   // ...and the axe blade sweeps through you
               p.x = d.start.x; p.z = d.start.z; for (let i = 0; i < 700; i++) Game.update({STEP});                     // walk away: it stops and re-arms
               const stopped = !axe.active && axe.cool <= 0;
+              // spike plate: spikes out cost a heart; a jump clears them; sunk spikes are safe
+              const spike = d.traps.find(t => t.kind === 'spike');
+              Game.enemies = []; Game.hearts = 7; p.safe = 0; p.h = 0; spike.phase = Math.PI / 2; p.x = spike.x; p.z = spike.z; Game.update({STEP});
+              const spikeOut = Game.hearts;                                                     // they were up
+              p.safe = 0; p.h = 1.2; spike.phase = Math.PI / 2; Game.update({STEP});
+              const spikeJump = Game.hearts;                                                     // a jump sails over them
+              p.safe = 0; p.h = 0; spike.phase = -Math.PI / 2; Game.update({STEP}); Game.update({STEP});
+              const spikeDown = Game.hearts;                                                      // sunk, they do nothing
+              // sweeping laser: standing in the beam's way costs a heart; a jump clears the low beam
+              const laser = d.traps.find(t => t.kind === 'laser');
+              Game.enemies = []; Game.hearts = 7; p.safe = 0; p.h = 0; laser.angle = 0; p.x = laser.x; p.z = laser.z + 2.5; Game.update({STEP});
+              const zapped = Game.hearts;                                                         // the beam swept over you
+              p.safe = 0; p.h = 0.7; laser.angle = 0; Game.update({STEP});
+              const laserJump = Game.hearts;                                                      // too high for the low beam
+              // rolling boulder: it patrols its track and bumps you; off its track you're safe
+              const mover = d.traps.find(t => t.kind === 'mover');
+              Game.enemies = []; Game.hearts = 7; p.safe = 0; p.h = 0; mover.phase = 0; p.x = mover.x; p.z = mover.z; Game.update({STEP});
+              const bumped = Game.hearts;                                                        // it rolled into you
+              p.safe = 0; p.h = 0; p.x = mover.x + (mover.travel === 'x' ? -(mover.amp + 1) : 0); p.z = mover.z + (mover.travel === 'z' ? -(mover.amp + 1) : 0);
+              Game.update({STEP}); const aside = Game.hearts;                                    // off its track, nothing
+              let rolled = false; const first = Math.sin(mover.phase); p.x = d.start.x; p.z = d.start.z;
+              for (let i = 0; i < 150; i++) {{ Game.update({STEP}); if (Math.abs(Math.sin(mover.phase) - first) > 0.5) {{ rolled = true; break; }} }}   // it really rolls
+              // crumbling ceiling: it shudders first, then drops rubble; step out and it misses you, stay and it lands on you
+              const debris = d.traps.find(t => t.kind === 'debris');
+              Game.enemies = []; Game.hearts = 7; p.safe = 0; p.h = 0; p.x = debris.x; p.z = debris.z; Game.update({STEP});
+              const warned = debris.spent && debris.warn > 0;                                    // the shudder gives you time
+              p.x = d.start.x; p.z = d.start.z; for (let i = 0; i < 90; i++) Game.update({STEP}); // step aside while it falls
+              const pile = debris.chunkY, dodged = Game.hearts;                                   // it lands as a rubble pile, missing you
+              debris.spent = false; debris.warn = 0; debris.chunkY = -1; Game.hearts = 7; p.safe = 0; p.h = 0;
+              p.x = debris.x; p.z = debris.z; Game.update({STEP}); let crushed = false, crushedAt = -1;
+              for (let i = 0; i < 90; i++) {{ Game.update({STEP}); if (Game.hearts < 7) {{ crushed = true; crushedAt = debris.chunkY; break; }} }}     // stay under it and it lands on you
               p.x = d.weapon.x; p.z = d.weapon.z; Game.update({STEP});                                                 // take the Sniper so the portal opens
               p.x = d.exit.x; p.z = d.exit.z; Game.update({STEP});                                                      // back out through the portal
-              return {{ inside, bear1, bear2, bearJump, dropped, falling, fell, started, axed, stopped, out: p.zone === -1 }}; }}""")
+              return {{ inside, bear1, bear2, bearJump, dropped, falling, fell, started, axed, stopped,
+                        spikeOut, spikeJump, spikeDown, zapped, laserJump, bumped, aside, rolled, warned, pile, dodged, crushed, crushedAt, out: p.zone === -1 }}; }}""")
     check(r["inside"] and r["bear1"] == 6 and r["bear2"] == 6 and r["bearJump"] == 6,
           f"a steel bear trap costs a heart once, then is safe; a jump sails over it ({r})")
     check(r["dropped"] == 1 and r["falling"] and r["fell"], f"a tripped rope drops a monster from the ceiling, and it lands ({r})")
-    check(r["started"] and r["axed"] and r["stopped"] and r["out"], f"the axe plate starts the blade swinging, it hits, then stops and re-arms ({r})")
+    check(r["started"] and r["axed"] and r["stopped"], f"the axe plate starts the blade swinging, it hits, then stops and re-arms ({r})")
+    check(r["spikeOut"] == 6 and r["spikeJump"] == 6 and r["spikeDown"] == 6,
+          f"pop-up spikes cost a heart when they're out; a jump clears them, and sunk spikes are safe ({r})")
+    check(r["zapped"] == 6 and r["laserJump"] == 6, f"the sweeping laser zaps you at ankle height, and a jump clears its beam ({r})")
+    check(r["bumped"] == 6 and r["aside"] == 6 and r["rolled"], f"the rolling boulder patrols its track and bumps you; off its track you're safe ({r})")
+    check(r["warned"] and r["pile"] == 0 and r["dodged"] == 7 and r["crushed"] and r["crushedAt"] == 0 and r["out"],
+          f"the crumbling ceiling shudders, then drops rubble: dodge and it lands as a pile; stay under it and it lands on you ({r})")
+    js("() => { __game.Game.play(); }")  # back to a normal player game (the trap test used the hook's fixed seed)
 
     # the weapons: switch with keys; the Big Laser burns while held, grenades blow up a crowd, the Sniper hits hard far away
     r = js(f"""() => {{ const {{ Game, Input }} = __game; const p = Game.player; Game.owned = ['blaster', 'laser', 'grenade', 'sniper']; Game.buddies = []; Game.spawnTimer = 999; p.safe = 999; p.h = 0;
@@ -209,16 +259,31 @@ with GameSession(str(GAME)) as g:
     check(r["sniperFar"], "the Sniper takes out a Goo Spitter 80 m away in one shot")
     check(r["grenadeLeft"] == 0, f"one grenade takes out a group of three Gloomlings ({r['grenadeLeft']} left)")
 
-    # the Jet-Pack (the fourth cave's item, slot 5): hold fire to fly, let go to land
+    # the Jet-Pack (the fourth cave's item, slot 5) now runs on fuel: it drains while you fly,
+    # cuts out when the tank is empty, and beating monsters refills a good chunk
     r = js(f"""() => {{ const {{ Game, Input, CFG, WEAPONS }} = __game; const p = Game.player; Game.enemies = []; Game.boss = null; Game.bossPending = false; Game.spawnTimer = 999;
-              p.x = 0; p.z = 0; p.zone = -1; p.h = 0; p.vy = 0; Game.owned = ['blaster', 'jetpack'];
+              p.x = 0; p.z = 0; p.zone = -1; p.h = 0; p.vy = 0; Game.owned = ['blaster', 'jetpack']; Game.fuel = 0; // picked up dry
               Input.weaponPick = 5; Game.update({STEP}); const got = Game.weapon, slot5 = WEAPONS.jetpack.key;
+              Input.keys.add('Space'); Game.update({STEP}); const dryThrust = Game.thrust, dryH = p.h; // an empty tank gives no thrust
+              Input.keys.delete('Space');
+              Game.fuel = CFG.JET_FUEL; // a full tank
               Input.keys.add('Space'); let top = 0; for (let i = 0; i < 240; i++) {{ Game.update({STEP}); top = Math.max(top, p.h); }}
-              const thrust = Game.thrust, high = +top.toFixed(2);
-              Input.keys.delete('Space'); let landed = false, steps = 0; for (let i = 0; i < 400; i++) {{ Game.update({STEP}); steps++; if (p.h === 0 && p.vy === 0) {{ landed = true; break; }} }}
-              return {{ got, slot5, thrust, high, landed }}; }}""")
-    check(r["got"] == "jetpack" and r["slot5"] == 5 and r["thrust"] and 6.3 <= r["high"] <= 6.7 and r["landed"],
-          f"key 5 takes the Jet-Pack (one inventory slot); holding fire flies you up to about 6.5 m, then you land ({r})")
+              const thrust = Game.thrust, high = +top.toFixed(2), left = +Game.fuel.toFixed(1); // 4 s of flight drank fuel
+              let sputter = false; // keep holding: the tank empties and the thrust cuts out mid-air
+              for (let i = 0; i < 400; i++) {{ Game.update({STEP}); if (Game.fuel === 0 && !Game.thrust) {{ sputter = true; break; }} }}
+              Input.keys.delete('Space'); let landed = false; for (let i = 0; i < 400; i++) {{ Game.update({STEP}); if (p.h === 0 && p.vy === 0) {{ landed = true; break; }} }}
+              Game.enemies = []; Game.addEnemy('gloom', 5, 5, -1); Game.damage(Game.enemies[0], 9); // beat a monster...
+              const chunk = +(Game.fuel - 0).toFixed(2); // ...and the empty tank refills a good chunk
+              Game.fuel = CFG.JET_FUEL - 1; Game.enemies = []; Game.addEnemy('gloom', 5, 5, -1); Game.damage(Game.enemies[0], 9);
+              const capped = Game.fuel === CFG.JET_FUEL; // ...but never past a full tank
+              return {{ got, slot5, dryThrust, dryH, thrust, high, left, sputter, landed, chunk, capped }}; }}""")
+    check(r["got"] == "jetpack" and r["slot5"] == 5 and not r["dryThrust"] and r["dryH"] == 0
+          and r["thrust"] and 6.3 <= r["high"] <= 6.7 and r["left"] < 100,
+          f"key 5 takes the Jet-Pack; an empty tank gives no thrust; a full tank flies you up to about 6.5 m while the fuel drains ({r})")
+    check(r["sputter"] and r["landed"], f"the thrust cuts out when the tank empties, and you land ({r})")
+    check(r["chunk"] == 25 and r["capped"], f"beating a monster refills a good chunk of fuel ({r['chunk']}), capped at a full tank ({r})")
+    pg.wait_for_timeout(150)
+    check(pg.is_visible("#hudFuel"), "the Jet fuel bar shows once you own the Jet-Pack")
 
     # 20 eggs bring MEGA GLOOM down; a shockwave can be jumped over
     r = js(f"""() => {{ const {{ Game, CFG }} = __game; const p = Game.player; Game.enemies = []; Game.eggs = []; p.safe = 999; p.h = 0; Game.eggsFound = CFG.EGGS - 1;

@@ -1,6 +1,6 @@
 # Test report: Space Egg Quest
 
-Run at 2026-11-16 23:08:45 · seed 1
+Run at 2026-11-18 01:21:12 · seed 1
 
 ## Smoke tests
 
@@ -35,11 +35,11 @@ Run at 2026-11-16 23:08:45 · seed 1
 | PASS | after step: status is valid | status=playing |
 | PASS | after step: progress in 0..1 | progress=0 |
 | PASS | unknown action is rejected |  |
-| PASS | observe() gives text | 761 chars |
+| PASS | observe() gives text | 919 chars |
 | PASS | same seed + same inputs = same run | run A 0/0.000 vs B 0/0.000 |
-| PASS | full-length run simulates in < 5 s | 0.23 s for 72000 steps |
-| PASS | real keyboard works (forward) | idle player {'x': 0, 'y': 0, 'yaw': 0, 'pitch': 0, 'jumpHeight': 0, 'safeSeconds': 0, 'zone': -1} vs keys {'x': 0, 'y': 9.3, 'yaw': 0, 'pitch': 0, 'jumpHeight': 0, 'safeSeconds': 0, 'zone': -1} |
-| PASS | game screen is drawn (not blank) | pixel std 47.5, ~1781 colors |
+| PASS | full-length run simulates in < 5 s | 0.29 s for 72000 steps |
+| PASS | real keyboard works (forward) | idle player {'x': 0, 'y': 0, 'yaw': 0, 'pitch': 0, 'jumpHeight': 0, 'safeSeconds': 0, 'zone': -1} vs keys {'x': 0, 'y': 9.75, 'yaw': 0, 'pitch': 0, 'jumpHeight': 0, 'safeSeconds': 0, 'zone': -1} |
+| PASS | game screen is drawn (not blank) | pixel std 49.9, ~1787 colors |
 | PASS | no console errors while playing |  |
 | PASS | P pauses and resumes | nothing may change while paused, and the smoke action must work again after the second P |
 | PASS | page never scrolls | page is 0 px too wide, 0 px too tall |
@@ -47,16 +47,16 @@ Run at 2026-11-16 23:08:45 · seed 1
 | PASS | storage keys start with the folder name | 1 key(s) checked |
 | PASS | no network requests |  |
 | PASS | title screen has a High scores button | no 'High scores' text on the title screen |
-| PASS | phone touch screen: loads, draws, no scroll | pixel std 52.8, ~2420 colors; overflow [0, 0] |
+| PASS | phone touch screen: loads, draws, no scroll | pixel std 50.3, ~2427 colors; overflow [0, 0] |
 | PASS | title screen shows the bot's best | set window.BOT_SCORES and the number did not appear |
 
 ## Bots
 
 | Bot | Start | Mid | Best | Won? | Passes in this run |
 | --- | --- | --- | --- | --- | --- |
-| Evolution Bot | 0 | 6260 | 6315 | no | 6315 (playing, 58%) |
+| Evolution Bot | 50 | 1980 | 13655 | yes | 13655 (won, 100%) |
 
-- **Evolution Bot** replayed its saved best run (`bot-best-run.json`) exactly, without searching (`--no-search`). It still doesn't win. Its earlier passes are in `bot-scores.json`.
+- **Evolution Bot** replayed its saved best run (`bot-best-run.json`): it still wins exactly as before, so nothing was searched. Its earlier passes are in `bot-scores.json`.
 
 ## Fairness
 
@@ -66,11 +66,11 @@ Run at 2026-11-16 23:08:45 · seed 1
 | PASS | doing nothing does not win | after 30 s of standing still: lost, progress 0% |
 | PASS | random button mashing does not win | 0/5 random runs won |
 | PASS | game self-check | no problems |
-| FAIL | a human-speed bot can win | not proven: best run reached 58% (level 1). Either that spot is too hard or the bot needs more tries (--extra-passes 10, once, if the last run was short). |
-| WARN | timing tolerance (40 ms nudges) | 13/48 nudged replays still did as well (27%); tight moments at 5.9s, 5.9s, 24.9s, 24.9s, 34.0s, 34.0s |
+| PASS | a human-speed bot can win | won with score 13655, lives lost 0 |
+| WARN | timing tolerance (40 ms nudges) | 10/48 nudged replays still did as well (21%); tight moments at 10.8s, 10.8s, 25.6s, 25.6s, 48.6s, 48.6s |
 
 ## Scoreboard
 
-Bot to beat: **Evolution Bot with 6315**
+Bot to beat: **Evolution Bot with 13655**
 
-**Overall: FAIL**
+**Overall: PASS**

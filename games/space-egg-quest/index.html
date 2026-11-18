@@ -69,6 +69,9 @@ tr.new td { color: var(--good); font-weight: 700; }
 #tSwap { position: absolute; right: calc(max(18px, env(safe-area-inset-right)) + 108px); bottom: max(26px, env(safe-area-inset-bottom)); width: 70px; height: 56px; border-radius: 14px;
   pointer-events: auto; font-size: 14px; touch-action: none; }
 #hudWeapon { color: #ffd36b; }
+#hudFuel { display: flex; align-items: center; gap: 6px; color: #ffb07a; }
+#hudFuel .track { width: 84px; height: 10px; border-radius: 6px; background: #0008; border: 1px solid #fff5; overflow: hidden; }
+#hudFuelFill { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #ff8a3d, #ffd36b); }
 #tJump { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: calc(max(26px, env(safe-area-inset-bottom)) + 108px); width: 76px; height: 56px; border-radius: 14px;
   pointer-events: auto; font-size: 14px; touch-action: none; }
 #lookHint { position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: calc(max(26px, env(safe-area-inset-bottom)) + 172px); font-size: 13px; color: #fffa; text-shadow: 0 1px 2px #000; }
@@ -88,6 +91,7 @@ tr.new td { color: var(--good); font-weight: 700; }
   <span id="hudBuddies">Buddies: 0</span>
   <span id="hudScore">Score: 0</span>
   <span id="hudWeapon">Blaster</span>
+  <span id="hudFuel" hidden><span id="hudFuelText">Jet fuel</span><span class="track"><span id="hudFuelFill"></span></span></span>
   <span class="spacer"></span>
   <button id="btnMute" aria-label="Sound on or off">&#9835;</button>
   <button id="btnPause" aria-label="Pause">II</button>
@@ -105,8 +109,8 @@ tr.new td { color: var(--good); font-weight: 700; }
   <div class="card">
     <h1>Space Egg Quest</h1>
     <p>Your ship landed on Planet Wobblor, overrun by monsters. Beat them: some drop alien eggs! Find 20 eggs. Each one hatches into a little buddy who follows you and helps a bit.</p>
-    <p>Four caves (new ones every game) hide the Big Laser, the Grenade Launcher, the Sniper and a Jet-Pack. Careful: the caves are trapped! Steel bear traps, trip-wires and swinging axes. Jump the low ones, and never linger on a rusty floor tile.</p>
-    <p class="note"><b>Keyboard:</b> W / S walk, A / D or Left / Right turn, Up / Down look up and down, Q / E step sideways, Space fires, J or Shift jumps, 1 to 5 or X switch weapons (5 is the Jet-Pack: hold Space to fly), drag the mouse to look. P pauses, M mutes.<br><b>Touch:</b> the stick walks and turns, drag anywhere to look around and up and down, FIRE, JUMP, and SWAP for weapons (hold FIRE with the Jet-Pack to fly).</p>
+    <p>Four caves (new ones every game) hide the Big Laser, the Grenade Launcher, the Sniper and a Jet-Pack. Careful: the caves are trapped — twice as many traps as before! Bear traps, trip-wires, swinging axes, pop-up spikes, sweeping lasers, rolling boulders and crumbling ceilings. Jump the low ones, time the rest.</p>
+    <p class="note"><b>Keyboard:</b> W / S walk, A / D or Left / Right turn, Up / Down look up and down, Q / E step sideways, Space fires, J or Shift jumps, 1 to 5 or X switch weapons (5 is the Jet-Pack: hold Space to fly — it drinks fuel, and every monster you beat refills a good chunk), drag the mouse to look. P pauses, M mutes.<br><b>Touch:</b> the stick walks and turns, drag anywhere to look around and up and down, FIRE, JUMP, and SWAP for weapons (hold FIRE with the Jet-Pack to fly).</p>
     <p class="note">No aim help: shots go exactly where the crosshair points. The egg sensor at the top points to a dropped egg within 40 m.</p>
     <p id="titleTop"></p>
     <p id="titleBot" class="good"></p>
@@ -153,10 +157,10 @@ tr.new td { color: var(--good); font-weight: 700; }
 <!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
 <!-- The build number, written by stamp_build.py right before publishing. -->
 <!-- BUILD-START -->
-<script>window.GAME_BUILD = "2026.11.16-1842";</script>
+<script>window.GAME_BUILD = "2026.11.17-2024";</script>
 <!-- BUILD-END -->
 <!-- BOT-SCORES-START -->
-<script>window.BOT_SCORES = {"game":"Space Egg Quest","bots":{"evolutionary":{"label":"Evolution Bot","start":0,"mid":6260,"best":6315,"won":false,"passes":[0,0,25,125,675,4255,4405,5805,5775,5800,5800,6050,6260,6260,6260,6260,6315,6315,6315,6315,6315,6315,6315,6315,6315,6315]}},"updated":"2026-11-16T23:09:42Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":6315,"won":false}};</script>
+<script>window.BOT_SCORES = {"game":"Space Egg Quest","bots":{"evolutionary":{"label":"Evolution Bot","start":50,"mid":1980,"best":13655,"won":true,"passes":[50,125,150,475,1980,5015,8175,9330,13655]}},"updated":"2026-11-18T01:22:15Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":13655,"won":true}};</script>
 <!-- BOT-SCORES-END -->
 
 <script>
@@ -186,12 +190,14 @@ const CFG = {                       // every tuning number lives here
   JUMP_SPEED: 7, GRAVITY: 20,       // jumping: about 1.2 m high, 0.7 s in the air
   JET_UP: 5.5,                      // the Jet-Pack: how fast you climb while you hold fire
   JET_MAX: 6.5, JET_MAX_CAVE: 2.4,  // how high the Jet-Pack can take you (cave ceilings are low)
+  JET_FUEL: 100,                    // the Jet-Pack's fuel tank (it shows as a bar once you own it)
+  JET_DRAIN: 12, JET_REFUEL: 25,    // fuel burned per second of flight, and refilled per monster beaten
   EGGS: 20, EGG_DROP: 0.10, EGG_REACH: 1.8,   // eggs needed, the chance a beaten monster drops one, pickup reach
   HEART_DROP: 0.04,                 // the chance any beaten monster drops a heart fruit (Rockbacks always do)
   ROCKS: 50, TREES: 46, MOUNTAINS: 7,
   CELL: 4,                          // size of one cave square, in meters
   CAVE_W: 13, CAVE_H: 10,           // cave size in maze rooms (the map is twice that plus one squares each way)
-  CAVE_TRAPS: { bear: 2, wire: 2, axe: 2 },  // traps sprinkled through every cave (placed by the seeded dice)
+  CAVE_TRAPS: { bear: 2, wire: 2, axe: 2, spike: 2, laser: 1, mover: 1, debris: 2 },  // 12 traps per cave (placed by the seeded dice)
   SENSOR_RANGE: 40,                 // the egg sensor arrow only shows eggs and stairs this close (meters)
   BUDDY_SHOT_SPEED: 22, BUDDY_FIRE_EVERY: 1.1, BUDDY_RANGE: 15,
   BUDDY_DAMAGE: 0.25,               // a buddy shot does a quarter of a blaster shot
@@ -220,10 +226,11 @@ const KINDS = {
   rockback: { name: 'Rockback',    hp: 6, speed: 1.6, r: 1.5,  y: 0.9, points: 60 }, // big, slow and tough; drops a heart fruit
 };
 const MAP_LETTER = { g: 'gloom', z: 'zapbug', s: 'spitter', r: 'rockback' };
-const TRAP_LETTER = { t: 'bear', w: 'wire', a: 'axe' }; // cave traps, placed at random by makeCave()
+const TRAP_LETTER = { t: 'bear', w: 'wire', a: 'axe', i: 'spike', l: 'laser', m: 'mover', d: 'debris' }; // cave traps, placed at random by makeCave()
 // Underground dungeons, each guarding one weapon. # wall, . floor, S stairs (where you arrive),
 // W the weapon, X exit portal, g z s r = monsters waiting there, t = bear trap, w = trip-wire,
-// a = axe plate (the game sprinkles traps and guards through every generated cave on its own).
+// a = axe plate, i = spike plate, l = sweeping laser, m = rolling boulder, d = crumbling ceiling
+// (the game sprinkles traps and guards through every generated cave on its own).
 // Kids can redraw these maps; keep a path from S to W.
 const DUNGEONS = [
   { name: 'the Crystal Caves', weapon: 'laser', map: [
@@ -475,6 +482,16 @@ const Dun = {
         const axis = g[r][c - 1] === '#' && g[r][c + 1] === '#' ? 'x' : 'z';
         const trap = { kind: TRAP_LETTER[ch], ...pos, axis, spent: false };
         if (trap.kind === 'axe') Object.assign(trap, { active: false, timer: 0, phase: 0, hit: false, cool: 0 });
+        if (trap.kind === 'spike') trap.phase = rand() * 4.8; // the spikes rise and sink on their own clock
+        if (trap.kind === 'laser') Object.assign(trap, { angle: rand() * Math.PI * 2, spin: 1.1 + rand() * 0.7 }); // its beam sweeps around
+        if (trap.kind === 'mover') { // the boulder rolls along the open way, as far as the corridor lets it
+          const travel = axis === 'x' ? 'z' : 'x'; // walls left and right: it rolls up and down the corridor
+          const dc = travel === 'x' ? 1 : 0, dr = travel === 'z' ? 1 : 0;
+          let open = 0; // how many squares it can roll each way (two at most)
+          for (const s of [-1, 1]) { let n = 0; while (n < 2 && !this.solidCell(d, c + dc * s * (n + 1), r + dr * s * (n + 1))) n++; open = Math.max(open, n); }
+          Object.assign(trap, { travel, amp: open * CFG.CELL, phase: rand() * Math.PI * 2, speed: (2.4 + rand() * 1.2) / Math.max(2, open * CFG.CELL) });
+        }
+        if (trap.kind === 'debris') Object.assign(trap, { warn: 0, chunkY: -1 }); // -1 not falling yet, 0 landed
         d.traps.push(trap);
       }
     }
@@ -589,7 +606,8 @@ function makeCave(cw, ch) {
     g[r][c] = letters[Math.floor(rand() * letters.length)];
   }
   // 6. traps (same dice every time, so the same seed always hides them in the same spots):
-  // t bear trap, w trip-wire, a axe plate. Ropes and axes like a narrow corridor; jaws don't care.
+  // t bear trap, w trip-wire, a axe plate, i spike plate, l sweeping laser, m rolling boulder,
+  // d crumbling ceiling. Ropes, axes, lasers and boulders like a narrow corridor; the rest don't care.
   const trapSpots = [...far.entries()].filter(([k, d]) => d > 3 && g[+k.split(',')[1]][+k.split(',')[0]] === '.');
   const corridor = (c, r) => (g[r][c - 1] === '#' && g[r][c + 1] === '#') || (g[r - 1][c] === '#' && g[r + 1][c] === '#');
   const place = (letter, needCorridor) => {
@@ -600,7 +618,8 @@ function makeCave(cw, ch) {
     g[r][c] = letter;
     trapSpots.splice(trapSpots.findIndex(([k]) => k === pool[pick][0]), 1);
   };
-  for (const [letter, n] of [['t', CFG.CAVE_TRAPS.bear], ['w', CFG.CAVE_TRAPS.wire], ['a', CFG.CAVE_TRAPS.axe]])
+  for (const [letter, n] of [['t', CFG.CAVE_TRAPS.bear], ['w', CFG.CAVE_TRAPS.wire], ['a', CFG.CAVE_TRAPS.axe],
+    ['i', CFG.CAVE_TRAPS.spike], ['l', CFG.CAVE_TRAPS.laser], ['m', CFG.CAVE_TRAPS.mover], ['d', CFG.CAVE_TRAPS.debris]])
     for (let k = 0; k < n; k++) place(letter, letter !== 't');
   return g.map(row => row.join(''));
 }
@@ -612,7 +631,7 @@ const Game = {
   state: 'title', score: 0, hearts: CFG.HEARTS, time: 0,
   player: null, eggs: [], buddies: [], enemies: [], shots: [], orbs: [], bombs: [], waves: [], pickups: [],
   rocks: [], trees: [], mountains: [], dungeons: [], boss: null, bossPending: false,
-  weapon: 'blaster', owned: ['blaster'], beam: null, booms: [], thrust: false,
+  weapon: 'blaster', owned: ['blaster'], beam: null, booms: [], thrust: false, fuel: 0,
   eggsFound: 0, killsSinceEgg: 0, dmgSinceEgg: 0, kills: 0, spawnTimer: 0, fireTimer: 0, nav: null, msg: null, fx: [], flash: 0, recoil: 0,
 
   start(seed = (Date.now() >>> 0)) {
@@ -620,7 +639,7 @@ const Game = {
     this.score = 0; this.hearts = CFG.HEARTS; this.time = 0; this.eggsFound = 0; this.killsSinceEgg = 0; this.dmgSinceEgg = 0; this.kills = 0;
     this.player = { x: 0, z: 0, yaw: 0, pitch: 0, h: 0, vy: 0, safe: 0, walked: 0, zone: -1 };
     this.buddies = []; this.enemies = []; this.shots = []; this.orbs = []; this.bombs = []; this.waves = []; this.pickups = []; this.fx = []; this.eggs = []; this.booms = [];
-    this.boss = null; this.bossPending = false; this.weapon = 'blaster'; this.owned = ['blaster']; this.beam = null; this.thrust = false;
+    this.boss = null; this.bossPending = false; this.weapon = 'blaster'; this.owned = ['blaster']; this.beam = null; this.thrust = false; this.fuel = 0;
     this.spawnTimer = CFG.ENEMY_FIRST; this.fireTimer = 0; this.flash = 0; this.msg = null;
     this.makeWorld();
     this.resetNav();
@@ -744,6 +763,11 @@ const Game = {
     if (t.hp > 0) return;
     const k = KINDS[t.kind];
     this.score += k.points; this.kills++; this.killsSinceEgg++; Sound.pop();
+    if (this.fuel < CFG.JET_FUEL) { // beating a monster refills a good chunk of Jet-Pack fuel
+      const was = this.fuel;
+      this.fuel = Math.min(CFG.JET_FUEL, this.fuel + CFG.JET_REFUEL);
+      if (was === 0 && this.owned.includes('jetpack')) this.say(`Jet-Pack fuel! (+${Math.round(this.fuel - was)})`, 1.5);
+    }
     this.sparkle(t.x, this.enemyY(t), t.z, '#b45cff');
     if (t.kind === 'rockback' || rand() < CFG.HEART_DROP) { const h = { x: t.x, z: t.z, zone: t.zone }; this.unstick(h, 0.8, t.zone); this.pickups.push(h); } // heart fruit
     if (rand() < CFG.EGG_DROP && this.eggsFound + this.eggs.filter(e => !e.found).length < CFG.EGGS) {
@@ -877,12 +901,16 @@ const Game = {
         if (this.fireTimer <= 0) { this.fireTimer = 0.12; Sound.laser(); }
         this.recoil = 0.4;
         if (this.state !== 'play') return;
-      } else if (w.kind === 'jet') { // the Jet-Pack: hold fire and you ride your own rocket flame
-        this.thrust = true;
-        const cap = dun ? CFG.JET_MAX_CAVE : CFG.JET_MAX; // cave ceilings are low
-        if (p.h < cap) p.vy = Math.max(p.vy, CFG.JET_UP);
-        else if (p.vy > 0) p.vy = 0; // at the ceiling of your climb: stop, don't overshoot
-        if (this.fireTimer <= 0) { this.fireTimer = w.every; Sound.rocket(); }
+      } else if (w.kind === 'jet') { // the Jet-Pack: hold fire and you ride your own rocket flame, until the fuel runs out
+        if (this.fuel > 0) {
+          this.thrust = true;
+          this.fuel = Math.max(0, this.fuel - CFG.JET_DRAIN * dt); // flying drinks fuel
+          const cap = dun ? CFG.JET_MAX_CAVE : CFG.JET_MAX; // cave ceilings are low
+          if (p.h < cap) p.vy = Math.max(p.vy, CFG.JET_UP);
+          else if (p.vy > 0) p.vy = 0; // at the ceiling of your climb: stop, don't overshoot
+          if (this.fireTimer <= 0) { this.fireTimer = w.every; Sound.rocket(); }
+          if (this.fuel === 0) this.say('The Jet-Pack sputtered out of fuel! Beat monsters to refill it.', 2.5);
+        }
       } else if (this.fireTimer <= 0) {
         this.fireTimer = w.every; this.recoil = 1;
         if (w.kind === 'ray') { // the Sniper hits instantly, far away
@@ -917,9 +945,10 @@ const Game = {
     if (dun && !dun.taken && dist(p, dun.weapon) < 1.8) {
       const wk = dun.weaponKind, jet = wk === 'jetpack';
       dun.taken = true; if (!this.owned.includes(wk)) this.owned.push(wk); this.weapon = wk; this.score += CFG.POINTS.weapon;
+      if (jet) this.fuel = CFG.JET_FUEL; // a full tank comes with it
       Sound.win();
-      this.say(jet ? `You got the Jet-Pack! Hold ${isTouch ? 'FIRE' : 'Space'} to fly! (key 5${isTouch ? ' or SWAP' : ''}) Take the portal back up.`
-        : `You got the ${WEAPONS[wk].name}! (key ${WEAPONS[wk].key}${isTouch ? ' or SWAP' : ''}) Take the portal back up.`, 4);
+      this.say(jet ? `You got the Jet-Pack! Hold ${isTouch ? 'FIRE' : 'Space'} to fly! It runs on fuel — beat monsters to refill it. (key 5${isTouch ? ' or SWAP' : ''}) Take the portal back up.`
+        : `You got the ${WEAPONS[wk].name}! (key ${WEAPONS[wk].key}${isTouch ? ' or SWAP' : ''}) Take the portal back up.`, 4.5);
       this.sparkle(dun.weapon.x, 1.2, dun.weapon.z, WEAPONS[wk].color, 30, 5);
     }
 
@@ -942,7 +971,7 @@ const Game = {
           Dun.pushOut(dun, e, 0.5);
           e.fallY = 4.0; // it drops from the cave ceiling
         }
-      } else { // the axe: a rusty plate on the floor starts a big blade swinging over it
+      } else if (t.kind === 'axe') { // the axe: a rusty plate on the floor starts a big blade swinging over it
         if (t.cool > 0) t.cool -= dt;
         if (!t.active && t.cool <= 0 && td < 1.1) { t.active = true; t.timer = 8; t.phase = Math.PI / 2; t.hit = false; this.say('The axe swings! Time your run!', 2); }
         if (t.active) {
@@ -955,6 +984,38 @@ const Game = {
           }
           if (!low) t.hit = false;                               // ready to clip you on the next sweep
           if (t.timer <= 0) { t.active = false; t.cool = 2; }
+        }
+      } else if (t.kind === 'spike') { // a stone plate of steel spikes: they rise and sink on their own clock
+        t.phase += dt;
+        if (Math.sin(t.phase) > 0.55 && td < 0.85 && p.h < 0.5) { // fully out: jump over or wait for them to sink
+          if (this.hurt()) this.say('Pop! Floor spikes!', 2);
+          if (this.state !== 'play') return;
+        }
+      } else if (t.kind === 'laser') { // a little emitter sweeping a red beam around at ankle height
+        t.angle += t.spin * dt;
+        if (td < 3.4 && p.h < 0.5) { // the beam is low: a jump clears it
+          const away = Math.atan2(p.x - t.x, p.z - t.z);
+          const diff = Math.abs(Math.atan2(Math.sin(away - t.angle), Math.cos(away - t.angle)));
+          if (diff < Math.asin(Math.min(0.9, 0.45 / td))) {
+            if (this.hurt()) this.say('Zap! A sweeping laser!', 2);
+            if (this.state !== 'play') return;
+          }
+        }
+      } else if (t.kind === 'mover') { // a boulder rolling back and forth along its worn track
+        t.phase += dt;
+        const off = Math.sin(t.phase) * t.amp;
+        if (Math.hypot(p.x - (t.x + (t.travel === 'x' ? off : 0)), p.z - (t.z + (t.travel === 'z' ? off : 0))) < 1.15 && p.h < 1.6) {
+          if (this.hurt()) this.say('Look out! A rolling boulder!', 2); // time your run, or squeeze past along the wall
+          if (this.state !== 'play') return;
+        }
+      } else { // debris: a cracked ceiling that sheds its rubble when you step under it
+        if (!t.spent && t.warn <= 0 && td < 1.0 && p.h < 2.0) { // flying at the cave's ceiling cap sneaks over it
+          t.spent = true; t.warn = 0.45; this.say('The ceiling is crumbling!', 2);
+        }
+        if (t.warn > 0) { t.warn -= dt; if (t.warn <= 0) t.chunkY = 4.0; } // it shudders, then lets go
+        else if (t.chunkY > 0) { // the chunk drops fast: step out from under, or jump as it lands
+          t.chunkY = Math.max(0, t.chunkY - 13 * dt);
+          if (t.chunkY === 0 && dist(p, t) < 1.0 && p.h < 1.0) { this.hurt(); if (this.state !== 'play') return; }
         }
       }
     }
@@ -1439,6 +1500,33 @@ function draw(now) {
         } else put(v, MESH.octa, tr.x, 0.1, tr.z, 0.6, 0.08, 0.62, 0, hex('#aeb6c8'));
       } else if (tr.kind === 'wire') { // a brown rope stretched across the corridor (gone once tripped)
         if (!tr.spent) { const dims = tr.axis === 'x' ? [2, 0.025, 0.05] : [0.05, 0.025, 2]; put(v, MESH.box, tr.x, 0.16, tr.z, dims[0], dims[1], dims[2], 0, hex('#8a6a4a')); }
+      } else if (tr.kind === 'spike') { // a plate of steel spikes that rise and sink on their own clock
+        const up = Math.max(0, Math.sin(tr.phase)) * 0.85; // how far the points stick out right now
+        put(v, MESH.cone, tr.x, 0.02, tr.z, 0.95, 0.03, 0.95, 0, hex('#3a3048')); // the dark plate they pop from
+        for (const [dx, dz] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0, 0]]) // five steel points
+          put(v, MESH.cone, tr.x + dx, 0.04, tr.z + dz, 0.16, Math.max(0.04, up), 0.16, 0, hex(up > 0.1 ? '#d8dce8' : '#7a7a8a'));
+        if (up > 0.08 && up < 0.4) put(glow, MESH.cone, tr.x, 0.04, tr.z, 1.0, 0.02, 1.0, 0, hex('#ffd36b', 0.2 + 0.25 * Math.sin(t * 20))); // a warning shimmer while they rise
+      } else if (tr.kind === 'laser') { // a little emitter with a red beam sweeping around at ankle height
+        put(v, MESH.octa, tr.x, 0.45, tr.z, 0.3, 0.45, 0.3, 0, hex('#3a3a4a'));
+        put(v, MESH.sphere, tr.x + Math.sin(tr.angle) * 0.34, 0.8, tr.z + Math.cos(tr.angle) * 0.34, 0.1, 0.1, 0.1, 0, hex('#ff3b5c'), 0.8); // its red eye
+        for (let k = 1; k <= 8; k++) { const rr = k * 0.42; put(glow, MESH.octa, tr.x + Math.sin(tr.angle) * rr, 0.3, tr.z + Math.cos(tr.angle) * rr, 0.05, 0.05, 0.05, 0, hex('#ff3b5c', 0.85), 0.5); } // the beam
+      } else if (tr.kind === 'mover') { // a boulder rolling back and forth along its worn track
+        const off = Math.sin(tr.phase) * tr.amp, mx = tr.x + (tr.travel === 'x' ? off : 0), mz = tr.z + (tr.travel === 'z' ? off : 0);
+        for (let k = -2; k <= 2; k++) { const u = k / 2 * tr.amp; put(v, MESH.cone, tr.x + (tr.travel === 'x' ? u : 0), 0.015, tr.z + (tr.travel === 'z' ? u : 0), 0.45, 0.02, 0.45, 0, hex('#2a2038')); } // the groove it wore
+        put(v, MESH.ico, mx, 0.85, mz, 0.9, 0.85, 0.9, tr.phase * 1.5, hex('#8a7a68'));
+        put(v, MESH.ico, mx, 0.5, mz, 0.94, 0.4, 0.94, tr.phase * 1.5 + 0.6, hex('#7a6a58'));
+      } else if (tr.kind === 'debris') { // a cracked ceiling: it shudders, then sheds its rubble on you
+        put(v, MESH.octa, tr.x, 4.02, tr.z, 0.8, 0.18, 0.8, 0.6, hex(tr.spent ? '#4a4050' : '#6a5a78')); // a bulging cracked slab (lighter than the ceiling: watch up!)
+        for (const s of [-1, 1]) put(v, MESH.box, tr.x + s * 0.28, 3.98, tr.z, 0.05, 0.16, 0.72, 0, hex('#241a30')); // the dark cracks across it
+        if (tr.warn > 0) { // crumbs shake loose while it shudders
+          for (let k = 0; k < 3; k++) put(glow, MESH.octa, tr.x + Math.sin(k * 2.4 + t * 30) * 0.3, 3.6 - k * 0.25, tr.z + Math.cos(k * 2.4 + t * 30) * 0.3, 0.05, 0.05, 0.05, 0, hex('#a89ab0', 0.8), 0.3);
+        } else if (tr.chunkY > 0) { // the falling chunk
+          put(v, MESH.ico, tr.x, tr.chunkY, tr.z, 0.42, 0.42, 0.42, tr.chunkY * 3, hex('#8a7a88'));
+          put(v, MESH.ico, tr.x + 0.35, tr.chunkY + 0.25, tr.z - 0.3, 0.26, 0.26, 0.26, tr.chunkY * 4, hex('#a89ab0'));
+        } else if (tr.chunkY === 0) { // the rubble pile where it landed: a quiet reminder
+          put(v, MESH.ico, tr.x, 0.2, tr.z, 0.55, 0.3, 0.55, 0, hex('#7a6a78'));
+          put(v, MESH.ico, tr.x + 0.4, 0.15, tr.z - 0.35, 0.32, 0.22, 0.32, 0, hex('#8a7a88'));
+        }
       } else { // the axe: a rusty plate on the floor and a big blade swinging above it
         put(v, MESH.cone, tr.x, 0.02, tr.z, 1.7, 0.035, 1.7, 0, hex(tr.active ? '#a04040' : '#7a3a3a')); // the distinct tile
         if (tr.active) put(glow, MESH.cone, tr.x, 0.04, tr.z, 1.75, 0.02, 1.75, 0, hex('#ff5d7a', 0.25 + 0.2 * Math.sin(t * 20)));
@@ -1595,6 +1683,14 @@ const UI = {
     $('hudBuddies').textContent = `Buddies: ${G.buddies.length}`;
     $('hudScore').textContent = `Score: ${G.score}`;
     $('hudWeapon').textContent = WEAPONS[G.weapon].name + (G.owned.length > 1 ? ` (${G.owned.map(w => WEAPONS[w].key).join(' ')})` : '');
+    const jet = G.owned.includes('jetpack'); // the Jet-Pack's fuel gauge shows once you own it
+    $('hudFuel').hidden = !jet;
+    if (jet) {
+      const pct = clamp(G.fuel / CFG.JET_FUEL, 0, 1);
+      $('hudFuelFill').style.width = `${pct * 100}%`;
+      $('hudFuelFill').style.background = pct < 0.2 ? 'linear-gradient(90deg,#ff5d7a,#ff8a3d)' : 'linear-gradient(90deg,#ff8a3d,#ffd36b)';
+      $('hudFuelText').textContent = `Jet fuel ${Math.round(pct * 100)}%`;
+    }
     $('tSwap').hidden = G.owned.length < 2;
     $('flash').style.opacity = (G.flash * 0.8).toFixed(2);
     $('toast').hidden = !G.msg || Hook.mode === 'bot'; if (G.msg) $('toast').textContent = G.msg.text;
@@ -1743,7 +1839,8 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, KINDS, WEAPONS, Dun, store
         status: status(), score: Game.score, lives: Game.hearts, livesLost: CFG.HEARTS - Game.hearts,
         level: 0, levelsCompleted: Game.state === 'won' ? 1 : 0, progress: Game.progress(), steps: Hook.steps,
         player: p ? { x: +p.x.toFixed(3), y: +p.z.toFixed(3), yaw: +p.yaw.toFixed(3), pitch: +p.pitch.toFixed(3), jumpHeight: +p.h.toFixed(3), safeSeconds: +p.safe.toFixed(2), zone: p.zone } : null,
-        eggs: Game.eggsFound, kills: Game.kills, buddies: Game.buddies.length, weapon: Game.weapon, weapons: Game.owned.slice(), bossHp: Game.boss ? +Math.max(0, Game.boss.hp).toFixed(2) : null,
+        eggs: Game.eggsFound, kills: Game.kills, buddies: Game.buddies.length, weapon: Game.weapon, weapons: Game.owned.slice(),
+        jetFuel: +Game.fuel.toFixed(1), bossHp: Game.boss ? +Math.max(0, Game.boss.hp).toFixed(2) : null,
       };
     },
     observe() { // what a bot "sees": a small map turned so you always face up, plus a few facts
@@ -1764,7 +1861,8 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, KINDS, WEAPONS, Dun, store
       if (!d) { for (const r of Game.rocks) mark(r.x, r.z, '#'); for (const t of Game.trees) mark(t.x, t.z, 'T'); for (const dd of Game.dungeons) mark(dd.door.x, dd.door.z, 'D'); }
       else {
         mark(d.exit.x, d.exit.z, 'X'); if (!d.taken) mark(d.weapon.x, d.weapon.z, 'W');
-        for (const tr of d.traps) if (tr.kind === 'axe' || !tr.spent) mark(tr.x, tr.z, tr.kind === 'bear' ? 't' : tr.kind === 'wire' ? 'w' : 'a'); // sprung traps are gone for good (axes re-arm)
+        const TRAP_MARK = { bear: 't', wire: 'w', axe: 'a', spike: 'i', laser: 'l', mover: 'm', debris: 'd' };
+        for (const tr of d.traps) if (tr.kind === 'spike' || tr.kind === 'laser' || tr.kind === 'mover' || tr.kind === 'axe' || !tr.spent) mark(tr.x, tr.z, TRAP_MARK[tr.kind]); // sprung bear traps, wires and rubble are gone for good (the axe re-arms)
       }
       for (const b of Game.buddies) mark(b.x, b.z, 'b');
       for (const e of Game.eggs) if (!e.found && e.zone === p.zone) mark(e.x, e.z, 'E');
@@ -1779,10 +1877,11 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, KINDS, WEAPONS, Dun, store
       let closest = null, cd = 1e9; for (const e of Game.enemies) { if (e.zone !== p.zone) continue; const dd = dist(e, p); if (dd < cd) { cd = dd; closest = e; } }
       return {
         text: `${d ? 'Underground in ' + d.name : 'On the surface'}. Map seen from above, you (@) face UP, each cell is ${CELL} m.\n` +
-          'Legend: E egg (walk into it), D stairs down to a weapon cave, W weapon (walk into it), X exit portal, b buddy, h heart fruit, g Gloomling, z Zapbug (dashes), s Goo Spitter, r Rockback (tough), B MEGA GLOOM, o orb or goo (dodge), * goo bomb landing spot, # rock or wall, M mountain, T tree, t bear trap (jump it!), w trip-wire (jump it, or fight what drops), a axe plate (the blade swings: time your run)\n' +
+          'Legend: E egg (walk into it), D stairs down to a weapon cave, W weapon (walk into it), X exit portal, b buddy, h heart fruit, g Gloomling, z Zapbug (dashes), s Goo Spitter, r Rockback (tough), B MEGA GLOOM, o orb or goo (dodge), * goo bomb landing spot, # rock or wall, M mountain, T tree, t bear trap (jump it!), w trip-wire (jump it, or fight what drops), a axe plate (the blade swings: time your run), i spike plate (they pop up: jump or wait), l sweeping laser (jump the beam), m rolling boulder (time your run), d crumbling ceiling (step out from under it)\n' +
           grid.map(r => r.join('')).join('\n'),
         facts: {
           hearts: Game.hearts, eggs: `${Game.eggsFound} of ${CFG.EGGS}`, buddies: Game.buddies.length, weapon: WEAPONS[Game.weapon].name,
+          jetpackFuel: Game.owned.includes('jetpack') ? `${Math.round(Game.fuel)} of ${CFG.JET_FUEL} (beating monsters refills it)` : 'none yet',
           aim: `${Math.round(p.pitch * 180 / Math.PI)} degrees ${p.pitch >= 0 ? 'up' : 'down'} (no aim help: shots go exactly where you face)`,
           goTo: n ? `${n.label}: walk toward ${describe(n.next.x, n.next.z)}` : 'fight MEGA GLOOM',
           nearestMonster: closest ? `${KINDS[closest.kind].name}, ${describe(closest.x, closest.z)}` : 'none',
@@ -1798,7 +1897,7 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, KINDS, WEAPONS, Dun, store
         if (d.toWeapon[sr * d.W + sc] < 0) out.push({ level: 0, severity: 'error', message: `In ${d.name} the weapon can't be reached from the stairs.` });
         if (d.toExit[sr * d.W + sc] < 0) out.push({ level: 0, severity: 'error', message: `In ${d.name} the exit portal can't be reached.` });
         const kinds = new Set(d.traps.map(t => t.kind));
-        for (const k of ['bear', 'wire', 'axe']) if (!kinds.has(k)) out.push({ level: 0, severity: 'error', message: `${d.name} is missing its ${k} trap.` });
+        for (const k of ['bear', 'wire', 'axe', 'spike', 'laser', 'mover', 'debris']) if (!kinds.has(k)) out.push({ level: 0, severity: 'error', message: `${d.name} is missing its ${k} trap.` });
         for (const t of d.traps) if (t.x === d.start.x && t.z === d.start.z) out.push({ level: 0, severity: 'error', message: `${d.name} has a trap right on the stairs.` });
       }
       for (const e of Game.eggs) {
