@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- viewport-fit=cover: usa tutto lo schermo (notch inclusi), i margini sicuri sono gestiti nel CSS -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Retro Arcade Collection — Phaser 4</title>
+  <meta name="description" content="9 classic arcade games (Snake, Block Drop, Pong, Breakout, Star Defenders and more) with a synthwave menu, chiptune sound and saved records. Play on a computer, tablet or phone." />
+
+  <!-- Installabile come app (PWA): schermo intero e icona nella home -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a0818" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Retro Arcade" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
+
+  <link rel="stylesheet" href="src/ui/virtual-pad.css" />
+</head>
+<body>
+  <div id="app" class="pad-off">
+    <div id="stage"><div id="game"></div></div>
+
+    <!-- Gamepad virtuale (mostrato automaticamente sui dispositivi touch) -->
+    <div class="pad pad-left">
+      <div id="pad-sys" class="pad-row"></div>
+      <div id="pad-dpad" class="pad-row"></div>
+    </div>
+    <div class="pad pad-right">
+      <div id="pad-util" class="pad-row"></div>
+      <div id="pad-actions" class="pad-row"></div>
+    </div>
+  </div>
+  <div id="fab" hidden></div>
+
+  <div id="boot"><p><span>LOADING…</span></p></div>
+
+  <div id="file-warning" hidden>
+    <p>
+      ⚠️ This game uses <b>ES Modules</b>, so it cannot be opened by double-clicking the file (<code>file://</code>).<br />
+      Start a local server in this folder, for example:<br /><br />
+      <code>bunx serve</code> &nbsp;or&nbsp; <code>python3 -m http.server 3000</code><br /><br />
+      then open <code>http://localhost:3000</code>
+    </p>
+  </div>
+  <script>
+    if (location.protocol === 'file:') {
+      document.getElementById('file-warning').hidden = false;
+      document.getElementById('boot').remove();
+    }
+  </script>
+  <noscript>
+    <p style="padding:24px;text-align:center">You need to turn on JavaScript in your browser to play.</p>
+  </noscript>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

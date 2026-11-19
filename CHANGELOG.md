@@ -2,6 +2,10 @@
 
 Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. Newest first. Add a line here whenever you change how games are built or integrated.
 
+## 2026-11-19
+
+- **Classics shelf.** The home page has a second section for free, openly licensed games made by other people, kept under `classics/` (not `games/`) with their license and a `NOTICE.md`. First one: Retro Arcade (`classics/arcade/`), Alfredo De Donno's MIT-licensed collection of nine arcade games, translated from Italian to English, with "Tetris" and "Space Invaders" shown as "Block Drop" and "Star Defenders". Game sessions and the harness ignore `classics/`. No games need changes.
+
 ## 2026-11-18
 
 - **Changes to existing games cap the bot search at 10 minutes.** A change runs `all --max-minutes 10 --allow-no-win` once: a saved win still replays in seconds, and when the change makes the saved run play out differently the bot searches for 10 minutes, keeps its best run and stops. HANDOFF.md says whether it won. The game's own `test_game.py` checks for the changed parts are now the main proof for a change. New games still need a bot win (unchanged). New `--max-minutes` flag for the Evolution Bot. Space Egg Quest's search had grown to 45–115 minutes per build with no change in the result. `AGENTS.md` and `test-harness/README.md` updated; no games need changes.
