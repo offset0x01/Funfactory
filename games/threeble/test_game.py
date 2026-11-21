@@ -63,7 +63,7 @@ with GameSession(str(GAME)) as g:
     # ---------- 1. the rules ----------
     check(js("__game.Dict.size") > 50000, f"the word list is loaded ({js('__game.Dict.size')} words)")
     check(js("['CAT','ZEBRA','QUIZ','JUMPED'].every(w => __game.Dict.has(w))"), "everyday words are in the list")
-    check(js("!__game.Dict.has('SHIT') && !__game.Dict.has('FUCKED') && !__game.Dict.has('BITCH')"), "rude words are not words in this game")
+    check(js("['SHIT', 'FUCKED', 'BITCH', 'DOUCHING', 'BONERS'].every(w => !__game.Dict.has(w))"), "rude words are not words in this game")
     pg.keyboard.press("Enter")
     check(js("__game.Game.mode") == "solo" and js("__game.Game.players.length") == 2 and js("__game.Game.state") == "play",
           "Enter starts a game against one computer")
