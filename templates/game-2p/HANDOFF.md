@@ -77,3 +77,4 @@ Research sources, and every downloaded asset (art, music, sound) with where it c
 ## Open items
 
 - Things not tried on a real device, known rough spots, ideas for next time.
+- **Online rejoin (idea, not built):** today a dropped link (a phone locking, a network blip) ends the online game, and playing again needs a new room code. If that gets annoying: keep the same room code open for a few minutes after a drop, let the guest tap back in, and carry on with the score. Build it in `templates/game-2p/` first, with a test that drops and restores the link.
