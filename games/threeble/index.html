@@ -253,11 +253,11 @@ input.big { font: 700 24px monospace; text-align: center; text-transform: upperc
 <!-- WORDS-END -->
 <!-- The build number, written by stamp_build.py right before publishing. -->
 <!-- BUILD-START -->
-<script>window.GAME_BUILD = "2026.11.21-1631";</script>
+<script>window.GAME_BUILD = "2026.11.21-1700";</script>
 <!-- BUILD-END -->
 <!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
 <!-- BOT-SCORES-START -->
-<script>window.BOT_SCORES = {"game":"Threeble","bots":{"evolutionary":{"label":"Evolution Bot","start":591,"mid":591,"best":591,"won":true,"passes":[591,591]}},"updated":"2026-11-21T21:31:17Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":591,"won":true}};</script>
+<script>window.BOT_SCORES = {"game":"Threeble","bots":{"evolutionary":{"label":"Evolution Bot","start":591,"mid":591,"best":591,"won":true,"passes":[591,591]}},"updated":"2026-11-21T22:00:34Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":591,"won":true}};</script>
 <!-- BOT-SCORES-END -->
 
 <script>
@@ -916,11 +916,11 @@ const NET_CONFIG = Object.assign({
   brokers: ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'],
   ice: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }],
   timeoutSeconds: 90,
-  linkSeconds: 25,   // after finding each other, how long two devices get to link up directly
+  linkSeconds: 12,   // after finding each other, how long two devices try to link directly before using the relay
 }, window.NET_TEST_CONFIG || {});
-const CODE_LETTERS = 'ACDEFHJKMNPRTUVWXY34679';
+const CODE_LETTERS = 'ACDEFHJKMNPRTUVWXY34679'; // no 0/O, 1/I/L, 2/Z, 5/S, 8/B mix-ups
 
-function mqttClient(url, onMessage) {
+function mqttClient(url, onMessage) { // the smallest MQTT 3.1.1 client that does the job: connect, subscribe, publish
   const te = new TextEncoder(), td = new TextDecoder();
   const str = s => { const b = te.encode(s); return [b.length >> 8, b.length & 255, ...b]; };
   const len = n => { const o = []; do { let d = n % 128; n = Math.floor(n / 128); if (n) d |= 128; o.push(d); } while (n); return o; };
@@ -931,7 +931,7 @@ function mqttClient(url, onMessage) {
   ws.onopen = () => ws.send(pkt(0x10, [...str('MQTT'), 4, 0x02, 0, 60, ...str('ff' + Math.random().toString(36).slice(2, 12))]));
   ws.onmessage = e => {
     const add = new Uint8Array(e.data), b = new Uint8Array(buf.length + add.length); b.set(buf); b.set(add, buf.length); buf = b;
-    for (;;) {
+    for (;;) { // there may be several packets, or half of one, in each WebSocket message
       let n = 0, mul = 1, i = 1, d;
       do { if (i >= buf.length) return; d = buf[i++]; n += (d & 127) * mul; mul *= 128; } while (d & 128);
       if (buf.length < i + n) return;
@@ -952,14 +952,15 @@ const Net = {
   role: null, code: '', on: null, peers: new Map(), brokers: [], seen: new Set(), timers: [], max: 2, locked: false,
   newCode() { const r = crypto.getRandomValues(new Uint8Array(5)); return Array.from(r, v => CODE_LETTERS[v % CODE_LETTERS.length]).join(''); },
   cleanCode: s => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5),
-  get count() { let n = 0; for (const p of this.peers.values()) if (p.dc && p.dc.readyState === 'open') n++; return n; },
+  get count() { let n = 0; for (const p of this.peers.values()) if (p.dc && p.dc.readyState === 'open') n++; return n; }, // friends connected
   get connected() { return this.count > 0; },
+
   host(on, max = 2) { this.max = max; return this.begin('host', this.newCode(), on); },
   join(code, on) { return this.begin('guest', this.cleanCode(code), on); },
   async begin(role, code, on) {
     this.close();
     Object.assign(this, { role, code, on, id: Math.random().toString(36).slice(2, 10), seen: new Set(), locked: false });
-    const run = this.run = {};
+    const run = this.run = {}; // a later begin() or close() makes this run stale
     const status = text => run === this.run && on({ type: 'status', text });
     status(role === 'host' ? 'Waiting for friends to join...' : 'Looking for the game...');
     try {
@@ -983,23 +984,31 @@ const Net = {
     } catch (e) { this.fail('Online play does not work in this browser.'); }
     return code;
   },
-  async signal(msg, to = null) {
+  async signal(msg, to = null) { // encrypt and post a message on every broker
     msg = { ...msg, from: this.id, to, n: Math.random() };
+    const brokers = this.brokers.slice(), key = this.key, topic = this.topic; // as they are now, so a goodbye still goes out while closing
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, this.key, new TextEncoder().encode(JSON.stringify(msg))));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(msg))));
     const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
-    const text = btoa(String.fromCharCode(...all));
-    for (const c of this.brokers) try { c.publish(this.topic, text); } catch { /* that broker dropped */ }
+    let bin = ''; for (let i = 0; i < all.length; i += 8192) bin += String.fromCharCode(...all.subarray(i, i + 8192));
+    const text = btoa(bin);
+    for (const c of brokers) try { c.publish(topic, text); } catch { /* that broker dropped */ }
   },
   async receive(text) {
     let m;
     try {
       const all = Uint8Array.from(atob(text), ch => ch.charCodeAt(0));
       m = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.slice(0, 12) }, this.key, all.slice(12))));
-    } catch { return; }
+    } catch { return; } // not for us (wrong code, or junk on the topic)
     if (m.from === this.id || this.seen.has(m.n) || (m.to && m.to !== this.id)) return;
-    this.seen.add(m.n);
+    this.seen.add(m.n); // the same message arrives once per broker
+    if (this.seen.size > 20000) for (const n of this.seen) { this.seen.delete(n); if (this.seen.size < 15000) break; }
     const peer = this.peers.get(m.from);
+    if (peer) peer.heard = Date.now();
+    if (peer && m.k === 'relay') return this.toRelay(m.from);          // the other device gave up on the direct link
+    if (peer && peer.relay && m.k === 'd') return this.relayIn(peer, m.from, m.s, m.d);
+    if (peer && peer.relay && m.k === 'bye') return this.dropPeer(m.from);
+    if (m.k === 'ping' || m.k === 'd' || m.k === 'bye') return;
     if (this.role === 'host' && m.k === 'hello') {
       if (peer) return;
       if (this.locked || this.peers.size + 1 >= this.max) return this.signal({ k: 'full' }, m.from);
@@ -1036,9 +1045,8 @@ const Net = {
     const p = { pc: new RTCPeerConnection({ iceServers: NET_CONFIG.ice }), dc: null };
     this.peers.set(id, p);
     // The two devices found each other but can't link directly: some networks block it (school Wi-Fi,
-    // some phone data, Wi-Fi that keeps devices apart). Give up after a clear message, not silence.
-    const failed = () => this.dropPeer(id, this.role === 'host' ? 'linkfail'
-      : "Found the game, but the two devices couldn't link up. Some networks block this (school Wi-Fi, some phone data, or Wi-Fi that keeps devices apart). Try both on the same home Wi-Fi, or both on phone data.");
+    // some phone data, home Wi-Fi that keeps devices apart). Then they play through the relay instead.
+    const failed = () => this.toRelay(id);
     const watch = () => { if (p.pc.connectionState === 'failed' || p.pc.iceConnectionState === 'failed') failed(); };
     p.pc.onconnectionstatechange = watch; p.pc.oniceconnectionstatechange = watch;
     p.linkTimer = setTimeout(() => { if (!p.dc || p.dc.readyState !== 'open') failed(); }, NET_CONFIG.linkSeconds * 1000);
@@ -1047,29 +1055,67 @@ const Net = {
   useChannel(id, dc) {
     const p = this.peers.get(id); if (!p) return;
     p.dc = dc;
-    dc.onopen = () => {
-      clearTimeout(p.linkTimer);
-      if (this.role === 'guest') {
-        this.timers.forEach(t => { clearInterval(t); clearTimeout(t); }); this.timers = [];
-        setTimeout(() => this.dropBrokers(), 1500);
-        this.on({ type: 'open' });
-      } else { clearTimeout(this.waitTimer); this.on({ type: 'join', id }); }
-    };
+    dc.onopen = () => this.opened(id, p);
     dc.onmessage = e => { try { this.on && this.on({ type: 'message', id, data: JSON.parse(e.data) }); } catch { /* ignore bad data */ } };
     dc.onclose = () => this.dropPeer(id);
   },
-  dropPeer(id, why) {
-    const p = this.peers.get(id); if (!p) return;
-    this.peers.delete(id); clearTimeout(p.linkTimer);
+  opened(id, p) { // a friend's link is ready (direct, or through the relay)
+    clearTimeout(p.linkTimer);
+    if (this.role === 'guest') { // connected to the host: stop matchmaking (and drop the brokers, unless they carry the game)
+      this.timers.forEach(t => { clearInterval(t); clearTimeout(t); }); this.timers = [];
+      if (!p.relay) setTimeout(() => { if (!this.relaying) this.dropBrokers(); }, 1500);
+      this.on({ type: 'open', relay: !!p.relay });
+    } else { clearTimeout(this.waitTimer); this.on({ type: 'join', id, relay: !!p.relay }); }
+  },
+
+  // ---- the relay: when two devices can't link directly, their game messages go through the brokers
+  // instead, still encrypted with the room code (the brokers only ever see scrambled text). Slower
+  // than a direct link but works on any network that can reach the brokers. Messages are numbered so
+  // they're handled in order even though each broker delivers its own copy; a ping every 4 s shows
+  // the other device is still there (none for 20 s = it left).
+  get relaying() { for (const p of this.peers.values()) if (p.relay) return true; return false; },
+  toRelay(id) {
+    const p = this.peers.get(id); if (!p || p.relay) return;
+    if (p.dc && p.dc.readyState === 'open') return; // the direct link works after all
+    if (p.dc) { p.dc.onopen = p.dc.onclose = p.dc.onmessage = null; }
+    p.pc.onconnectionstatechange = p.pc.oniceconnectionstatechange = null;
     try { p.pc.close(); } catch { /* fine */ }
-    if (this.role === 'host') {
-      if (why === 'linkfail' && this.on) this.on({ type: 'status', text: "A friend found the game, but your devices couldn't link up. Some networks block this; try both on the same home Wi-Fi." });
-      this.on && this.on({ type: 'leave', id }); return;
+    Object.assign(p, { relay: true, out: 0, in: 0, hold: new Map(), heard: Date.now() });
+    p.dc = { readyState: 'open', send: text => this.signal({ k: 'd', s: ++p.out, d: text }, id), close() {} };
+    this.signal({ k: 'relay' }, id); // so the other device switches too
+    if (!this.pinger) this.pinger = setInterval(() => this.relayPing(), 4000);
+    this.opened(id, p);
+  },
+  relayIn(p, id, seq, text) {
+    if (typeof seq !== 'number' || seq <= p.in) return;
+    p.hold.set(seq, text);
+    const deliver = () => {
+      while (p.hold.has(p.in + 1)) {
+        const t = p.hold.get(++p.in); p.hold.delete(p.in);
+        try { this.on && this.on({ type: 'message', id, data: JSON.parse(t) }); } catch { /* ignore bad data */ }
+      }
+      clearTimeout(p.gap);
+      if (p.hold.size) p.gap = setTimeout(() => { p.in = Math.min(...p.hold.keys()) - 1; deliver(); }, 1500); // a lost message: skip it
+    };
+    deliver();
+  },
+  relayPing() {
+    const now = Date.now();
+    for (const [id, p] of this.peers) if (p.relay) {
+      if (now - p.heard > 20000) this.dropPeer(id);
+      else this.signal({ k: 'ping' }, id);
     }
+    if (!this.relaying) { clearInterval(this.pinger); this.pinger = null; }
+  },
+  dropPeer(id, why) { // a link closed or failed
+    const p = this.peers.get(id); if (!p) return;
+    this.peers.delete(id); clearTimeout(p.linkTimer); clearTimeout(p.gap);
+    try { p.pc.close(); } catch { /* fine */ }
+    if (this.role === 'host') { this.on && this.on({ type: 'leave', id }); return; }
     const on = this.on; const wasOpen = p.dc && p.dc.readyState !== 'connecting';
     this.close(); on && on(wasOpen && !why ? { type: 'closed' } : { type: 'error', text: why || "Lost the connection to the host." });
   },
-  lock() { this.locked = true; this.dropBrokers(); },
+  lock() { this.locked = true; if (!this.relaying) this.dropBrokers(); }, // host: nobody else can join (the brokers stay if they carry the game)
   dropBrokers() { this.brokers.forEach(c => c.close()); this.brokers = []; },
   send(msg) { const t = JSON.stringify(msg); for (const p of this.peers.values()) if (p.dc && p.dc.readyState === 'open') p.dc.send(t); },
   sendTo(id, msg) { const p = this.peers.get(id); if (p && p.dc && p.dc.readyState === 'open') p.dc.send(JSON.stringify(msg)); },
@@ -1077,6 +1123,12 @@ const Net = {
   close() {
     this.run = null; this.on = null;
     this.timers.forEach(t => { clearInterval(t); clearTimeout(t); }); this.timers = [];
+    clearInterval(this.pinger); this.pinger = null;
+    if (this.relaying) { // say goodbye through the relay, then hang up
+      for (const [id, p] of this.peers) if (p.relay) this.signal({ k: 'bye' }, id);
+      const bs = this.brokers; this.brokers = [];
+      setTimeout(() => bs.forEach(c => c.close()), 1500);
+    }
     this.dropBrokers();
     for (const p of this.peers.values()) { try { p.dc && p.dc.close(); } catch { /* fine */ } try { p.pc.close(); } catch { /* fine */ } }
     this.peers.clear(); this.role = null;
@@ -1093,7 +1145,7 @@ const Online = {
   event(e) {
     if (e.type === 'status') $('onlineStatus').textContent = e.text;
     if (e.type === 'error') { if (Game.mode === 'online') Game.toTitle(); this.open(); $('onlineStatus').textContent = e.text; }
-    if (e.type === 'join') { this.lobby.push(e.id); Sound.beep(660, 0.15, 'triangle'); this.syncLobby(); $('onlineStatus').textContent = 'A friend joined! Tap Start when everyone is in.'; }
+    if (e.type === 'join') { this.lobby.push(e.id); Sound.beep(660, 0.15, 'triangle'); this.syncLobby(); $('onlineStatus').textContent = e.relay ? 'A friend joined through the relay (your network blocks a direct link, so it may be a little slower). Tap Start when everyone is in.' : 'A friend joined! Tap Start when everyone is in.'; }
     if (e.type === 'leave') {
       this.lobby = this.lobby.filter(id => id !== e.id);
       if (Game.mode !== 'online') return this.syncLobby();
@@ -1101,7 +1153,7 @@ const Online = {
       if (!this.seats.size) { Game.state = 'over'; Game.winner = -2; return UI.endRun(); }
       Game.playerLeft(seat);
     }
-    if (e.type === 'open') { Sound.beep(660, 0.2, 'triangle'); $('onlineStatus').textContent = 'Joined! Waiting for the host to start...'; Game.mode = 'online'; Game.players = []; Game.board = []; }
+    if (e.type === 'open') { Sound.beep(660, 0.2, 'triangle'); $('onlineStatus').textContent = e.relay ? 'Joined through the relay (your network blocks a direct link, so it may be a little slower). Waiting for the host to start...' : 'Joined! Waiting for the host to start...'; Game.mode = 'online'; Game.players = []; Game.board = []; }
     if (e.type === 'message') Game.onNet(e.data, e.id);
     if (e.type === 'closed' && Game.mode === 'online') { Game.state = 'over'; Game.winner = -2; UI.endRun(); }
   },

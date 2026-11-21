@@ -1,6 +1,6 @@
 # Test report: Threeble
 
-Run at 2026-11-21 16:28:54 · seed 1
+Run at 2026-11-21 16:58:07 · seed 1
 
 ## Smoke tests
 
@@ -37,9 +37,9 @@ Run at 2026-11-21 16:28:54 · seed 1
 | PASS | unknown action is rejected |  |
 | PASS | observe() gives text | 243 chars |
 | PASS | same seed + same inputs = same run | run A 20/0.408 vs B 20/0.408 |
-| PASS | full-length run simulates in < 5 s | 0.05 s for 54000 steps |
+| PASS | full-length run simulates in < 5 s | 0.10 s for 54000 steps |
 | PASS | real keyboard works (hint) | idle player {'x': 0, 'y': 7, 'z': 1, 'turn': 0} vs keys {'x': 4, 'y': 7, 'z': 1, 'turn': 0} |
-| PASS | game screen is drawn (not blank) | pixel std 30.1, ~1680 colors |
+| PASS | game screen is drawn (not blank) | pixel std 30.1, ~1670 colors |
 | PASS | no console errors while playing |  |
 | PASS | P pauses and resumes | nothing may change while paused, and the smoke action must work again after the second P |
 | PASS | page never scrolls | page is 0 px too wide, 0 px too tall |

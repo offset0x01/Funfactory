@@ -337,18 +337,30 @@ with GameSession(str(GAME)) as g:
             check(wait_for(host, "__game.Game.state === 'play' && __game.Game.players.length === 3", 3000), "a friend's Play again starts a new game with everyone still here")
             host.evaluate("__game.Game.toTitle()")
             check(wait_for(guests[0], "/host left/i.test(document.querySelector('#endTitle').textContent)", 5000), "when the host leaves, friends are told")
-        # the devices find each other but the network blocks the direct link: both say so clearly
+        # the network blocks the direct link (this host's WebRTC never answers): the game falls back to
+        # the relay through the brokers, and plays on
         blocked = tab(", linkSeconds: 3")
-        blocked.evaluate("RTCPeerConnection.prototype.setRemoteDescription = function () { return Promise.resolve(); }")  # this host never links
+        blocked.evaluate("RTCPeerConnection.prototype.setRemoteDescription = function () { return Promise.resolve(); }")
         blocked.click("#btnOnline"); blocked.click("#btnHost")
         bcode = blocked.inner_text("#roomCode").strip()
         wait_for(blocked, "__game.Net.brokers.length > 0", 8000)
         jp = tab(", linkSeconds: 3")
         join(jp, bcode)
         check(wait_for(jp, "/found the game/i.test(document.querySelector('#onlineStatus').textContent)", 10000), "a friend who finds the game is told so while the devices link up")
-        check(wait_for(jp, "/couldn't link up/i.test(document.querySelector('#onlineStatus').textContent)", 15000)
-              and wait_for(blocked, "/couldn't link up/i.test(document.querySelector('#onlineStatus').textContent)", 5000),
-              "when the network blocks the direct link, both devices say the devices couldn't link up")
+        check(wait_for(jp, "/through the relay/i.test(document.querySelector('#onlineStatus').textContent)", 15000)
+              and wait_for(blocked, "__game.Net.count === 1 && /through the relay/i.test(document.querySelector('#onlineStatus').textContent)", 5000),
+              "when the network blocks the direct link, both devices switch to the relay and say so")
+        blocked.click("#btnStart")
+        relay_ok = wait_for(jp, "__game.Game.state !== 'title' && __game.Game.mode === 'online' && !document.querySelector('#scrOnline').offsetParent", 8000)
+        check(relay_ok and blocked.evaluate("__game.Net.brokers.length") > 0, "Start works through the relay (and the host keeps the brokers, which now carry the game)")
+        if relay_ok:
+            check(wait_for(jp, "__game.Game.players.length === 2 && __game.Game.players[1].rack.length === 7", 5000), "the friend gets their tiles through the relay")
+            blocked.keyboard.press("KeyH"); blocked.wait_for_timeout(300); blocked.keyboard.press("Enter")
+            check(wait_for(jp, "__game.Game.turn === 1 && __game.Game.board.filter(Boolean).length > 1", 6000), "the host's word reaches the friend through the relay")
+            jp.keyboard.press("KeyH"); jp.wait_for_timeout(400); jp.keyboard.press("Enter")
+            check(wait_for(blocked, "__game.Game.turn === 0 && __game.Game.players[1].score > 0", 6000), "the friend's word reaches the host through the relay and scores")
+            blocked.evaluate("__game.Game.toTitle()")
+            check(wait_for(jp, "/host left/i.test(document.querySelector('#endTitle').textContent)", 8000), "through the relay too, the friend is told when the host leaves")
         offline = g.browser.new_context()
         offline.add_init_script("window.NET_TEST_CONFIG = { brokers: ['ws://127.0.0.1:9'], ice: [] };")
         op = offline.new_page(); op.goto(GAME.as_uri()); op.wait_for_timeout(300)
