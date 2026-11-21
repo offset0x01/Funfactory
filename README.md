@@ -17,7 +17,7 @@ Browser games designed by kids and built with an AI coding agent. Each game is o
 - `classics/<name>/` holds free, openly licensed games made by other people, each with its `LICENSE` and a `NOTICE.md` (source, author, what we changed). They show on the home page's Classics shelf (`CLASSICS` list). Game sessions, the Game Studio and the test harness leave them alone.
 - GitHub Pages publishes `main` automatically, a minute or two after each push.
 - `AGENTS.md` is the build spec and the **source of truth** for making games on any platform (Claude, Claude Code, OpenCode). `CLAUDE.md` points Claude Code at it, and `CHANGELOG.md` records changes to it.
-- `templates/game/` is the starter every new game is copied from: a tiny complete game with touch and keyboard controls, high scores, offline play and the test hook already working.
+- `templates/game/` is the starter every new game is copied from: a tiny complete game with touch and keyboard controls, high scores, offline play and the test hook already working. `templates/game-2p/` is the two-player starter: against the computer, two players on one screen, or two players online with a room code.
 - `test-harness/` holds the game test-hook contract and the test harness: quick checks of the rules every game follows, bots that prove a game can be won, fairness checks, a privacy check, and a check that a pushed game is live.
 
 ## Making a new game

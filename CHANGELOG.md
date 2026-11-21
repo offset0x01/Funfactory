@@ -2,6 +2,10 @@
 
 Dated changes to the build spec (`AGENTS.md`) and the scaffolding around it. Newest first. Add a line here whenever you change how games are built or integrated.
 
+## 2026-11-21
+
+- **Two-player games.** New starter `templates/game-2p/` ("Paddle Duel") with three modes: 1 player against the computer (high scores, test hook and bots), 2 players on one screen (each player owns half the screen, two fingers at once, top player's text upside down, arrows and WASD on one keyboard), and 2 players online. Online play has no server of our own: free public MQTT brokers pass a WebRTC handshake encrypted with a 5-letter room code, then the browsers connect directly and drop the brokers. The host runs the game, the guest sends input, one friend per room, no chat or names. New "Two-player games" section in `AGENTS.md`; the "no network" rule now has this one exception, which only starts when a player taps Play online. The Game Card asks how many players. New `test-harness/tests/fake_mqtt_broker.py` so a game's `test_game.py` can test online play between two tabs with no internet. No existing games need changes.
+
 ## 2026-11-19
 
 - **Classics shelf.** The home page has a second section for free, openly licensed games made by other people, kept under `classics/` (not `games/`) with their license and a `NOTICE.md`. First one: Retro Arcade (`classics/arcade/`), Alfredo De Donno's MIT-licensed collection of nine arcade games, translated from Italian to English, with "Tetris" and "Space Invaders" shown as "Block Drop" and "Star Defenders". Game sessions and the harness ignore `classics/`. No games need changes.

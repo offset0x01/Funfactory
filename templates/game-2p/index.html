@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0820">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Paddle Duel">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Paddle Duel</title>
+</head>
+<body>
+<style>
+/* Layout: one full-screen WebGL canvas. The HUD, menus and score labels are plain HTML on top of it. */
+:root { --space:#0b0820; --panel:#1a1442; --edge:#43378c; --ink:#f4f0ff; --muted:#b8afe2; --hot:#ff8a3d; --good:#7dffa0; --p1:#7dffa0; --p2:#5fd0ff; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+/* The page is pinned so it can never scroll, even when a host adds padding around it. */
+html { box-sizing: border-box; overflow: hidden; height: 100%; background: var(--space); }
+body { position: fixed; inset: 0; margin: 0; overflow: hidden; color: var(--ink);
+  font: 16px/1.4 "Trebuchet MS", system-ui, sans-serif;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#hud { position: absolute; top: max(8px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); pointer-events: none; }
+button { font: inherit; font-weight: 700; color: var(--ink); background: var(--panel); border: 2px solid var(--edge);
+  border-radius: 12px; padding: 10px 16px; min-height: 44px; cursor: pointer; }
+button.primary { background: var(--hot); border-color: var(--hot); color: #1b0d00; }
+#btnPause { pointer-events: auto; }
+/* Score labels: one for each half of the field. The top one is turned upside down for the player across the table. */
+.score { position: absolute; left: 0; right: 0; text-align: center; font-weight: 700; font-size: 20px; pointer-events: none; opacity: .9; }
+#scoreLow { bottom: 50%; transform: translateY(2.2em); }
+#scoreHigh { top: 50%; transform: translateY(-2.2em) rotate(180deg); }
+.screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(11,8,32,.82); overflow: auto; }
+.screen[hidden] { display: none; }
+.card { width: min(34rem, 100%); max-height: 100%; overflow: auto; background: var(--panel); border: 2px solid var(--edge); border-radius: 18px; padding: 18px 20px; text-align: center; }
+.card h1 { margin: 0 0 6px; font-size: clamp(26px, 6vw, 40px); }
+.card p { margin: 6px 0; color: var(--muted); }
+.row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+.note { font-size: 14px; color: var(--muted); }
+.good { color: var(--good); font-weight: 700; }
+.flip { transform: rotate(180deg); }
+table { margin: 10px auto 0; border-collapse: collapse; }
+td { padding: 2px 10px; text-align: left; }
+tr.new td { color: var(--good); font-weight: 700; }
+/* 16px or bigger, or iOS zooms the page when the field is tapped */
+input.big { font: 700 24px monospace; text-align: center; text-transform: uppercase; padding: 6px; border-radius: 10px; border: 2px solid var(--edge); background: #fff; color: #111; user-select: text; -webkit-user-select: text; }
+#initials { width: 5.5ch; }
+#joinCode { width: 7ch; letter-spacing: .15em; }
+#roomCode { font: 700 44px monospace; letter-spacing: .2em; color: var(--ink); margin: 8px 0; }
+</style>
+
+<canvas id="view"></canvas>
+
+<div id="scoreLow" class="score" hidden></div>
+<div id="scoreHigh" class="score" hidden></div>
+<div id="hud" hidden><button id="btnPause" aria-label="Pause">II</button></div>
+
+<section class="screen" id="scrTitle">
+  <div class="card">
+    <h1>Paddle Duel</h1>
+    <p>Bounce the ball past the other paddle. First to 5 points wins.</p>
+    <p class="note">Drag a finger to move your paddle, or use the arrow keys. With two players on one keyboard, the top player uses A and D. P pauses.</p>
+    <p id="titleTop"></p>
+    <p id="titleBot" class="good"></p>
+    <p id="titleBuild" class="note"></p>
+    <div class="row">
+      <button class="primary" id="btnPlay">1 player</button>
+      <button id="btnShared">2 players, one screen</button>
+      <button id="btnOnline">Play online</button>
+    </div>
+    <div class="row">
+      <button id="btnScores">High scores</button>
+      <button id="btnFull">Full screen</button>
+      <button id="allGames" hidden>All games</button>
+    </div>
+    <p class="note" id="fullNote" hidden></p>
+  </div>
+</section>
+
+<!-- Online: one player hosts and gets a code, the other types the code in. -->
+<section class="screen" id="scrOnline" hidden>
+  <div class="card">
+    <h1>Play online</h1>
+    <p class="note">Only share the code with a friend you know. Playing online connects your device straight to your friend's.</p>
+    <div id="onlinePick">
+      <div class="row"><button class="primary" id="btnHost">Start a game</button></div>
+      <p>or join a friend's game:</p>
+      <div class="row"><input id="joinCode" class="big" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE"><button id="btnJoin">Join</button></div>
+    </div>
+    <div id="onlineWait" hidden>
+      <p id="roomLabel">Tell your friend this code:</p>
+      <div id="roomCode"></div>
+    </div>
+    <p id="onlineStatus" class="good"></p>
+    <div class="row"><button id="btnOnlineBack">Cancel</button></div>
+  </div>
+</section>
+
+<section class="screen" id="scrPause" hidden>
+  <div class="card">
+    <h1>Paused</h1>
+    <div class="row"><button class="primary" id="btnResume">Keep playing</button><button id="btnQuit">Quit to title</button></div>
+  </div>
+</section>
+
+<section class="screen" id="scrEnd" hidden>
+  <div class="card">
+    <h1 id="endTitleFlip" class="flip" hidden></h1>
+    <h1 id="endTitle"></h1>
+    <p id="endScore"></p>
+    <p id="endBot" class="good"></p>
+    <div id="endForm" hidden>
+      <p>You made the high score table! Enter your initials:</p>
+      <div class="row"><input id="initials" class="big" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="primary" id="btnSave">Save</button></div>
+    </div>
+    <div id="endTable"></div>
+    <div class="row"><button class="primary" id="btnAgain">Play again</button><button id="btnMenu">Title</button></div>
+  </div>
+</section>
+
+<section class="screen" id="scrScores" hidden>
+  <div class="card">
+    <h1>High scores</h1>
+    <p class="note">From 1 player games against the computer.</p>
+    <div id="scoresTable"></div>
+    <div class="row"><button class="primary" id="btnBack">Back</button></div>
+  </div>
+</section>
+
+<!-- The build number, written by stamp_build.py right before publishing. -->
+<!-- BUILD-START -->
+<script>window.GAME_BUILD = null;</script>
+<!-- BUILD-END -->
+<!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
+<!-- BOT-SCORES-START -->
+<script>window.BOT_SCORES = null;</script>
+<!-- BOT-SCORES-END -->
+
+<script>
+'use strict';
+// =====================================================================================
+// TWO-PLAYER STARTER. Copy this folder to games/<your-game-name>/ for a game two people can
+// play together. It has three ways to play:
+//   1 player     against the computer. Keeps high scores, and the test hook and bots use it.
+//   shared       two players on one screen (a phone or tablet flat on the table between them,
+//                each player drags in their own half) or one keyboard (arrows and A/D).
+//   online       two devices. One "hosts" and runs the game; the other joins with a code and
+//                sends its moves. See the NET section. Nothing goes online until a player taps
+//                Play online.
+// Keep the plumbing working: fixed-step update(), the Input object, seeded random numbers,
+// saved high scores, pause, full screen, the test hook, the page that never scrolls, and Net.
+// Replace the parts marked "YOUR GAME": CONFIG, the Game rules and the drawing.
+// =====================================================================================
+
+// ---------- CONFIG ----------
+// GAME_ID must be exactly the game's folder name. Saved data is stored under "<GAME_ID>.something".
+const GAME_ID = 'game-2p';
+const TITLE = 'Paddle Duel';        // also change the <title>, the title screen heading and manifest.webmanifest
+const SCORE_NAME = 'points';        // what the 1 player score is called on screen
+const CFG = {                       // YOUR GAME: every tuning number lives here
+  W: 9, H: 16,                      // the field, in world units: tall, so a phone can lie flat between two players
+  STEPS_PER_SECOND: 60,             // the simulation always moves in steps of exactly 1/60 s
+  WIN_POINTS: 5,
+  PADDLE_W: 2.0, PADDLE_H: 0.35, PADDLE_Y: 1.2, PADDLE_SPEED: 10, DRAG_SPEED: 18,
+  BALL_R: 0.22, BALL_SPEED: 7, BALL_SPEEDUP: 0.7, BALL_MAX: 15, MAX_ANGLE: 60, SERVE_ANGLE: 30, SERVE_DELAY: 1,
+  CPU_SPEED: 4.6, CPU_AIM_ERROR: 0.9, // the computer is slower than you and a little sloppy, so fast angled shots beat it
+  POINT_SCORE: 100, RETURN_SCORE: 10, WIN_BONUS: 200,
+  SEND_EVERY: 3,                    // online: the host sends the game state every 3 steps (20 times a second)
+  MAX_SECONDS: 240,                 // a bot run longer than this counts as a fail
+};
+const STEP = 1 / CFG.STEPS_PER_SECOND;
+const $ = id => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// ---------- SEEDED RANDOM NUMBERS ----------
+// Use rand() for anything that changes the game, so the same seed always gives the same game.
+// Math.random() is fine for looks only. Room codes use crypto (see NET), never rand().
+let rngState = 1;
+function seedRandom(seed) { rngState = (seed >>> 0) || 1; }
+function rand() { // "mulberry32": small, fast and good enough for games
+  let t = (rngState += 0x6D2B79F5);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// ---------- SAVED DATA ----------
+// Every key is prefixed with the folder name. If the browser blocks storage, scores stay in memory.
+const store = {
+  mem: {},
+  ok: (() => { try { const k = GAME_ID + '.__test'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; } catch { return false; } })(),
+  get(key, fallback) {
+    try { const v = localStorage.getItem(GAME_ID + '.' + key); if (v != null) return JSON.parse(v); } catch { /* blocked or bad data */ }
+    return key in this.mem ? this.mem[key] : fallback;
+  },
+  set(key, value) { this.mem[key] = value; try { localStorage.setItem(GAME_ID + '.' + key, JSON.stringify(value)); } catch { /* memory only */ } },
+};
+const Scores = { // top-10 table for 1 player games: [{ initials, score, detail, date }], highest first
+  list() { const l = store.get('scores', []); return Array.isArray(l) ? l : []; },
+  qualifies(score) { const l = this.list(); return score > 0 && (l.length < 10 || score > l[l.length - 1].score); },
+  add(initials, score, detail) {
+    const entry = { initials, score, detail, date: new Date().toISOString().slice(0, 10) };
+    const l = this.list(); l.push(entry);
+    l.sort((a, b) => b.score - a.score); // sort is stable, so ties keep the earlier entry first
+    store.set('scores', l.slice(0, 10)); store.set('initials', initials);
+    return l.indexOf(entry);
+  },
+  top() { const l = this.list(); return l.length ? l[0].score : 0; },
+};
+
+// ---------- SOUND (made in code; starts only after the first tap or key, an iOS rule) ----------
+const Sound = {
+  ctx: null,
+  unlock() { if (this.ctx || Hook.mode === 'bot') return; try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { /* no sound */ } },
+  beep(freq, seconds = 0.12, type = 'square') {
+    if (!this.ctx || Hook.mode === 'bot') return;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain(), t = this.ctx.currentTime;
+    o.type = type; o.frequency.value = freq; g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + seconds);
+    o.connect(g).connect(this.ctx.destination); o.start(t); o.stop(t + seconds);
+  },
+};
+
+// ---------- INPUT ----------
+// Player 0 is at the bottom, player 1 at the top. Keyboard, fingers, the test hook and the
+// online friend all feed this one object; the game only reads Input.dir(i) and Input.target(i).
+//   dir(i):    -1 (left), 0 or 1 (right), from keys
+//   target(i): a world x the paddle slides to (a finger or mouse held down), or null
+// Which keys and which half of the screen belong to whom depends on the mode (see Game.mode).
+const Hook = { mode: null, steps: 0, bot: { x: 0 } }; // test hook state; the hook itself is at the end
+const Input = {
+  keys: new Set(),            // keyboard keys held right now (KeyboardEvent.code)
+  drags: new Map(),           // pointerId -> { player, x } for every finger or mouse button held on the field
+  remote: { d: 0, x: null },  // online host only: the guest's latest input
+  keysFor(i) { // shared screen: bottom player has the arrows, top player A and D. Otherwise both sets move your paddle.
+    if (Game.mode === 'shared') return i === 0 ? ['ArrowLeft', 'ArrowRight'] : ['KeyA', 'KeyD'];
+    return i === Game.me ? ['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD'] : [];
+  },
+  dir(i) {
+    if (Hook.mode === 'bot') return i === 0 ? Hook.bot.x : 0;
+    if (Game.mode === 'online' && Net.role === 'host' && i === 1) return this.remote.d;
+    const k = this.keysFor(i), held = c => this.keys.has(c);
+    const d = (held(k[1]) || held(k[3]) ? 1 : 0) - (held(k[0]) || held(k[2]) ? 1 : 0);
+    return R.flip && i === Game.me ? -d : d; // the online guest's screen is upside down, so its right is the field's left
+  },
+  target(i) {
+    if (Hook.mode === 'bot') return null;
+    if (Game.mode === 'online' && Net.role === 'host' && i === 1) return this.remote.x;
+    for (const d of this.drags.values()) if (d.player === i) return d.x;
+    return null;
+  },
+  clear() { this.keys.clear(); this.drags.clear(); this.remote = { d: 0, x: null }; },
+};
+const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+const typing = e => e.target && e.target.matches && e.target.matches('input, textarea');
+
+addEventListener('keydown', e => {
+  Sound.unlock();
+  if (typing(e)) return;                       // typing initials or a code: no game shortcuts
+  if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+  if (e.repeat) return;
+  Input.keys.add(e.code);
+  if (e.code === 'KeyP' || e.code === 'Escape') Game.togglePause();
+  if (e.code === 'KeyF') Full.toggle();
+  if (e.code === 'Enter') UI.primary();
+});
+addEventListener('keyup', e => Input.keys.delete(e.code));
+addEventListener('blur', () => { Input.clear(); if (!Hook.mode) Game.pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && !Hook.mode) Game.pause(); });
+for (const ev of ['gesturestart', 'contextmenu', 'dblclick']) addEventListener(ev, e => { if (!typing(e)) e.preventDefault(); });
+
+
+// ---------- THE GAME (YOUR GAME: replace the rules in here) ----------
+// state: 'title' | 'serve' | 'play' | 'paused' | 'over'
+// mode:  'solo' (vs the computer) | 'shared' (one screen) | 'online'
+// me:    which paddle this device controls (0 bottom, 1 top). The online guest is 1, drawn upside down.
+const Game = {
+  state: 'title', mode: 'solo', me: 0,
+  points: [0, 0], returns: 0, score: 0, time: 0, serveTimer: 0, winner: -1,
+  paddles: null, ball: null, cpuAim: 0, sendTimer: 0,
+
+  start(seed = (Date.now() >>> 0)) {
+    seedRandom(seed);
+    this.points = [0, 0]; this.returns = 0; this.score = 0; this.time = 0; this.winner = -1;
+    this.paddles = [{ x: CFG.W / 2 }, { x: CFG.W / 2 }];
+    this.serve(1); // the first serve goes to the top paddle, so standing still at the start is safe
+    UI.show(null);
+  },
+  serve(toward) { // ball waits in the middle, then heads toward player `toward`
+    const a = (rand() * 2 - 1) * CFG.SERVE_ANGLE * Math.PI / 180, dirY = toward === 0 ? 1 : -1;
+    this.ball = { x: CFG.W / 2, y: CFG.H / 2, vx: Math.sin(a) * CFG.BALL_SPEED, vy: Math.cos(a) * CFG.BALL_SPEED * dirY, speed: CFG.BALL_SPEED };
+    this.cpuAim = (rand() * 2 - 1) * CFG.CPU_AIM_ERROR;
+    this.serveTimer = CFG.SERVE_DELAY; this.state = 'serve';
+  },
+  paddleY(i) { return i === 0 ? CFG.H - CFG.PADDLE_Y : CFG.PADDLE_Y; },
+
+  // One fixed step of the simulation. No drawing and no real clock in here. Only the host runs it
+  // online; the guest just shows what the host sends.
+  update(dt) {
+    if (this.state !== 'play' && this.state !== 'serve') return;
+    if (this.mode === 'online' && Net.role !== 'host') return;
+    this.time += dt;
+    for (let i = 0; i < 2; i++) this.movePaddle(i, dt);
+    if (this.state === 'serve') { this.serveTimer -= dt; if (this.serveTimer <= 0) this.state = 'play'; return this.sendState(); }
+
+    const b = this.ball;
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.x < CFG.BALL_R) { b.x = CFG.BALL_R; b.vx = Math.abs(b.vx); Sound.beep(300, 0.05); }
+    if (b.x > CFG.W - CFG.BALL_R) { b.x = CFG.W - CFG.BALL_R; b.vx = -Math.abs(b.vx); Sound.beep(300, 0.05); }
+    for (let i = 0; i < 2; i++) this.hitPaddle(i);
+    if (b.y > CFG.H + CFG.BALL_R) this.scorePoint(1);
+    else if (b.y < -CFG.BALL_R) this.scorePoint(0);
+    this.sendState();
+  },
+  movePaddle(i, dt) {
+    const p = this.paddles[i], half = CFG.PADDLE_W / 2;
+    if (this.mode === 'solo' && i === 1) { // the computer: follows the ball, a bit late and a bit off
+      const goal = this.ball.vy < 0 ? this.ball.x + this.cpuAim : CFG.W / 2;
+      p.x += clamp(goal - p.x, -CFG.CPU_SPEED * dt, CFG.CPU_SPEED * dt);
+    } else {
+      const t = Input.target(i);
+      if (t != null) p.x += clamp(t - p.x, -CFG.DRAG_SPEED * dt, CFG.DRAG_SPEED * dt);
+      else p.x += Input.dir(i) * CFG.PADDLE_SPEED * dt;
+    }
+    p.x = clamp(p.x, half, CFG.W - half);
+  },
+  hitPaddle(i) { // bounce off paddle i; hitting near its edge sends the ball off at a steeper angle
+    const b = this.ball, p = this.paddles[i], y = this.paddleY(i), toward = i === 0 ? b.vy > 0 : b.vy < 0;
+    const reachY = CFG.PADDLE_H / 2 + CFG.BALL_R, reachX = CFG.PADDLE_W / 2 + CFG.BALL_R;
+    if (!toward || Math.abs(b.y - y) > reachY || Math.abs(b.x - p.x) > reachX) return;
+    const off = clamp((b.x - p.x) / (CFG.PADDLE_W / 2), -1, 1), a = off * CFG.MAX_ANGLE * Math.PI / 180;
+    b.speed = Math.min(CFG.BALL_MAX, b.speed + CFG.BALL_SPEEDUP);
+    b.vx = Math.sin(a) * b.speed; b.vy = Math.cos(a) * b.speed * (i === 0 ? -1 : 1);
+    b.y = y + (i === 0 ? -reachY : reachY);
+    if (i === 0) { this.returns++; this.score += CFG.RETURN_SCORE; }
+    this.cpuAim = (rand() * 2 - 1) * CFG.CPU_AIM_ERROR;
+    Sound.beep(i === 0 ? 520 : 440, 0.06);
+  },
+  scorePoint(i) {
+    this.points[i]++;
+    if (i === 0) this.score += CFG.POINT_SCORE;
+    Sound.beep(i === 0 ? 880 : 160, 0.25, i === 0 ? 'triangle' : 'sawtooth');
+    if (this.points[i] >= CFG.WIN_POINTS) return this.end(i);
+    this.serve(i === 0 ? 1 : 0); // the player who lost the point gets the next serve coming at them
+  },
+
+  // How close player 0 is to beating the computer, from 0 to 1. Bots chase this number, so it grows
+  // with every point won and every return (long rallies speed the ball up until the computer misses).
+  progress() {
+    if (this.winner === 0) return 1;
+    return Math.min(0.999, (this.points[0] + 0.08 * Math.min(this.returns, 40)) / (CFG.WIN_POINTS + 3.2));
+  },
+
+  end(winner) {
+    this.winner = winner; this.state = 'over';
+    if (winner === 0 && this.mode === 'solo') this.score += CFG.WIN_BONUS;
+    Sound.beep(winner === this.me ? 880 : 90, 0.5, winner === this.me ? 'triangle' : 'sawtooth');
+    this.sendState(true);
+    if (Hook.mode !== 'bot') UI.endRun(); // bot runs show no screens and save nothing
+  },
+  play(mode = 'solo') { // a player starting a run (the test hook calls start(seed) itself)
+    Hook.mode = null; this.mode = mode; this.me = mode === 'online' && Net.role === 'guest' ? 1 : 0;
+    R.flip = this.me === 1;
+    Input.clear();
+    if (mode === 'online' && Net.role === 'guest') { Net.send({ t: 'again' }); return; } // the host restarts the game
+    this.start();
+  },
+  pause() {
+    if (this.state !== 'play' && this.state !== 'serve') return;
+    if (this.mode === 'online' && Net.role === 'guest') return Net.send({ t: 'pause' });
+    this.resumeTo = this.state; this.state = 'paused'; UI.show('scrPause'); this.sendState(true);
+  },
+  togglePause() {
+    if (this.state !== 'paused') return this.pause();
+    if (this.mode === 'online' && Net.role === 'guest') return Net.send({ t: 'resume' });
+    this.state = this.resumeTo || 'play'; UI.show(null); this.sendState(true);
+  },
+  toTitle() {
+    if (this.mode === 'online') Net.close();
+    this.state = 'title'; this.mode = 'solo'; this.me = 0; R.flip = false; Hook.mode = null; Input.clear(); UI.show('scrTitle');
+  },
+
+  // ---- online: the host sends what the guest needs to draw; the guest sends its input ----
+  sendState(now = false) {
+    if (this.mode !== 'online' || Net.role !== 'host') return;
+    if (!now && ++this.sendTimer < CFG.SEND_EVERY) return;
+    this.sendTimer = 0;
+    const b = this.ball;
+    Net.send({ t: 's', st: this.state, pts: this.points, w: this.winner, b: [b.x, b.y, b.vx, b.vy], p: [this.paddles[0].x, this.paddles[1].x] });
+  },
+  onNet(m) { // a message from the other device
+    if (Net.role === 'host') {
+      if (m.t === 'i') this.remote(m);
+      else if (m.t === 'pause') this.pause();
+      else if (m.t === 'resume' && this.state === 'paused') this.togglePause();
+      else if (m.t === 'again' && this.state === 'over') this.play('online');
+      return;
+    }
+    if (m.t !== 's') return; // guest: copy the host's game
+    const was = this.state;
+    if (!this.paddles) this.paddles = [{ x: CFG.W / 2 }, { x: CFG.W / 2 }];
+    this.state = m.st; this.points = m.pts; this.winner = m.w;
+    this.ball = { x: m.b[0], y: m.b[1], vx: m.b[2], vy: m.b[3] };
+    this.paddles[0].x = m.p[0];
+    if (Input.target(1) == null && Input.dir(1) === 0) this.paddles[1].x = m.p[1]; // our own paddle: trust our input while moving
+    if (was !== this.state) {
+      if (this.state === 'paused') UI.show('scrPause');
+      else if (this.state === 'over') UI.endRun();
+      else if (was === 'paused' || was === 'over' || was === 'title') UI.show(null);
+    }
+  },
+  remote(m) { Input.remote = { d: clamp(+m.d || 0, -1, 1), x: m.x == null ? null : clamp(+m.x, 0, CFG.W) }; },
+  guestFrame(dt) { // the guest moves its own paddle right away (so it feels instant) and tells the host
+    if (this.state !== 'play' && this.state !== 'serve') return;
+    this.movePaddle(1, dt);
+    if (this.ball) { this.ball.x += (this.ball.vx || 0) * dt; this.ball.y += (this.ball.vy || 0) * dt; } // glide between updates
+    if ((this.sendTimer += dt) >= CFG.SEND_EVERY * STEP) { this.sendTimer = 0; Net.send({ t: 'i', d: Input.dir(1), x: Input.target(1) ?? this.paddles[1].x }); }
+  },
+};
+
+// ---------- NET: online play (copy as is; nothing here is game-specific) ----------
+// How two devices find each other with no server of our own:
+//  1. Both connect to a few free public MQTT "brokers" (message boards that pass short messages
+//     along) over secure WebSockets and listen on a topic made from the room code.
+//  2. They swap a WebRTC handshake there. Every message is encrypted with a key made from the room
+//     code, so the broker sees only scrambled text. Brokers can't read the game or the handshake.
+//  3. WebRTC then connects the two browsers directly (encrypted). The brokers are dropped.
+// Public STUN servers tell each device its public address so the direct link can get through home
+// routers. Some strict networks (some school or mobile networks) block direct links; then joining
+// fails with a clear message. A TURN relay would fix that, but free ones need an account, so `ice`
+// below has a slot for one. Tests set window.NET_TEST_CONFIG to a local fake broker.
+const NET_CONFIG = Object.assign({
+  brokers: ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'],
+  ice: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }],
+  timeoutSeconds: 90,
+}, window.NET_TEST_CONFIG || {});
+const CODE_LETTERS = 'ACDEFHJKMNPRTUVWXY34679'; // no 0/O, 1/I/L, 2/Z, 5/S, 8/B mix-ups
+
+function mqttClient(url, onMessage) { // the smallest MQTT 3.1.1 client that does the job: connect, subscribe, publish
+  const te = new TextEncoder(), td = new TextDecoder();
+  const str = s => { const b = te.encode(s); return [b.length >> 8, b.length & 255, ...b]; };
+  const len = n => { const o = []; do { let d = n % 128; n = Math.floor(n / 128); if (n) d |= 128; o.push(d); } while (n); return o; };
+  const pkt = (type, body) => new Uint8Array([type, ...len(body.length), ...body]);
+  const ws = new WebSocket(url, 'mqtt'); ws.binaryType = 'arraybuffer';
+  let buf = new Uint8Array(0), ping = null, onReady;
+  const ready = new Promise((res, rej) => { onReady = res; ws.onerror = () => rej(new Error('broker')); ws.onclose = () => rej(new Error('broker')); });
+  ws.onopen = () => ws.send(pkt(0x10, [...str('MQTT'), 4, 0x02, 0, 60, ...str('ff' + Math.random().toString(36).slice(2, 12))]));
+  ws.onmessage = e => {
+    const add = new Uint8Array(e.data), b = new Uint8Array(buf.length + add.length); b.set(buf); b.set(add, buf.length); buf = b;
+    for (;;) { // there may be several packets, or half of one, in each WebSocket message
+      let n = 0, mul = 1, i = 1, d;
+      do { if (i >= buf.length) return; d = buf[i++]; n += (d & 127) * mul; mul *= 128; } while (d & 128);
+      if (buf.length < i + n) return;
+      const type = buf[0] >> 4, qos = (buf[0] >> 1) & 3, body = buf.slice(i, i + n); buf = buf.slice(i + n);
+      if (type === 2) { if (body[1] === 0) { onReady(); ping = setInterval(() => { try { ws.send(new Uint8Array([0xC0, 0])); } catch { /* closing */ } }, 25000); } else ws.close(); }
+      if (type === 3) { const tl = (body[0] << 8) | body[1]; onMessage(td.decode(body.slice(2 + tl + (qos ? 2 : 0)))); }
+    }
+  };
+  return {
+    ready,
+    subscribe: topic => ws.send(pkt(0x82, [0, 1, ...str(topic), 0])),
+    publish: (topic, text) => ws.send(pkt(0x30, [...str(topic), ...te.encode(text)])),
+    close() { clearInterval(ping); try { ws.send(new Uint8Array([0xE0, 0])); ws.close(); } catch { /* already closed */ } },
+  };
+}
+
+const Net = {
+  role: null, code: '', on: null, pc: null, dc: null, brokers: [], seen: new Set(), timers: [],
+  newCode() { const r = crypto.getRandomValues(new Uint8Array(5)); return Array.from(r, v => CODE_LETTERS[v % CODE_LETTERS.length]).join(''); },
+  cleanCode: s => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5),
+
+  host(on) { return this.begin('host', this.newCode(), on); },
+  join(code, on) { return this.begin('guest', this.cleanCode(code), on); },
+  async begin(role, code, on) {
+    this.close();
+    Object.assign(this, { role, code, on, id: Math.random().toString(36).slice(2, 10), partner: null, seen: new Set(), iceWait: [] });
+    const run = this.run = {}; // a later begin() or close() makes this run stale
+    const status = text => run === this.run && on({ type: 'status', text });
+    status(role === 'host' ? 'Waiting for your friend to join...' : 'Looking for the game...');
+    try {
+      const enc = new TextEncoder(), sha = async s => new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s)));
+      const hex = a => Array.from(a, v => v.toString(16).padStart(2, '0')).join('');
+      this.topic = 'funfactory/' + hex((await sha(`${GAME_ID}/room/${code}`)).slice(0, 12));
+      this.key = await crypto.subtle.importKey('raw', await sha(`${GAME_ID}/key/${code}`), 'AES-GCM', false, ['encrypt', 'decrypt']);
+      const clients = NET_CONFIG.brokers.map(url => mqttClient(url, text => this.receive(text)));
+      const results = await Promise.allSettled(clients.map(c => Promise.race([c.ready, new Promise((_, rej) => setTimeout(rej, 8000))])));
+      if (run !== this.run) return clients.forEach(c => c.close());
+      this.brokers = clients.filter((c, i) => results[i].status === 'fulfilled');
+      clients.filter(c => !this.brokers.includes(c)).forEach(c => c.close());
+      if (!this.brokers.length) return this.fail("Couldn't reach the matchmaking servers. Check the internet connection and try again.");
+      this.brokers.forEach(c => c.subscribe(this.topic));
+      if (role === 'guest') { const hello = () => this.signal({ k: 'hello' }); hello(); this.timers.push(setInterval(hello, 2000)); }
+      this.timers.push(setTimeout(() => this.fail(role === 'host' ? 'Nobody joined. Try again when your friend is ready.'
+        : "Couldn't connect. Check the code. Some school or phone networks block games like this."), NET_CONFIG.timeoutSeconds * 1000));
+    } catch (e) { this.fail('Online play does not work in this browser.'); }
+    return code;
+  },
+  async signal(msg) { // encrypt and post a handshake message on every broker
+    msg = { ...msg, from: this.id, to: this.partner, n: Math.random() };
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, this.key, new TextEncoder().encode(JSON.stringify(msg))));
+    const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
+    const text = btoa(String.fromCharCode(...all));
+    for (const c of this.brokers) try { c.publish(this.topic, text); } catch { /* that broker dropped */ }
+  },
+  async receive(text) {
+    let m;
+    try {
+      const all = Uint8Array.from(atob(text), ch => ch.charCodeAt(0));
+      m = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.slice(0, 12) }, this.key, all.slice(12))));
+    } catch { return; } // not for us (wrong code, or junk on the topic)
+    if (m.from === this.id || this.seen.has(m.n) || (m.to && m.to !== this.id)) return;
+    this.seen.add(m.n); // the same message arrives once per broker
+    if (this.role === 'host' && m.k === 'hello') {
+      if (this.partner && m.from !== this.partner) return; // room is full: one friend per game
+      if (this.pc) return;
+      this.partner = m.from; this.makePeer();
+      this.useChannel(this.pc.createDataChannel('game'));
+      await this.pc.setLocalDescription(await this.pc.createOffer());
+      this.signal({ k: 'offer', sdp: this.pc.localDescription.sdp });
+    } else if (this.role === 'guest' && m.k === 'offer' && !this.pc) {
+      this.partner = m.from; this.makePeer();
+      this.pc.ondatachannel = e => this.useChannel(e.channel);
+      await this.pc.setRemoteDescription({ type: 'offer', sdp: m.sdp }); this.flushIce();
+      await this.pc.setLocalDescription(await this.pc.createAnswer());
+      this.signal({ k: 'answer', sdp: this.pc.localDescription.sdp });
+    } else if (this.role === 'host' && m.k === 'answer' && m.from === this.partner && this.pc && !this.pc.remoteDescription) {
+      await this.pc.setRemoteDescription({ type: 'answer', sdp: m.sdp }); this.flushIce();
+    } else if (m.k === 'ice' && m.from === this.partner) {
+      this.iceWait.push(m.c); if (this.pc && this.pc.remoteDescription) this.flushIce();
+    }
+  },
+  makePeer() {
+    this.pc = new RTCPeerConnection({ iceServers: NET_CONFIG.ice });
+    this.pc.onicecandidate = e => { if (e.candidate) this.signal({ k: 'ice', c: e.candidate.toJSON() }); };
+    this.pc.onconnectionstatechange = () => { if (this.pc && this.pc.connectionState === 'failed') this.fail("Couldn't connect to your friend's device."); };
+  },
+  flushIce() { for (const c of this.iceWait.splice(0)) this.pc.addIceCandidate(c).catch(() => {}); },
+  useChannel(dc) {
+    this.dc = dc;
+    dc.onopen = () => { // connected: stop matchmaking, drop the brokers
+      this.timers.forEach(t => { clearInterval(t); clearTimeout(t); }); this.timers = [];
+      setTimeout(() => { this.brokers.forEach(c => c.close()); this.brokers = []; }, 1500);
+      this.on({ type: 'open' });
+    };
+    dc.onmessage = e => { try { this.on({ type: 'message', data: JSON.parse(e.data) }); } catch { /* ignore bad data */ } };
+    dc.onclose = () => { if (this.dc === dc) { const on = this.on; this.close(); on && on({ type: 'closed' }); } };
+  },
+  send(msg) { if (this.dc && this.dc.readyState === 'open') this.dc.send(JSON.stringify(msg)); },
+  get connected() { return !!(this.dc && this.dc.readyState === 'open'); },
+  fail(text) { const on = this.on; this.close(); on && on({ type: 'error', text }); },
+  close() {
+    this.run = null;
+    this.timers.forEach(t => { clearInterval(t); clearTimeout(t); }); this.timers = [];
+    this.brokers.forEach(c => c.close()); this.brokers = [];
+    const dc = this.dc; this.dc = null; if (dc) try { dc.close(); } catch { /* fine */ }
+    if (this.pc) try { this.pc.close(); } catch { /* fine */ }
+    this.pc = null; this.on = null; this.role = null;
+  },
+};
+
+// The online screen: host or join, then start the game when the link opens.
+const Online = {
+  open() { $('roomLabel').textContent = 'Tell your friend this code:'; $('onlinePick').hidden = false; $('onlineWait').hidden = true; $('onlineStatus').textContent = ''; $('joinCode').value = ''; UI.show('scrOnline'); },
+  event(e) {
+    if (e.type === 'status') $('onlineStatus').textContent = e.text;
+    if (e.type === 'error') { $('onlineStatus').textContent = e.text; $('onlinePick').hidden = false; $('onlineWait').hidden = true; if (Game.mode === 'online') { Game.toTitle(); Online.open(); $('onlineStatus').textContent = e.text; } }
+    if (e.type === 'open') { Sound.beep(660, 0.2, 'triangle'); Game.play('online'); }
+    if (e.type === 'message') Game.onNet(e.data);
+    if (e.type === 'closed' && Game.mode === 'online') { Game.state = 'over'; Game.winner = -2; UI.endRun(); }
+  },
+  host() { $('onlinePick').hidden = true; $('onlineWait').hidden = false; Net.host(e => this.event(e)); $('roomCode').textContent = Net.code; },
+  join() {
+    const code = Net.cleanCode($('joinCode').value);
+    if (code.length !== 5) { $('onlineStatus').textContent = 'The code has 5 letters and numbers.'; return; }
+    $('onlinePick').hidden = true; $('onlineWait').hidden = false; $('roomLabel').textContent = 'Joining game'; $('roomCode').textContent = code;
+    Net.join(code, e => this.event(e));
+  },
+  cancel() { Net.close(); $('roomLabel').textContent = 'Tell your friend this code:'; UI.show('scrTitle'); },
+};
+$('joinCode').addEventListener('input', e => { e.target.value = Net.cleanCode(e.target.value); });
+$('joinCode').addEventListener('keydown', e => { if (e.code === 'Enter') { e.preventDefault(); Online.join(); } });
+
+// ---------- RENDERER (plain WebGL: colored triangles, no library) ----------
+// R.flip turns the whole field upside down, so the online guest sees their own paddle at the bottom.
+const canvas = $('view');
+const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+const R = { verts: [], prog: null, buf: null, scale: 1, ox: 0, oy: 0, flip: false };
+// Fingers (and a held mouse button) on the field. Every finger is tracked by its own pointerId,
+// so two players can drag at the same time. On a shared screen the half you touch picks the player.
+function pointerToWorld(e) {
+  const dpr = canvas.width / canvas.clientWidth || 1;
+  let x = (e.clientX * dpr - R.ox) / R.scale, y = (e.clientY * dpr - R.oy) / R.scale;
+  if (R.flip) { x = CFG.W - x; y = CFG.H - y; }
+  return { x, y };
+}
+canvas.addEventListener('pointerdown', e => {
+  Sound.unlock();
+  if (Game.state !== 'play' && Game.state !== 'serve') return;
+  const w = pointerToWorld(e);
+  const player = Game.mode === 'shared' ? (w.y > CFG.H / 2 ? 0 : 1) : Game.me;
+  Input.drags.set(e.pointerId, { player, x: w.x });
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* fine */ }
+});
+canvas.addEventListener('pointermove', e => { const d = Input.drags.get(e.pointerId); if (d) d.x = pointerToWorld(e).x; });
+for (const ev of ['pointerup', 'pointercancel']) canvas.addEventListener(ev, e => Input.drags.delete(e.pointerId));
+function initGL() {
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+  R.prog = gl.createProgram();
+  gl.attachShader(R.prog, sh(gl.VERTEX_SHADER, 'attribute vec2 p; attribute vec4 c; uniform vec2 size; varying vec4 v; void main(){ v=c; gl_Position=vec4(p.x/size.x*2.0-1.0, 1.0-p.y/size.y*2.0, 0.0, 1.0); }'));
+  gl.attachShader(R.prog, sh(gl.FRAGMENT_SHADER, 'precision mediump float; varying vec4 v; void main(){ gl_FragColor=v; }'));
+  gl.linkProgram(R.prog); gl.useProgram(R.prog);
+  R.buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, R.buf);
+  const p = gl.getAttribLocation(R.prog, 'p'), c = gl.getAttribLocation(R.prog, 'c');
+  gl.enableVertexAttribArray(p); gl.vertexAttribPointer(p, 2, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(c); gl.vertexAttribPointer(c, 4, gl.FLOAT, false, 24, 8);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+}
+function resize() { // fit the whole field on screen, centered, on any screen shape
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(canvas.clientWidth * dpr); canvas.height = Math.round(canvas.clientHeight * dpr);
+  R.scale = Math.min(canvas.width / CFG.W, canvas.height / CFG.H);
+  R.ox = (canvas.width - CFG.W * R.scale) / 2; R.oy = (canvas.height - CFG.H * R.scale) / 2;
+}
+const hex = (h, a = 1) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255, a];
+function tri(x1, y1, x2, y2, x3, y3, c1, c2 = c1, c3 = c1) { R.verts.push(x1, y1, ...c1, x2, y2, ...c2, x3, y3, ...c3); }
+function rect(x, y, w, h, top, bottom = top) { tri(x, y, x + w, y, x, y + h, top, top, bottom); tri(x + w, y, x + w, y + h, x, y + h, top, bottom, bottom); }
+function wbox(cx, cy, w, h, color) { // a box centered on a world point, flipped for the online guest
+  if (R.flip) { cx = CFG.W - cx; cy = CFG.H - cy; }
+  rect(R.ox + (cx - w / 2) * R.scale, R.oy + (cy - h / 2) * R.scale, w * R.scale, h * R.scale, color);
+}
+const BACKDROP = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), s: 1 + Math.random() * 2, a: 0.25 + Math.random() * 0.6 })); // looks only
+function draw(now) { // YOUR GAME: draw your world here
+  R.verts.length = 0;
+  rect(0, 0, canvas.width, canvas.height, hex('#1b1147'), hex('#070514'));
+  for (const s of BACKDROP) rect(s.x * canvas.width, s.y * canvas.height, s.s, s.s, hex('#ffffff', s.a * (0.7 + 0.3 * Math.sin(now / 600 + s.x * 40))));
+  rect(R.ox, R.oy, CFG.W * R.scale, CFG.H * R.scale, hex('#2a1f6b', 0.35), hex('#43378c', 0.35));
+  for (let x = 0.25; x < CFG.W; x += 0.7) wbox(x + 0.2, CFG.H / 2, 0.4, 0.06, hex('#b8afe2', 0.4)); // the middle line
+  if (Game.paddles) {
+    const colors = ['#7dffa0', '#5fd0ff'];
+    for (let i = 0; i < 2; i++) wbox(Game.paddles[i].x, Game.paddleY(i), CFG.PADDLE_W, CFG.PADDLE_H, hex(colors[i]));
+    const b = Game.ball, blink = Game.state === 'serve' && Math.floor(now / 120) % 2;
+    if (b && !blink) wbox(b.x, b.y, CFG.BALL_R * 2, CFG.BALL_R * 2, hex('#ffe066'));
+  }
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(gl.getUniformLocation(R.prog, 'size'), canvas.width, canvas.height);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(R.verts), gl.DYNAMIC_DRAW);
+  gl.drawArrays(gl.TRIANGLES, 0, R.verts.length / 6);
+}
+
+// ---------- SCREENS AND HUD ----------
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const UI = {
+  pending: null, // a finished 1 player run waiting for initials: { score, detail }
+  show(id) {
+    for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id;
+    const playing = id === null || id === 'scrPause';
+    $('hud').hidden = !playing; $('scoreLow').hidden = !playing; $('scoreHigh').hidden = !playing;
+    if (id === 'scrTitle') this.syncTitle();
+  },
+  syncTitle() {
+    const top = Scores.top(), bot = window.BOT_SCORES && window.BOT_SCORES.champion;
+    $('titleTop').textContent = top ? `Top score: ${top} ${SCORE_NAME}` : '';
+    $('titleBot').textContent = bot ? `Bot's best: ${bot.score} ${SCORE_NAME}. Can you beat it?` : '';
+    $('titleBuild').textContent = window.GAME_BUILD ? `Build ${window.GAME_BUILD}` : '';
+  },
+  names() { // what each paddle is called on this device: [bottom of my screen, top of my screen]
+    if (Game.mode === 'solo') return ['You', 'Computer'];
+    if (Game.mode === 'online') return ['You', 'Friend'];
+    return ['Green', 'Blue'];
+  },
+  syncHud() {
+    if (!Game.paddles) return;
+    const [low, high] = this.names(), me = Game.me, them = 1 - me;
+    $('scoreLow').textContent = `${low} ${Game.points[me]}`;
+    $('scoreHigh').textContent = `${high} ${Game.points[them]}`;
+    $('scoreHigh').style.transform = Game.mode === 'shared' ? '' : 'translateY(-2.2em)'; // shared screen: the top label stays upside down for the top player
+  },
+  table(newRow = -1) {
+    const l = Scores.list();
+    const rows = l.map((e, i) => `<tr class="${i === newRow ? 'new' : ''}"><td>${i + 1}.</td><td>${esc(e.initials)}</td><td>${e.score}</td><td>${esc(e.detail || '')}</td></tr>`).join('');
+    return (l.length ? `<table>${rows}</table>` : '<p>No scores yet. Be the first!</p>') + (store.ok ? '' : '<p class="note">Scores can\'t be saved in this browser.</p>');
+  },
+  endRun() {
+    const [p0, p1] = Game.points, me = Game.me, w = Game.winner;
+    $('endTitleFlip').hidden = true; $('endForm').hidden = true; $('endBot').textContent = ''; $('endTable').innerHTML = ''; this.pending = null;
+    $('btnAgain').hidden = false;
+    if (w === -2) { // online friend left
+      $('endTitle').textContent = 'Your friend left'; $('endScore').textContent = `${Game.points[me]} to ${Game.points[1 - me]}`; $('btnAgain').hidden = true;
+    } else if (Game.mode === 'shared') {
+      $('endTitle').textContent = w === 0 ? 'Green wins!' : 'Blue wins!';
+      $('endTitleFlip').textContent = w === 1 ? 'Blue wins!' : 'Green wins!'; $('endTitleFlip').hidden = false; // readable from the top
+      $('endScore').textContent = `Green ${p0}, Blue ${p1}`;
+    } else if (Game.mode === 'online') {
+      $('endTitle').textContent = w === me ? 'You win!' : 'Your friend wins!';
+      $('endScore').textContent = `${Game.points[me]} to ${Game.points[1 - me]}`;
+    } else { // 1 player: score, bot score and the high score table
+      const score = Game.score, detail = `${w === 0 ? 'Won' : 'Lost'} ${p0}-${p1}`, bot = window.BOT_SCORES && window.BOT_SCORES.champion;
+      $('endTitle').textContent = w === 0 ? 'You win!' : 'Game over';
+      $('endScore').textContent = `${p0} to ${p1}. Score: ${score} ${SCORE_NAME}`;
+      $('endBot').textContent = bot && score > bot.score ? 'You beat the bot!' : '';
+      const saving = !Hook.mode && Scores.qualifies(score);
+      this.pending = saving ? { score, detail } : null;
+      $('endForm').hidden = !saving; $('endTable').innerHTML = this.table();
+      if (saving) { $('initials').value = store.get('initials', ''); if (!isTouch) $('initials').focus(); }
+    }
+    this.show('scrEnd');
+  },
+  save() {
+    if (!this.pending) return;
+    const initials = ($('initials').value.toUpperCase().replace(/[^A-Z]/g, '') || '???').slice(0, 3);
+    const row = Scores.add(initials, this.pending.score, this.pending.detail);
+    this.pending = null; $('endForm').hidden = true; $('initials').blur();
+    $('endTable').innerHTML = this.table(row);
+  },
+  primary() { // what Enter does on each screen
+    if (Game.state === 'title' && !$('scrScores').hidden) return this.show('scrTitle');
+    if (Game.state === 'title' && !$('scrOnline').hidden) return;
+    if (Game.state === 'title') return Game.play('solo');
+    if (Game.state === 'paused') return Game.togglePause();
+    if (Game.state === 'over' && !$('btnAgain').hidden) { this.save(); Game.play(Game.mode); }
+  },
+};
+$('initials').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); });
+$('initials').addEventListener('keydown', e => { if (e.code === 'Enter') { e.preventDefault(); UI.save(); } });
+const onTap = (id, fn) => $(id).addEventListener('click', () => { Sound.unlock(); fn(); });
+onTap('btnPlay', () => Game.play('solo'));
+onTap('btnShared', () => Game.play('shared'));
+onTap('btnOnline', () => Online.open());
+onTap('btnHost', () => Online.host());
+onTap('btnJoin', () => Online.join());
+onTap('btnOnlineBack', () => Online.cancel());
+onTap('btnScores', () => { $('scoresTable').innerHTML = UI.table(); UI.show('scrScores'); });
+onTap('btnBack', () => UI.show('scrTitle'));
+onTap('btnPause', () => Game.togglePause());
+onTap('btnResume', () => Game.togglePause());
+onTap('btnQuit', () => Game.toTitle());
+onTap('btnSave', () => UI.save());
+onTap('btnAgain', () => { UI.save(); Game.play(Game.mode); });
+onTap('btnMenu', () => { UI.save(); Game.toTitle(); });
+
+// ---------- FULL SCREEN ----------
+const Full = {
+  supported: () => !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen),
+  toggle() {
+    const el = document.documentElement, on = document.fullscreenElement || document.webkitFullscreenElement;
+    const blocked = () => { $('fullNote').hidden = false; $('fullNote').textContent = 'Full screen is blocked here. On an iPhone or iPad: tap Share, then Add to Home Screen, and open the game from its new icon.'; };
+    if (on) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    if (!this.supported()) return blocked();
+    try { const r = (el.requestFullscreen || el.webkitRequestFullscreen).call(el); if (r && r.catch) r.catch(blocked); } catch { blocked(); }
+  },
+};
+onTap('btnFull', () => Full.toggle());
+
+// ---------- MAIN LOOP ----------
+// Real time is chopped into fixed steps, so the game plays the same on slow and fast screens.
+// In bot mode this loop only draws; the test hook's step() is the only thing that moves time.
+let last = 0, owed = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000 || 0); last = now;
+  if (Hook.mode !== 'bot') {
+    owed += dt;
+    while (owed >= STEP) {
+      if (Game.mode === 'online' && Net.role === 'guest') Game.guestFrame(STEP); else Game.update(STEP);
+      if (Hook.mode) Hook.steps++;
+      owed -= STEP;
+    }
+  }
+  UI.syncHud(); draw(now);
+  requestAnimationFrame(frame);
+}
+if (gl) { initGL(); addEventListener('resize', resize); resize(); UI.show('scrTitle'); requestAnimationFrame(frame); }
+else document.body.insertAdjacentHTML('beforeend', '<section class="screen"><div class="card"><h1>Sorry!</h1><p>This browser can\'t draw the game (WebGL is off).</p></div></section>');
+
+// ---------- HOSTING EXTRAS (only switch on when served from games/<name>/ on the site) ----------
+if (/\/games\/[^/]+\/?(index\.html)?$/.test(location.pathname)) {
+  $('allGames').hidden = false; onTap('allGames', () => { location.href = '../../'; });
+  if ('serviceWorker' in navigator && window.isSecureContext && location.protocol.startsWith('http')) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+window.__game = { Game, Input, Scores, UI, Full, CFG, store, Net, Online, R }; // for test_game.py
+
+// ---------- TEST HOOK (spec v1) ----------
+// The harness and its bots play 1 player mode: you (bottom) against the computer (top).
+// Nothing changes for players unless something calls reset().
+(() => {
+  const ACTIONS = [ // YOUR GAME: 3 to 10 actions; "idle" first; join two with "_" to hold both
+    { id: 'idle', desc: 'Keep the paddle still' },
+    { id: 'left', desc: 'Move the paddle left' }, { id: 'right', desc: 'Move the paddle right' },
+  ];
+  const MOVES = { left: -1, right: 1 };
+  const MAX_STEPS = CFG.MAX_SECONDS * CFG.STEPS_PER_SECOND;
+  const status = () => Game.state === 'over' ? (Game.winner === 0 ? 'won' : 'lost') : Hook.steps >= MAX_STEPS ? 'timeout' : 'playing';
+
+  window.GAME_TEST_HOOK = {
+    version: 1,
+    info: () => ({
+      spec: 1, title: TITLE, stepsPerSecond: CFG.STEPS_PER_SECOND, levelCount: 1, scoreName: SCORE_NAME,
+      maxSteps: MAX_STEPS, actions: ACTIONS.map(a => ({ ...a })), stallSeconds: 7,
+      keys: { left: ['ArrowLeft'], right: ['ArrowRight'] }, smokeAction: 'right',
+    }),
+    reset({ seed = 1, level = 0, realtime = false } = {}) {
+      Net.close(); Input.clear(); UI.pending = null;
+      Hook.mode = realtime ? 'realtime' : 'bot'; Hook.steps = 0; Hook.bot = { x: 0 };
+      Game.mode = 'solo'; Game.me = 0; R.flip = false;
+      Game.start(seed);
+      return this.getState();
+    },
+    step(action = 'idle', n = 1) {
+      if (!ACTIONS.some(a => a.id === action)) throw new Error('Unknown action: ' + action);
+      if (Hook.mode !== 'bot') throw new Error('Call reset() (bot mode) before step()');
+      Hook.bot = { x: action === 'idle' ? 0 : MOVES[action] };
+      for (let i = 0; i < n && status() === 'playing'; i++) { Game.update(STEP); Hook.steps++; }
+      return this.getState();
+    },
+    getState() {
+      const p = Game.paddles && Game.paddles[0];
+      return {
+        status: status(), score: Game.score, lives: CFG.WIN_POINTS - Game.points[1], livesLost: Game.points[1],
+        level: 0, levelsCompleted: Game.winner === 0 ? 1 : 0, progress: Game.progress(), steps: Hook.steps,
+        player: p ? { x: +p.x.toFixed(3), y: Game.paddleY(0) } : null,
+      };
+    },
+    observe() { // what a bot "sees": a small text map and a few facts
+      if (!Game.paddles) return { text: 'Game not started.', facts: {} };
+      const rows = Array.from({ length: CFG.H }, () => Array(CFG.W).fill('.'));
+      const put = (x, y, ch) => { rows[clamp(Math.floor(y), 0, CFG.H - 1)][clamp(Math.floor(x), 0, CFG.W - 1)] = ch; };
+      for (const dx of [-0.8, 0, 0.8]) { put(Game.paddles[1].x + dx, Game.paddleY(1), '-'); put(Game.paddles[0].x + dx, Game.paddleY(0), '='); }
+      put(Game.ball.x, Game.ball.y, 'o');
+      const b = Game.ball, p = Game.paddles[0];
+      return {
+        text: 'Legend: = your paddle (bottom), - computer paddle (top), o ball. Row 0 is the top.\n' + rows.map(r => r.join('')).join('\n'),
+        facts: { you: Game.points[0], computer: Game.points[1], ballComing: b.vy > 0, ballIs: Math.abs(b.x - p.x) < 0.4 ? 'above your paddle' : b.x > p.x ? 'to your right' : 'to your left' },
+      };
+    },
+    selfCheck() { return []; },
+  };
+})();
+</script>
+</body>
+</html>
