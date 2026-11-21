@@ -253,11 +253,11 @@ input.big { font: 700 24px monospace; text-align: center; text-transform: upperc
 <!-- WORDS-END -->
 <!-- The build number, written by stamp_build.py right before publishing. -->
 <!-- BUILD-START -->
-<script>window.GAME_BUILD = "2026.11.21-1700";</script>
+<script>window.GAME_BUILD = "2026.11.21-1747";</script>
 <!-- BUILD-END -->
 <!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
 <!-- BOT-SCORES-START -->
-<script>window.BOT_SCORES = {"game":"Threeble","bots":{"evolutionary":{"label":"Evolution Bot","start":591,"mid":591,"best":591,"won":true,"passes":[591,591]}},"updated":"2026-11-21T22:00:34Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":591,"won":true}};</script>
+<script>window.BOT_SCORES = {"game":"Threeble","bots":{"evolutionary":{"label":"Evolution Bot","start":591,"mid":591,"best":591,"won":true,"passes":[591,591]}},"updated":"2026-11-21T22:47:24Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":591,"won":true}};</script>
 <!-- BOT-SCORES-END -->
 
 <script>
@@ -917,6 +917,7 @@ const NET_CONFIG = Object.assign({
   ice: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }],
   timeoutSeconds: 90,
   linkSeconds: 12,   // after finding each other, how long two devices try to link directly before using the relay
+  relayWaitSeconds: 10, // how long to wait for the other device to agree to the relay
 }, window.NET_TEST_CONFIG || {});
 const CODE_LETTERS = 'ACDEFHJKMNPRTUVWXY34679'; // no 0/O, 1/I/L, 2/Z, 5/S, 8/B mix-ups
 
@@ -977,7 +978,7 @@ const Net = {
       this.brokers.forEach(c => c.subscribe(this.topic));
       const servers = `${this.brokers.length} of ${NET_CONFIG.brokers.length} matchmaking servers`;
       status(role === 'host' ? `Waiting for friends to join... (${servers})` : `Looking for the game... (${servers})`);
-      if (role === 'guest') { const hello = () => this.signal({ k: 'hello' }); hello(); this.timers.push(setInterval(hello, 2000)); }
+      if (role === 'guest') { const hello = () => this.signal({ k: 'hello', b: window.GAME_BUILD || '' }); hello(); this.timers.push(setInterval(hello, 2000)); }
       this.waitTimer = setTimeout(() => { if (!this.connected) this.fail(role === 'host' ? 'Nobody joined. Try again when your friends are ready.'
         : "Couldn't connect. Check the code; the game may have started already. Some school or phone networks block games like this."); }, NET_CONFIG.timeoutSeconds * 1000);
       this.timers.push(this.waitTimer);
@@ -1005,10 +1006,18 @@ const Net = {
     if (this.seen.size > 20000) for (const n of this.seen) { this.seen.delete(n); if (this.seen.size < 15000) break; }
     const peer = this.peers.get(m.from);
     if (peer) peer.heard = Date.now();
-    if (peer && m.k === 'relay') return this.toRelay(m.from);          // the other device gave up on the direct link
+    if (peer && m.k === 'relay') return this.toRelay(m.from, true);    // the other device asks for (or agrees to) the relay
     if (peer && peer.relay && m.k === 'd') return this.relayIn(peer, m.from, m.s, m.d);
     if (peer && peer.relay && m.k === 'bye') return this.dropPeer(m.from);
     if (m.k === 'ping' || m.k === 'd' || m.k === 'bye') return;
+    const build = v => String(v || '').replace(/[^0-9.-]/g, '').slice(0, 20); // the title screen's Build number
+    if (this.role === 'host' && m.k === 'hello' && build(m.b) && window.GAME_BUILD && build(m.b) !== build(window.GAME_BUILD)) {
+      if (!this.warned) this.warned = new Set();
+      if (!this.warned.has(m.from)) { this.warned.add(m.from); this.on({ type: 'status', text: `A friend tried to join with a different version of the game (Build ${build(m.b)}; yours is ${build(window.GAME_BUILD)}). Reload the game on both devices until the Build numbers match.` }); }
+      return this.signal({ k: 'build', b: build(window.GAME_BUILD) }, m.from);
+    }
+    if (this.role === 'guest' && m.k === 'build' && !this.peers.size)
+      return this.fail(`The host has a different version of the game (Build ${build(m.b)}; yours is ${build(window.GAME_BUILD)}). Reload the game on both devices until the Build numbers at the bottom of the title screen match.`);
     if (this.role === 'host' && m.k === 'hello') {
       if (peer) return;
       if (this.locked || this.peers.size + 1 >= this.max) return this.signal({ k: 'full' }, m.from);
@@ -1074,15 +1083,33 @@ const Net = {
   // they're handled in order even though each broker delivers its own copy; a ping every 4 s shows
   // the other device is still there (none for 20 s = it left).
   get relaying() { for (const p of this.peers.values()) if (p.relay) return true; return false; },
-  toRelay(id) {
+  // Switching needs both devices: the one that gives up on the direct link asks ({ k: 'relay' }, every
+  // 2 s), and the link only counts once the other device says it switched too (it answers with the
+  // same message). No answer in relayWaitSeconds (for example the other device runs an older build)
+  // and the friend is told, instead of looking joined when the host never saw them.
+  toRelay(id, theyAsked = false) {
     const p = this.peers.get(id); if (!p || p.relay) return;
     if (p.dc && p.dc.readyState === 'open') return; // the direct link works after all
-    if (p.dc) { p.dc.onopen = p.dc.onclose = p.dc.onmessage = null; }
-    p.pc.onconnectionstatechange = p.pc.oniceconnectionstatechange = null;
-    try { p.pc.close(); } catch { /* fine */ }
+    if (!p.asked) {
+      p.asked = true;
+      clearTimeout(p.linkTimer);
+      if (p.dc) { p.dc.onopen = p.dc.onclose = p.dc.onmessage = null; }
+      p.pc.onconnectionstatechange = p.pc.oniceconnectionstatechange = null;
+      try { p.pc.close(); } catch { /* fine */ }
+      const ask = () => this.signal({ k: 'relay' }, id);
+      ask();
+      if (!theyAsked) {
+        if (this.role === 'guest') this.on({ type: 'status', text: "Can't link directly. Trying the relay..." });
+        p.askTimer = setInterval(ask, 2000);
+        p.askGive = setTimeout(() => this.dropPeer(id, this.role === 'host' ? 'norelay'
+          : "Found the game, but the host's device didn't answer. Check that both devices show the same Build number at the bottom of the title screen (reload to update), then try again."), NET_CONFIG.relayWaitSeconds * 1000);
+        return;
+      }
+    }
+    if (!theyAsked) return;
+    clearInterval(p.askTimer); clearTimeout(p.askGive);
     Object.assign(p, { relay: true, out: 0, in: 0, hold: new Map(), heard: Date.now() });
     p.dc = { readyState: 'open', send: text => this.signal({ k: 'd', s: ++p.out, d: text }, id), close() {} };
-    this.signal({ k: 'relay' }, id); // so the other device switches too
     if (!this.pinger) this.pinger = setInterval(() => this.relayPing(), 4000);
     this.opened(id, p);
   },
@@ -1109,7 +1136,7 @@ const Net = {
   },
   dropPeer(id, why) { // a link closed or failed
     const p = this.peers.get(id); if (!p) return;
-    this.peers.delete(id); clearTimeout(p.linkTimer); clearTimeout(p.gap);
+    this.peers.delete(id); clearTimeout(p.linkTimer); clearTimeout(p.gap); clearInterval(p.askTimer); clearTimeout(p.askGive);
     try { p.pc.close(); } catch { /* fine */ }
     if (this.role === 'host') { this.on && this.on({ type: 'leave', id }); return; }
     const on = this.on; const wasOpen = p.dc && p.dc.readyState !== 'connecting';

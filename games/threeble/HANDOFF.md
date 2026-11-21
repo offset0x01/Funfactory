@@ -118,6 +118,7 @@ python3 test-harness/harness/check_live.py games/threeble
 | 2026-11-21 | First version: 9×9×9 cube, word builder with Swing and Space, peel slider, 1–3 computers (3 levels), pass-the-device, online, tests | 2½–3 hours | about 50 minutes (20 of them the bot search) |
 | 2026-11-21 | Fix: online joining never connected on real devices. Offer and answer now carry all of a device's addresses in one message (no more address messages that could arrive before the offer and be lost); the online screen shows each step (servers reached, game found, linking up) and says clearly when the network blocks the direct link (25 s limit). Same fix in the multiplayer starter. Bot: saved run still wins (591). | about 45 minutes | about 20 minutes |
 | 2026-11-21 | Fix 2: the real phones found each other but their home Wi-Fi blocked the direct link. Added the relay (in the starter and here): game messages go through the brokers, encrypted, when the direct link fails. Tests play a whole relay game. Bot: saved run still wins. | about 30 minutes | about 25 minutes |
+| 2026-11-21 | Fix 3: on the phones, the host was still on the old build (its saved offline copy), so it ignored the friend's relay request while the friend looked joined. New `sw.js` gets the newest page on the first reload; the relay needs the host to answer; different builds are reported on both screens. Bot: saved run still wins. | about 30 minutes | about 25 minutes |
 
 ## Sources and credits
 

@@ -361,6 +361,28 @@ with GameSession(str(GAME)) as g:
             check(wait_for(blocked, "__game.Game.turn === 0 && __game.Game.players[1].score > 0", 6000), "the friend's word reaches the host through the relay and scores")
             blocked.evaluate("__game.Game.toTitle()")
             check(wait_for(jp, "/host left/i.test(document.querySelector('#endTitle').textContent)", 8000), "through the relay too, the friend is told when the host leaves")
+        # the host never agrees to the relay (an older build, say): the friend is told, not left looking joined
+        deaf = tab(", linkSeconds: 3")
+        deaf.evaluate("RTCPeerConnection.prototype.setRemoteDescription = function () { return Promise.resolve(); }; __game.Net.toRelay = () => {};")
+        deaf.click("#btnOnline"); deaf.click("#btnHost")
+        dcode = deaf.inner_text("#roomCode").strip()
+        wait_for(deaf, "__game.Net.brokers.length > 0", 8000)
+        dj = tab(", linkSeconds: 3, relayWaitSeconds: 4")
+        join(dj, dcode)
+        check(wait_for(dj, "/didn't answer/i.test(document.querySelector('#onlineStatus').textContent)", 20000) and not dj.evaluate("__game.Net.connected"),
+              "if the host never agrees to the relay, the friend is told to check the Build numbers (and isn't shown as joined)")
+        # different builds: both devices say so
+        old = tab()
+        old.evaluate("window.GAME_BUILD = '2000.01.01-0000'")
+        hb = tab()
+        hb.evaluate("window.GAME_BUILD = '2000.01.02-0000'")
+        hb.click("#btnOnline"); hb.click("#btnHost")
+        hcode = hb.inner_text("#roomCode").strip()
+        wait_for(hb, "__game.Net.brokers.length > 0", 8000)
+        join(old, hcode)
+        check(wait_for(old, "/different version/i.test(document.querySelector('#onlineStatus').textContent)", 15000)
+              and wait_for(hb, "/different version/i.test(document.querySelector('#onlineStatus').textContent)", 5000),
+              "a friend on a different build is told to reload, and so is the host")
         offline = g.browser.new_context()
         offline.add_init_script("window.NET_TEST_CONFIG = { brokers: ['ws://127.0.0.1:9'], ice: [] };")
         op = offline.new_page(); op.goto(GAME.as_uri()); op.wait_for_timeout(300)
