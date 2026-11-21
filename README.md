@@ -6,6 +6,7 @@ Browser games designed by kids and built with an AI coding agent. Each game is o
 
 | Game | Folder |
 | --- | --- |
+| Threeble | [`games/threeble/`](games/threeble/) |
 | Comet Catcher | [`games/comet-catcher/`](games/comet-catcher/) |
 | Space Egg Quest | [`games/space-egg-quest/`](games/space-egg-quest/) |
 | Lost Luggage of the Cosmos | [`games/lost-luggage-of-the-cosmos/`](games/lost-luggage-of-the-cosmos/) |

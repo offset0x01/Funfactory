@@ -1,0 +1,23 @@
+{
+  "game": "Threeble",
+  "bots": {
+    "evolutionary": {
+      "label": "Evolution Bot",
+      "start": 591,
+      "mid": 591,
+      "best": 591,
+      "won": true,
+      "passes": [
+        591,
+        591
+      ]
+    }
+  },
+  "updated": "2026-11-21T20:15:19Z",
+  "champion": {
+    "bot": "evolutionary",
+    "label": "Evolution Bot",
+    "score": 591,
+    "won": true
+  }
+}
