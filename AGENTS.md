@@ -25,7 +25,7 @@ You are a patient game-building partner helping a beginner (a middle schooler wh
 | `manifest.webmanifest`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png`, `favicon.png` (root) | The home page's own bookmark and Home Screen icon (a pixel-art arcade cabinet). Not a game's; don't replace them when adding a game. |
 | `games/<name>/` | One game per folder. |
 | `templates/game/` | **The starter every new game is copied from.** A tiny complete game with every required part already working and tested. |
-| `templates/game-2p/` | **The two-player starter** ("Paddle Duel"): 1 player against the computer, 2 players on one screen, and 2 players online. Copy it instead of `templates/game/` when the game is for two players. |
+| `templates/game-multi/` | **The multiplayer starter** ("Paddle Party"): 1 player against the computer, 2 to 4 friends on one screen, and 2 to 4 players online. Copy it instead of `templates/game/` when the game is for more than one player. |
 | `templates/make_icons.py` | Makes the three Home Screen icons. |
 | `test-harness/` | The test-hook contract (`GAME_TEST_HOOK_SPEC.md`), the harness (`harness/run_tests.py`), the privacy check (`harness/check_private.py`), the live-site check (`harness/check_live.py`), a fake MQTT broker for testing online play offline (`tests/fake_mqtt_broker.py`), their docs and `.env.example`. |
 
@@ -33,7 +33,7 @@ You are a patient game-building partner helping a beginner (a middle schooler wh
 
 - One self-contained `index.html`: all code, styles, art and sounds inlined. No server and no build step needed to play.
 - **WebGL is the preferred way to draw.** Start with plain WebGL and no library, as the starter does. When a feature the player wants really needs a library (3D scenes, physics, skeletal animation, a particle engine), use one: inline it into the file, and say in HANDOFF.md which library and why. Don't add a library for something a few dozen lines of code can do.
-- No online dependencies at runtime: no CDNs, web fonts, APIs or analytics. The game must work offline and keep working for years. The harness fails a game that makes any network request. The one exception is online two-player play, and only as "Two-player games" below describes.
+- No online dependencies at runtime: no CDNs, web fonts, APIs or analytics. The game must work offline and keep working for years. The harness fails a game that makes any network request. The one exception is online multiplayer, and only as "Multiplayer games" below describes.
 - Each game lives in `games/<game-name-in-kebab-case>/`.
 
 ## How to work
@@ -52,7 +52,7 @@ Every task that creates or changes a game starts with a plan and a time estimate
 ### Building a new game
 
 1. Plan and estimate (see "Plan first, and time the work"), then research the idea (see "Research" below).
-2. Copy the starter: `cp -r templates/game games/<name>` (or `templates/game-2p` for a two-player game; see "Two-player games"). Set `GAME_ID` (must equal the folder name), `TITLE` and `SCORE_NAME` at the top of the script, and the names in the `<title>`, the title screen and `manifest.webmanifest`. Run `python3 templates/make_icons.py games/<name> XY` for icons (or make real ones from the game's art).
+2. Copy the starter: `cp -r templates/game games/<name>` (or `templates/game-multi` for a multiplayer game; see "Multiplayer games"). Set `GAME_ID` (must equal the folder name), `TITLE` and `SCORE_NAME` at the top of the script, and the names in the `<title>`, the title screen and `manifest.webmanifest`. Run `python3 templates/make_icons.py games/<name> XY` for icons (or make real ones from the game's art).
 3. Replace the parts marked `YOUR GAME` (config, the `Game` object, drawing, the hook's actions and `progress`). Keep the plumbing: fixed-step `update`, the single `Input` object, seeded `rand()`, `store` and `Scores`, pause, touch buttons, full screen, the pinned page, the test hook. It already passes the harness; keep it passing as you go.
 4. Finish with the **Done checklist**.
 
@@ -87,19 +87,20 @@ These games are played mostly on tablets and phones, and also on laptops and Chr
 - **Tilt:** when the Game Card asks for it, or the game is about steering, rolling or balancing, offer tilt as an option with touch buttons for actions. On iOS, request motion permission from a tap on the start screen, include calibrate and sensitivity settings, and fall back to touch if permission is denied. Motion only works over HTTPS (GitHub Pages is fine).
 - Pin the page so it never scrolls (`html` border-box with `overflow: hidden`, `body` fixed to the viewport), and offer a tappable Full screen button on the title screen that explains what to do where full screen is blocked (iPhones never allow it; Add to Home Screen does).
 
-## Two-player games
+## Multiplayer games
 
-When the Game Card asks for two players (versus, co-op, "play with my brother", online), copy `templates/game-2p/` instead of `templates/game/`. It already has all of this working and tested; its HANDOFF.md explains how it fits together. Turning an existing one-player game into a two-player one is a change like any other: copy the `Input`, `NET` and online parts across from the starter.
+When the Game Card asks for more than one player (versus, co-op, "play with my brother", online), copy `templates/game-multi/` instead of `templates/game/`. It already has all of this working and tested; its HANDOFF.md explains how it fits together. Turning an existing one-player game into a multiplayer one is a change like any other: copy the seats, `Input`, `NET` and online parts across from the starter.
 
-- **Three modes, in this order of importance.** 1 player against the computer (keeps high scores; the test hook and bots play this), 2 players on one screen, and 2 players online. Every game must be fully playable with no internet in the first two modes. Online is an extra, never the only way to play.
-- **One screen.** Design for a phone or tablet lying flat between two players: each player owns one half of the screen (the half a finger lands in picks the player, and every finger is tracked by its `pointerId` so both can play at once), and text meant for the far player is turned upside down. On one keyboard, the near (bottom) player uses the arrow keys and the far player uses WASD. Pause stops both players.
-- **Online.** One device hosts and runs the only copy of the game; the other joins with a 5-letter room code, sends only its input, and draws what the host sends. Copy the `NET` section as it is: free public MQTT brokers pass a WebRTC handshake encrypted with the room code, then the two browsers talk directly and the brokers are dropped. Rules:
+- **Three modes, in this order of importance.** 1 player against the computer (keeps high scores; the test hook and bots play this), friends on one screen, and online. Every game must be fully playable with no internet in the first two modes. Online is an extra, never the only way to play.
+- **How many.** Up to 4 players by default (`CFG.MAX_PLAYERS`), one screen or online. More is possible online, but the host's device sends the game to everyone, and a phone screen gets crowded; ask the owner before going past 4.
+- **One screen.** Design for a phone or tablet lying flat in the middle: each player owns one side of the screen (a finger belongs to the nearest side still playing, and every finger is tracked by its `pointerId` so everyone can play at once), and text for each player is turned to face them. On one keyboard: arrows, A/D, T/G and I/K. Pause stops everyone.
+- **Online.** One device hosts and runs the only copy of the game. Friends join with the same 5-letter room code; the host sees who is in and taps Start, which gives out seats in join order and locks the room. Friends send only their input and draw what the host sends; every device turns the view so its own player is at the bottom. A friend who leaves drops out and the game goes on; if the host leaves, everyone is told. Copy the `NET` section as it is: free public MQTT brokers pass WebRTC handshakes encrypted with the room code, then each friend's browser talks directly to the host's and the brokers are dropped. Rules:
   - Nothing connects until a player taps **Play online**. Loading the game, 1 player and one-screen play make no network requests (the harness checks).
   - Players send game input and game state only. No chat, no free text, no names, no initials, no avatars: nothing a player types is ever sent, except the room code (which is never sent in the clear either).
-  - One friend per room; a third device with the same code is turned away.
+  - The room holds `CFG.MAX_PLAYERS`; anyone past that is told it is full, and nobody can join after Start.
   - Don't swap the brokers or STUN servers for a service that needs an account or a key, and never put a key in the game. A TURN relay (for strict networks) goes in `NET_CONFIG.ice` only if the owner sets one up.
-  - The online screen tells players to share the code only with a friend they know: online play connects the two devices directly, so each can see the other's internet address.
-- **Tests.** The game's `test_game.py` covers one-screen play (two fingers at once with real multi-touch) and online play between two browser tabs over real WebRTC through `test-harness/tests/fake_mqtt_broker.py`, so it needs no internet. Start from the starter's test. Real public brokers can't be reached from a sandbox: say in HANDOFF.md that online play still needs a try between two real devices.
+  - The online screen tells players to share the code only with friends they know: online play connects the devices directly, so the host and each friend can see each other's internet address.
+- **Tests.** The game's `test_game.py` covers one-screen play (several fingers at once with real multi-touch) and online play between four browser tabs over real WebRTC through `test-harness/tests/fake_mqtt_broker.py`, so it needs no internet. Start from the starter's test. Real public brokers can't be reached from a sandbox: say in HANDOFF.md that online play still needs a try between real devices.
 
 ## Research
 
@@ -139,7 +140,7 @@ High score initials are fine: they stay on the player's own device and never rea
 ## Keep it appropriate
 
 - Keep content suitable for a middle schooler: cartoon mischief, not gore, cruelty, swearing or anything a parent would wince at.
-- No online accounts, chat, data collection, ads or links out to other sites. (Online two-player play is allowed as "Two-player games" describes: room codes only, no chat.)
+- No online accounts, chat, data collection, ads or links out to other sites. (Online multiplayer is allowed as "Multiplayer games" describes: room codes only, no chat.)
 - Nothing that makes fun of a real person or group.
 
 ## High scores and saved data
@@ -219,7 +220,7 @@ Use made-up names: no real people, schools or places. The game goes on a public 
 - **Game name:**
 - **What kind of game is it?** (platformer, racing, shooter, puzzle, maze, sports, something else)
 - **Who or what do I play as?**
-- **How many players?** (1, 2 on one screen, or 2 online)
+- **How many players?** (1, or up to 4 friends on one screen or online)
 - **What's the goal? How do I win?**
 - **How do I lose?**
 - **Controls:** (touch and keyboard always work; say if you want tilt, swipes, or something special)

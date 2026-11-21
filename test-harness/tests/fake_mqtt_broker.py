@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """A tiny fake MQTT broker over WebSockets, for testing online play with no internet.
 
-Two-player games find each other through public MQTT brokers (see "NET" in
-templates/game-2p/index.html). Tests point the game at this broker instead by setting
+Multiplayer games find each other through public MQTT brokers (see "NET" in
+templates/game-multi/index.html). Tests point the game at this broker instead by setting
 window.NET_TEST_CONFIG = { brokers: ['ws://127.0.0.1:<port>'], ice: [] } before the page loads.
 
 It speaks just enough MQTT 3.1.1 for that: CONNECT, SUBSCRIBE, PUBLISH (QoS 0), PINGREQ and

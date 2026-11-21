@@ -8,16 +8,16 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0b0820">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Paddle Duel">
+<meta name="apple-mobile-web-app-title" content="Paddle Party">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
-<title>Paddle Duel</title>
+<title>Paddle Party</title>
 </head>
 <body>
 <style>
-/* Layout: one full-screen WebGL canvas. The HUD, menus and score labels are plain HTML on top of it. */
-:root { --space:#0b0820; --panel:#1a1442; --edge:#43378c; --ink:#f4f0ff; --muted:#b8afe2; --hot:#ff8a3d; --good:#7dffa0; --p1:#7dffa0; --p2:#5fd0ff; }
+/* Layout: one full-screen WebGL canvas. The HUD, menus and player labels are plain HTML on top of it. */
+:root { --space:#0b0820; --panel:#1a1442; --edge:#43378c; --ink:#f4f0ff; --muted:#b8afe2; --hot:#ff8a3d; --good:#7dffa0; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 /* The page is pinned so it can never scroll, even when a host adds padding around it. */
@@ -30,11 +30,10 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 button { font: inherit; font-weight: 700; color: var(--ink); background: var(--panel); border: 2px solid var(--edge);
   border-radius: 12px; padding: 10px 16px; min-height: 44px; cursor: pointer; }
 button.primary { background: var(--hot); border-color: var(--hot); color: #1b0d00; }
+button:disabled { opacity: .45; cursor: default; }
 #btnPause { pointer-events: auto; }
-/* Score labels: one for each half of the field. The top one is turned upside down for the player across the table. */
-.score { position: absolute; left: 0; right: 0; text-align: center; font-weight: 700; font-size: 20px; pointer-events: none; opacity: .9; }
-#scoreLow { bottom: 50%; transform: translateY(2.2em); }
-#scoreHigh { top: 50%; transform: translateY(-2.2em) rotate(180deg); }
+/* One label per player, next to their side of the field, turned to face them (see UI.syncHud). */
+.label { position: absolute; left: 0; top: 0; font-weight: 700; font-size: 18px; white-space: nowrap; pointer-events: none; opacity: .92; }
 .screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(11,8,32,.82); overflow: auto; }
 .screen[hidden] { display: none; }
 .card { width: min(34rem, 100%); max-height: 100%; overflow: auto; background: var(--panel); border: 2px solid var(--edge); border-radius: 18px; padding: 18px 20px; text-align: center; }
@@ -56,21 +55,23 @@ input.big { font: 700 24px monospace; text-align: center; text-transform: upperc
 
 <canvas id="view"></canvas>
 
-<div id="scoreLow" class="score" hidden></div>
-<div id="scoreHigh" class="score" hidden></div>
+<div id="lab0" class="label" hidden></div>
+<div id="lab1" class="label" hidden></div>
+<div id="lab2" class="label" hidden></div>
+<div id="lab3" class="label" hidden></div>
 <div id="hud" hidden><button id="btnPause" aria-label="Pause">II</button></div>
 
 <section class="screen" id="scrTitle">
   <div class="card">
-    <h1>Paddle Duel</h1>
-    <p>Bounce the ball past the other paddle. First to 5 points wins.</p>
-    <p class="note">Drag a finger to move your paddle, or use the arrow keys. With two players on one keyboard, the top player uses A and D. P pauses.</p>
+    <h1>Paddle Party</h1>
+    <p>Up to 4 players, one on each side. Don't let the ball past your paddle: every miss costs a heart. Last one standing wins.</p>
+    <p class="note">Drag along your side to move your paddle, or use the arrow keys. P pauses.</p>
     <p id="titleTop"></p>
     <p id="titleBot" class="good"></p>
     <p id="titleBuild" class="note"></p>
     <div class="row">
       <button class="primary" id="btnPlay">1 player</button>
-      <button id="btnShared">2 players, one screen</button>
+      <button id="btnShared">Friends, one screen</button>
       <button id="btnOnline">Play online</button>
     </div>
     <div class="row">
@@ -82,19 +83,30 @@ input.big { font: 700 24px monospace; text-align: center; text-transform: upperc
   </div>
 </section>
 
-<!-- Online: one player hosts and gets a code, the other types the code in. -->
+<section class="screen" id="scrShared" hidden>
+  <div class="card">
+    <h1>How many players?</h1>
+    <p class="note">Lay the phone or tablet flat in the middle. Each player drags along their own side. On one keyboard: arrows, A&nbsp;D, T&nbsp;G and I&nbsp;K.</p>
+    <div class="row"><button class="primary" id="btnShared2">2</button><button class="primary" id="btnShared3">3</button><button class="primary" id="btnShared4">4</button></div>
+    <div class="row"><button id="btnSharedBack">Back</button></div>
+  </div>
+</section>
+
+<!-- Online: one player hosts and gets a code, friends type the code in, the host taps Start. -->
 <section class="screen" id="scrOnline" hidden>
   <div class="card">
     <h1>Play online</h1>
-    <p class="note">Only share the code with a friend you know. Playing online connects your device straight to your friend's.</p>
+    <p class="note">Only share the code with friends you know. Playing online connects your device straight to your friends' devices.</p>
     <div id="onlinePick">
       <div class="row"><button class="primary" id="btnHost">Start a game</button></div>
       <p>or join a friend's game:</p>
       <div class="row"><input id="joinCode" class="big" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE"><button id="btnJoin">Join</button></div>
     </div>
     <div id="onlineWait" hidden>
-      <p id="roomLabel">Tell your friend this code:</p>
+      <p id="roomLabel">Tell your friends this code:</p>
       <div id="roomCode"></div>
+      <p id="roomPlayers"></p>
+      <div class="row"><button class="primary" id="btnStart" hidden disabled>Start</button></div>
     </div>
     <p id="onlineStatus" class="good"></p>
     <div class="row"><button id="btnOnlineBack">Cancel</button></div>
@@ -144,14 +156,15 @@ input.big { font: 700 24px monospace; text-align: center; text-transform: upperc
 <script>
 'use strict';
 // =====================================================================================
-// TWO-PLAYER STARTER. Copy this folder to games/<your-game-name>/ for a game two people can
+// MULTIPLAYER STARTER. Copy this folder to games/<your-game-name>/ for a game friends can
 // play together. It has three ways to play:
-//   1 player     against the computer. Keeps high scores, and the test hook and bots use it.
-//   shared       two players on one screen (a phone or tablet flat on the table between them,
-//                each player drags in their own half) or one keyboard (arrows and A/D).
-//   online       two devices. One "hosts" and runs the game; the other joins with a code and
-//                sends its moves. See the NET section. Nothing goes online until a player taps
-//                Play online.
+//   1 player     against the computer. Keeps high scores; the test hook and bots use it.
+//   shared       2 to 4 friends around one phone or tablet lying flat (each drags along their
+//                own side) or one keyboard.
+//   online       2 to 4 devices. One "hosts" and runs the game; friends join with the same
+//                room code and send their moves. See the NET section. Nothing goes online until
+//                a player taps Play online.
+// Seats: 0 bottom, 1 top, 2 left, 3 right. An empty seat (or a player who is out) is a wall.
 // Keep the plumbing working: fixed-step update(), the Input object, seeded random numbers,
 // saved high scores, pause, full screen, the test hook, the page that never scrolls, and Net.
 // Replace the parts marked "YOUR GAME": CONFIG, the Game rules and the drawing.
@@ -159,14 +172,15 @@ input.big { font: 700 24px monospace; text-align: center; text-transform: upperc
 
 // ---------- CONFIG ----------
 // GAME_ID must be exactly the game's folder name. Saved data is stored under "<GAME_ID>.something".
-const GAME_ID = 'game-2p';
-const TITLE = 'Paddle Duel';        // also change the <title>, the title screen heading and manifest.webmanifest
+const GAME_ID = 'game-multi';
+const TITLE = 'Paddle Party';       // also change the <title>, the title screen heading and manifest.webmanifest
 const SCORE_NAME = 'points';        // what the 1 player score is called on screen
 const CFG = {                       // YOUR GAME: every tuning number lives here
-  W: 9, H: 16,                      // the field, in world units: tall, so a phone can lie flat between two players
+  S: 12,                            // the field is a square, S world units across
   STEPS_PER_SECOND: 60,             // the simulation always moves in steps of exactly 1/60 s
-  WIN_POINTS: 5,
-  PADDLE_W: 2.0, PADDLE_H: 0.35, PADDLE_Y: 1.2, PADDLE_SPEED: 10, DRAG_SPEED: 18,
+  MAX_PLAYERS: 4,                   // online and one screen; at most 4 (one per side)
+  LIVES: 5,
+  PADDLE_W: 2.4, PADDLE_H: 0.35, PADDLE_IN: 1.0, PADDLE_SPEED: 10, DRAG_SPEED: 18,
   BALL_R: 0.22, BALL_SPEED: 7, BALL_SPEEDUP: 0.7, BALL_MAX: 15, MAX_ANGLE: 60, SERVE_ANGLE: 30, SERVE_DELAY: 1,
   CPU_SPEED: 4.6, CPU_AIM_ERROR: 0.9, // the computer is slower than you and a little sloppy, so fast angled shots beat it
   POINT_SCORE: 100, RETURN_SCORE: 10, WIN_BONUS: 200,
@@ -176,6 +190,19 @@ const CFG = {                       // YOUR GAME: every tuning number lives here
 const STEP = 1 / CFG.STEPS_PER_SECOND;
 const $ = id => document.getElementById(id);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// The four seats. `axis` is the direction the paddle slides, `line` where it sits, `inward` which
+// way is into the field (along the other axis), `rot` how much to turn text to face that player.
+// RIGHT: which way along the axis is "my right" for a player sitting at that side, facing the middle.
+const SEATS = [
+  { axis: 'x', line: CFG.S - CFG.PADDLE_IN, inward: -1, rot: 0 },    // 0 bottom
+  { axis: 'x', line: CFG.PADDLE_IN, inward: 1, rot: 180 },           // 1 top
+  { axis: 'y', line: CFG.PADDLE_IN, inward: 1, rot: 90 },            // 2 left
+  { axis: 'y', line: CFG.S - CFG.PADDLE_IN, inward: -1, rot: -90 },  // 3 right
+];
+const RIGHT = [1, -1, 1, -1];
+const COLORS = ['#7dffa0', '#5fd0ff', '#ffb347', '#ff7ad9'];
+const NAMES = ['Green', 'Blue', 'Orange', 'Pink'];
 
 // ---------- SEEDED RANDOM NUMBERS ----------
 // Use rand() for anything that changes the game, so the same seed always gives the same game.
@@ -226,34 +253,34 @@ const Sound = {
 };
 
 // ---------- INPUT ----------
-// Player 0 is at the bottom, player 1 at the top. Keyboard, fingers, the test hook and the
-// online friend all feed this one object; the game only reads Input.dir(i) and Input.target(i).
-//   dir(i):    -1 (left), 0 or 1 (right), from keys
-//   target(i): a world x the paddle slides to (a finger or mouse held down), or null
-// Which keys and which half of the screen belong to whom depends on the mode (see Game.mode).
+// Keyboard, fingers, the test hook and online friends all feed this one object. The game only
+// reads, for each seat s:
+//   Input.dir(s):    -1, 0 or 1 along the seat's axis (keys)
+//   Input.target(s): a spot along the axis the paddle slides to (a finger or held mouse button), or null
+// 1 player and online: your arrows (or A/D) mean left and right as you see them. One keyboard
+// shared by friends: arrows (bottom), A/D (top), T/G (left) and I/K (right), as seen on the screen.
 const Hook = { mode: null, steps: 0, bot: { x: 0 } }; // test hook state; the hook itself is at the end
+const SHARED_KEYS = [['ArrowLeft', 'ArrowRight'], ['KeyA', 'KeyD'], ['KeyT', 'KeyG'], ['KeyI', 'KeyK']];
 const Input = {
   keys: new Set(),            // keyboard keys held right now (KeyboardEvent.code)
-  drags: new Map(),           // pointerId -> { player, x } for every finger or mouse button held on the field
-  remote: { d: 0, x: null },  // online host only: the guest's latest input
-  keysFor(i) { // shared screen: bottom player has the arrows, top player A and D. Otherwise both sets move your paddle.
-    if (Game.mode === 'shared') return i === 0 ? ['ArrowLeft', 'ArrowRight'] : ['KeyA', 'KeyD'];
-    return i === Game.me ? ['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD'] : [];
+  drags: new Map(),           // pointerId -> { seat, t } for every finger or mouse button held on the field
+  remote: [null, null, null, null], // online host only: each friend's latest input, by seat
+  pair(a, b) { return (this.keys.has(b) ? 1 : 0) - (this.keys.has(a) ? 1 : 0); },
+  dir(s) {
+    if (Hook.mode === 'bot') return s === 0 ? Hook.bot.x : 0;
+    if (Game.mode === 'online' && Net.role === 'host' && s !== Game.me) return this.remote[s] ? this.remote[s].d : 0;
+    if (Game.mode === 'shared') return this.pair(...SHARED_KEYS[s]);
+    if (s !== Game.me) return 0;
+    const d = Math.sign(this.pair('ArrowLeft', 'ArrowRight') + this.pair('KeyA', 'KeyD'));
+    return d * RIGHT[s]; // turn "my right" into a direction on the field
   },
-  dir(i) {
-    if (Hook.mode === 'bot') return i === 0 ? Hook.bot.x : 0;
-    if (Game.mode === 'online' && Net.role === 'host' && i === 1) return this.remote.d;
-    const k = this.keysFor(i), held = c => this.keys.has(c);
-    const d = (held(k[1]) || held(k[3]) ? 1 : 0) - (held(k[0]) || held(k[2]) ? 1 : 0);
-    return R.flip && i === Game.me ? -d : d; // the online guest's screen is upside down, so its right is the field's left
-  },
-  target(i) {
+  target(s) {
     if (Hook.mode === 'bot') return null;
-    if (Game.mode === 'online' && Net.role === 'host' && i === 1) return this.remote.x;
-    for (const d of this.drags.values()) if (d.player === i) return d.x;
+    if (Game.mode === 'online' && Net.role === 'host' && s !== Game.me) return this.remote[s] ? this.remote[s].t : null;
+    for (const d of this.drags.values()) if (d.seat === s) return d.t;
     return null;
   },
-  clear() { this.keys.clear(); this.drags.clear(); this.remote = { d: 0, x: null }; },
+  clear() { this.keys.clear(); this.drags.clear(); this.remote = [null, null, null, null]; },
 };
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 const typing = e => e.target && e.target.matches && e.target.matches('input, textarea');
@@ -273,86 +300,107 @@ addEventListener('blur', () => { Input.clear(); if (!Hook.mode) Game.pause(); })
 document.addEventListener('visibilitychange', () => { if (document.hidden && !Hook.mode) Game.pause(); });
 for (const ev of ['gesturestart', 'contextmenu', 'dblclick']) addEventListener(ev, e => { if (!typing(e)) e.preventDefault(); });
 
-
 // ---------- THE GAME (YOUR GAME: replace the rules in here) ----------
 // state: 'title' | 'serve' | 'play' | 'paused' | 'over'
-// mode:  'solo' (vs the computer) | 'shared' (one screen) | 'online'
-// me:    which paddle this device controls (0 bottom, 1 top). The online guest is 1, drawn upside down.
+// mode:  'solo' (you vs the computer) | 'shared' (one screen) | 'online'
+// me:    the seat this device controls; its view is turned so that seat is at the bottom.
+// seats: four entries, null for an empty side (a wall), or { lives, out, cpu }.
 const Game = {
   state: 'title', mode: 'solo', me: 0,
-  points: [0, 0], returns: 0, score: 0, time: 0, serveTimer: 0, winner: -1,
-  paddles: null, ball: null, cpuAim: 0, sendTimer: 0,
+  seats: [null, null, null, null], returns: 0, score: 0, time: 0, serveTimer: 0, winner: -1,
+  paddles: null, ball: null, cpuAim: 0, sendTimer: 0, filled: [0, 1],
 
-  start(seed = (Date.now() >>> 0)) {
+  start(seed = (Date.now() >>> 0), filled = this.filled) {
     seedRandom(seed);
-    this.points = [0, 0]; this.returns = 0; this.score = 0; this.time = 0; this.winner = -1;
-    this.paddles = [{ x: CFG.W / 2 }, { x: CFG.W / 2 }];
-    this.serve(1); // the first serve goes to the top paddle, so standing still at the start is safe
+    this.filled = filled;
+    this.returns = 0; this.score = 0; this.time = 0; this.winner = -1;
+    this.seats = [0, 1, 2, 3].map(s => filled.includes(s) ? { lives: CFG.LIVES, out: false, cpu: this.mode === 'solo' && s === 1 } : null);
+    this.paddles = [0, 1, 2, 3].map(() => ({ t: CFG.S / 2 }));
+    this.serve(this.alive().find(s => s !== 0) ?? 0); // the first serve goes away from seat 0, so standing still at the start is safe
     UI.show(null);
   },
-  serve(toward) { // ball waits in the middle, then heads toward player `toward`
-    const a = (rand() * 2 - 1) * CFG.SERVE_ANGLE * Math.PI / 180, dirY = toward === 0 ? 1 : -1;
-    this.ball = { x: CFG.W / 2, y: CFG.H / 2, vx: Math.sin(a) * CFG.BALL_SPEED, vy: Math.cos(a) * CFG.BALL_SPEED * dirY, speed: CFG.BALL_SPEED };
+  alive() { return [0, 1, 2, 3].filter(s => this.seats[s] && !this.seats[s].out); },
+  serve(toward) { // the ball waits in the middle, then heads toward seat `toward`
+    const a = (rand() * 2 - 1) * CFG.SERVE_ANGLE * Math.PI / 180, seat = SEATS[toward];
+    const along = Math.sin(a) * CFG.BALL_SPEED, across = -seat.inward * Math.cos(a) * CFG.BALL_SPEED;
+    this.ball = { x: CFG.S / 2, y: CFG.S / 2, vx: seat.axis === 'x' ? along : across, vy: seat.axis === 'x' ? across : along, speed: CFG.BALL_SPEED };
     this.cpuAim = (rand() * 2 - 1) * CFG.CPU_AIM_ERROR;
     this.serveTimer = CFG.SERVE_DELAY; this.state = 'serve';
   },
-  paddleY(i) { return i === 0 ? CFG.H - CFG.PADDLE_Y : CFG.PADDLE_Y; },
+  paddlePos(s) { const seat = SEATS[s], t = this.paddles[s].t; return seat.axis === 'x' ? { x: t, y: seat.line } : { x: seat.line, y: t }; },
 
-  // One fixed step of the simulation. No drawing and no real clock in here. Only the host runs it
-  // online; the guest just shows what the host sends.
+  // One fixed step of the simulation. No drawing and no real clock in here. Online, only the host runs it.
   update(dt) {
     if (this.state !== 'play' && this.state !== 'serve') return;
     if (this.mode === 'online' && Net.role !== 'host') return;
     this.time += dt;
-    for (let i = 0; i < 2; i++) this.movePaddle(i, dt);
+    for (const s of this.alive()) this.movePaddle(s, dt);
     if (this.state === 'serve') { this.serveTimer -= dt; if (this.serveTimer <= 0) this.state = 'play'; return this.sendState(); }
 
-    const b = this.ball;
+    const b = this.ball, S = CFG.S, r = CFG.BALL_R;
     b.x += b.vx * dt; b.y += b.vy * dt;
-    if (b.x < CFG.BALL_R) { b.x = CFG.BALL_R; b.vx = Math.abs(b.vx); Sound.beep(300, 0.05); }
-    if (b.x > CFG.W - CFG.BALL_R) { b.x = CFG.W - CFG.BALL_R; b.vx = -Math.abs(b.vx); Sound.beep(300, 0.05); }
-    for (let i = 0; i < 2; i++) this.hitPaddle(i);
-    if (b.y > CFG.H + CFG.BALL_R) this.scorePoint(1);
-    else if (b.y < -CFG.BALL_R) this.scorePoint(0);
+    for (let s = 0; s < 4; s++) {
+      const live = this.seats[s] && !this.seats[s].out;
+      if (live) { this.hitPaddle(s); continue; }
+      // an empty seat is a wall
+      if (s === 0 && b.y > S - r) { b.y = S - r; b.vy = -Math.abs(b.vy); Sound.beep(300, 0.05); }
+      if (s === 1 && b.y < r) { b.y = r; b.vy = Math.abs(b.vy); Sound.beep(300, 0.05); }
+      if (s === 2 && b.x < r) { b.x = r; b.vx = Math.abs(b.vx); Sound.beep(300, 0.05); }
+      if (s === 3 && b.x > S - r) { b.x = S - r; b.vx = -Math.abs(b.vx); Sound.beep(300, 0.05); }
+    }
+    const past = b.y > S + r ? 0 : b.y < -r ? 1 : b.x < -r ? 2 : b.x > S + r ? 3 : -1;
+    if (past >= 0) this.loseLife(past);
     this.sendState();
   },
-  movePaddle(i, dt) {
-    const p = this.paddles[i], half = CFG.PADDLE_W / 2;
-    if (this.mode === 'solo' && i === 1) { // the computer: follows the ball, a bit late and a bit off
-      const goal = this.ball.vy < 0 ? this.ball.x + this.cpuAim : CFG.W / 2;
-      p.x += clamp(goal - p.x, -CFG.CPU_SPEED * dt, CFG.CPU_SPEED * dt);
+  movePaddle(s, dt) {
+    const p = this.paddles[s], half = CFG.PADDLE_W / 2, seat = SEATS[s];
+    if (this.seats[s].cpu) { // the computer: follows the ball, a bit late and a bit off
+      const b = this.ball, coming = (seat.axis === 'x' ? b.vy : b.vx) * seat.inward < 0;
+      const goal = coming ? (seat.axis === 'x' ? b.x : b.y) + this.cpuAim : CFG.S / 2;
+      p.t += clamp(goal - p.t, -CFG.CPU_SPEED * dt, CFG.CPU_SPEED * dt);
     } else {
-      const t = Input.target(i);
-      if (t != null) p.x += clamp(t - p.x, -CFG.DRAG_SPEED * dt, CFG.DRAG_SPEED * dt);
-      else p.x += Input.dir(i) * CFG.PADDLE_SPEED * dt;
+      const t = Input.target(s);
+      if (t != null) p.t += clamp(t - p.t, -CFG.DRAG_SPEED * dt, CFG.DRAG_SPEED * dt);
+      else p.t += Input.dir(s) * CFG.PADDLE_SPEED * dt;
     }
-    p.x = clamp(p.x, half, CFG.W - half);
+    p.t = clamp(p.t, half, CFG.S - half);
   },
-  hitPaddle(i) { // bounce off paddle i; hitting near its edge sends the ball off at a steeper angle
-    const b = this.ball, p = this.paddles[i], y = this.paddleY(i), toward = i === 0 ? b.vy > 0 : b.vy < 0;
-    const reachY = CFG.PADDLE_H / 2 + CFG.BALL_R, reachX = CFG.PADDLE_W / 2 + CFG.BALL_R;
-    if (!toward || Math.abs(b.y - y) > reachY || Math.abs(b.x - p.x) > reachX) return;
-    const off = clamp((b.x - p.x) / (CFG.PADDLE_W / 2), -1, 1), a = off * CFG.MAX_ANGLE * Math.PI / 180;
+  hitPaddle(s) { // bounce off seat s's paddle; hitting near its edge sends the ball off at a steeper angle
+    const b = this.ball, seat = SEATS[s], t = this.paddles[s].t, xAxis = seat.axis === 'x';
+    const along = xAxis ? b.x : b.y, across = xAxis ? b.y : b.x, vAcross = xAxis ? b.vy : b.vx;
+    const reachIn = CFG.PADDLE_H / 2 + CFG.BALL_R, reachAlong = CFG.PADDLE_W / 2 + CFG.BALL_R;
+    if (vAcross * seat.inward >= 0 || Math.abs(across - seat.line) > reachIn || Math.abs(along - t) > reachAlong) return;
+    const off = clamp((along - t) / (CFG.PADDLE_W / 2), -1, 1), a = off * CFG.MAX_ANGLE * Math.PI / 180;
     b.speed = Math.min(CFG.BALL_MAX, b.speed + CFG.BALL_SPEEDUP);
-    b.vx = Math.sin(a) * b.speed; b.vy = Math.cos(a) * b.speed * (i === 0 ? -1 : 1);
-    b.y = y + (i === 0 ? -reachY : reachY);
-    if (i === 0) { this.returns++; this.score += CFG.RETURN_SCORE; }
+    const va = Math.sin(a) * b.speed, vi = Math.cos(a) * b.speed * seat.inward, pos = seat.line + seat.inward * reachIn;
+    if (xAxis) { b.vx = va; b.vy = vi; b.y = pos; } else { b.vy = va; b.vx = vi; b.x = pos; }
+    if (s === 0) { this.returns++; if (this.mode === 'solo') this.score += CFG.RETURN_SCORE; }
     this.cpuAim = (rand() * 2 - 1) * CFG.CPU_AIM_ERROR;
-    Sound.beep(i === 0 ? 520 : 440, 0.06);
+    Sound.beep(440 + 40 * s, 0.06);
   },
-  scorePoint(i) {
-    this.points[i]++;
-    if (i === 0) this.score += CFG.POINT_SCORE;
-    Sound.beep(i === 0 ? 880 : 160, 0.25, i === 0 ? 'triangle' : 'sawtooth');
-    if (this.points[i] >= CFG.WIN_POINTS) return this.end(i);
-    this.serve(i === 0 ? 1 : 0); // the player who lost the point gets the next serve coming at them
+  loseLife(s) {
+    const seat = this.seats[s];
+    seat.lives--;
+    if (this.mode === 'solo' && seat.cpu) this.score += CFG.POINT_SCORE;
+    Sound.beep(s === this.me ? 160 : 880, 0.25, s === this.me ? 'sawtooth' : 'triangle');
+    if (seat.lives <= 0) seat.out = true;
+    if (this.checkWinner()) return;
+    const left = this.alive();
+    this.serve(left.includes(s) ? s : left[Math.floor(rand() * left.length)]); // the next ball comes at whoever just missed
+  },
+  checkWinner() { // last one standing wins
+    const left = this.alive();
+    if (left.length > 1) return false;
+    this.end(left.length ? left[0] : -1);
+    return true;
   },
 
-  // How close player 0 is to beating the computer, from 0 to 1. Bots chase this number, so it grows
-  // with every point won and every return (long rallies speed the ball up until the computer misses).
+  // How close seat 0 is to beating the computer, from 0 to 1. Bots chase this number, so it grows
+  // with every heart the computer loses and every return (rallies speed the ball up until it misses).
   progress() {
     if (this.winner === 0) return 1;
-    return Math.min(0.999, (this.points[0] + 0.08 * Math.min(this.returns, 40)) / (CFG.WIN_POINTS + 3.2));
+    const cpu = this.seats[1];
+    return Math.min(0.999, ((cpu ? CFG.LIVES - cpu.lives : 0) + 0.08 * Math.min(this.returns, 40)) / (CFG.LIVES + 3.2));
   },
 
   end(winner) {
@@ -362,12 +410,12 @@ const Game = {
     this.sendState(true);
     if (Hook.mode !== 'bot') UI.endRun(); // bot runs show no screens and save nothing
   },
-  play(mode = 'solo') { // a player starting a run (the test hook calls start(seed) itself)
-    Hook.mode = null; this.mode = mode; this.me = mode === 'online' && Net.role === 'guest' ? 1 : 0;
-    R.flip = this.me === 1;
-    Input.clear();
-    if (mode === 'online' && Net.role === 'guest') { Net.send({ t: 'again' }); return; } // the host restarts the game
-    this.start();
+  play(mode = 'solo', players = 2) { // a player starting a run (the test hook calls start(seed) itself)
+    Hook.mode = null; this.mode = mode; Input.clear();
+    if (mode === 'online' && Net.role === 'guest') return Net.send({ t: 'again' }); // the host restarts the game
+    this.me = 0; R.view = 0;
+    if (mode === 'online') return this.start(undefined, [0, ...Online.seats.values()].sort());
+    this.start(undefined, [0, 1, 2, 3].slice(0, players));
   },
   pause() {
     if (this.state !== 'play' && this.state !== 'serve') return;
@@ -381,58 +429,77 @@ const Game = {
   },
   toTitle() {
     if (this.mode === 'online') Net.close();
-    this.state = 'title'; this.mode = 'solo'; this.me = 0; R.flip = false; Hook.mode = null; Input.clear(); UI.show('scrTitle');
+    this.state = 'title'; this.mode = 'solo'; this.me = 0; R.view = 0; Hook.mode = null; Input.clear(); UI.show('scrTitle');
   },
 
-  // ---- online: the host sends what the guest needs to draw; the guest sends its input ----
+  // ---- online: the host sends everyone what they need to draw; friends send their input ----
   sendState(now = false) {
     if (this.mode !== 'online' || Net.role !== 'host') return;
     if (!now && ++this.sendTimer < CFG.SEND_EVERY) return;
     this.sendTimer = 0;
     const b = this.ball;
-    Net.send({ t: 's', st: this.state, pts: this.points, w: this.winner, b: [b.x, b.y, b.vx, b.vy], p: [this.paddles[0].x, this.paddles[1].x] });
+    Net.send({ t: 's', st: this.state, w: this.winner, seats: this.seats.map(x => x && [x.lives, x.out ? 1 : 0]),
+      b: [b.x, b.y, b.vx, b.vy], p: this.paddles.map(p => p.t) });
   },
-  onNet(m) { // a message from the other device
+  onNet(m, from) { // a message from another device
     if (Net.role === 'host') {
-      if (m.t === 'i') this.remote(m);
+      const s = Online.seats.get(from);
+      if (m.t === 'i' && s != null) Input.remote[s] = { d: clamp(+m.d || 0, -1, 1), t: m.x == null ? null : clamp(+m.x, 0, CFG.S) };
       else if (m.t === 'pause') this.pause();
       else if (m.t === 'resume' && this.state === 'paused') this.togglePause();
-      else if (m.t === 'again' && this.state === 'over') this.play('online');
+      else if (m.t === 'again' && this.state === 'over' && Online.seats.size) this.play('online');
       return;
     }
-    if (m.t !== 's') return; // guest: copy the host's game
+    if (m.t === 'seat') { this.me = m.seat; R.view = m.seat; return; } // which side we are, from the host
+    if (m.t !== 's') return; // the guest copies the host's game
     const was = this.state;
-    if (!this.paddles) this.paddles = [{ x: CFG.W / 2 }, { x: CFG.W / 2 }];
-    this.state = m.st; this.points = m.pts; this.winner = m.w;
+    if (!this.paddles) this.paddles = [0, 1, 2, 3].map(() => ({ t: CFG.S / 2 }));
+    this.state = m.st; this.winner = m.w;
+    this.seats = m.seats.map(x => x && { lives: x[0], out: !!x[1], cpu: false });
     this.ball = { x: m.b[0], y: m.b[1], vx: m.b[2], vy: m.b[3] };
-    this.paddles[0].x = m.p[0];
-    if (Input.target(1) == null && Input.dir(1) === 0) this.paddles[1].x = m.p[1]; // our own paddle: trust our input while moving
+    const mine = this.paddles[this.me].t;
+    m.p.forEach((t, s) => { this.paddles[s].t = t; });
+    if (Input.target(this.me) != null || Input.dir(this.me) !== 0) this.paddles[this.me].t = mine; // our own paddle: trust our input while moving
     if (was !== this.state) {
       if (this.state === 'paused') UI.show('scrPause');
       else if (this.state === 'over') UI.endRun();
       else if (was === 'paused' || was === 'over' || was === 'title') UI.show(null);
     }
   },
-  remote(m) { Input.remote = { d: clamp(+m.d || 0, -1, 1), x: m.x == null ? null : clamp(+m.x, 0, CFG.W) }; },
-  guestFrame(dt) { // the guest moves its own paddle right away (so it feels instant) and tells the host
+  guestFrame(dt) { // a friend's device moves its own paddle right away (so it feels instant) and tells the host
     if (this.state !== 'play' && this.state !== 'serve') return;
-    this.movePaddle(1, dt);
+    if (this.seats[this.me] && !this.seats[this.me].out) this.movePaddle(this.me, dt);
     if (this.ball) { this.ball.x += (this.ball.vx || 0) * dt; this.ball.y += (this.ball.vy || 0) * dt; } // glide between updates
-    if ((this.sendTimer += dt) >= CFG.SEND_EVERY * STEP) { this.sendTimer = 0; Net.send({ t: 'i', d: Input.dir(1), x: Input.target(1) ?? this.paddles[1].x }); }
+    if ((this.sendTimer += dt) >= CFG.SEND_EVERY * STEP) { this.sendTimer = 0; Net.send({ t: 'i', d: Input.dir(this.me), x: Input.target(this.me) ?? this.paddles[this.me].t }); }
+  },
+  playerLeft(seat) { // an online friend left: their side becomes a wall, and the game goes on
+    if (seat == null || !this.seats[seat]) return;
+    this.seats[seat].out = true; this.seats[seat].lives = 0;
+    this.filled = this.filled.filter(s => s !== seat);
+    if ((this.state === 'play' || this.state === 'serve' || this.state === 'paused') && !this.checkWinner()) this.sendState(true);
   },
 };
 
 // ---------- NET: online play (copy as is; nothing here is game-specific) ----------
-// How two devices find each other with no server of our own:
-//  1. Both connect to a few free public MQTT "brokers" (message boards that pass short messages
-//     along) over secure WebSockets and listen on a topic made from the room code.
-//  2. They swap a WebRTC handshake there. Every message is encrypted with a key made from the room
-//     code, so the broker sees only scrambled text. Brokers can't read the game or the handshake.
-//  3. WebRTC then connects the two browsers directly (encrypted). The brokers are dropped.
+// How devices find each other with no server of our own:
+//  1. Everyone connects to a few free public MQTT "brokers" (message boards that pass short
+//     messages along) over secure WebSockets and listens on a topic made from the room code.
+//  2. Each friend swaps a WebRTC handshake with the host there. Every message is encrypted with a
+//     key made from the room code, so the broker sees only scrambled text.
+//  3. WebRTC then links each friend's browser directly to the host's (encrypted). Friends talk
+//     only to the host (a "star"), and the host sends everyone the game.
+//  4. When the host taps Start the room locks: the brokers are dropped and nobody else can join.
 // Public STUN servers tell each device its public address so the direct link can get through home
 // routers. Some strict networks (some school or mobile networks) block direct links; then joining
 // fails with a clear message. A TURN relay would fix that, but free ones need an account, so `ice`
 // below has a slot for one. Tests set window.NET_TEST_CONFIG to a local fake broker.
+//
+// Net.host(on, max) / Net.join(code, on). Events passed to `on`:
+//   { type: 'status', text }   something to show on the online screen
+//   { type: 'error', text }    gave up (the text says why); Net is closed
+//   { type: 'join', id }       host: a friend connected        { type: 'leave', id }  host: a friend left
+//   { type: 'open' }           friend: connected to the host   { type: 'closed' }     friend: the host is gone
+//   { type: 'message', id, data }   a message from another device (friends only ever hear from the host)
 const NET_CONFIG = Object.assign({
   brokers: ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'],
   ice: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }],
@@ -469,18 +536,20 @@ function mqttClient(url, onMessage) { // the smallest MQTT 3.1.1 client that doe
 }
 
 const Net = {
-  role: null, code: '', on: null, pc: null, dc: null, brokers: [], seen: new Set(), timers: [],
+  role: null, code: '', on: null, peers: new Map(), brokers: [], seen: new Set(), timers: [], max: 2, locked: false,
   newCode() { const r = crypto.getRandomValues(new Uint8Array(5)); return Array.from(r, v => CODE_LETTERS[v % CODE_LETTERS.length]).join(''); },
   cleanCode: s => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5),
+  get count() { let n = 0; for (const p of this.peers.values()) if (p.dc && p.dc.readyState === 'open') n++; return n; }, // friends connected
+  get connected() { return this.count > 0; },
 
-  host(on) { return this.begin('host', this.newCode(), on); },
+  host(on, max = 2) { this.max = max; return this.begin('host', this.newCode(), on); },
   join(code, on) { return this.begin('guest', this.cleanCode(code), on); },
   async begin(role, code, on) {
     this.close();
-    Object.assign(this, { role, code, on, id: Math.random().toString(36).slice(2, 10), partner: null, seen: new Set(), iceWait: [] });
+    Object.assign(this, { role, code, on, id: Math.random().toString(36).slice(2, 10), seen: new Set(), locked: false });
     const run = this.run = {}; // a later begin() or close() makes this run stale
     const status = text => run === this.run && on({ type: 'status', text });
-    status(role === 'host' ? 'Waiting for your friend to join...' : 'Looking for the game...');
+    status(role === 'host' ? 'Waiting for friends to join...' : 'Looking for the game...');
     try {
       const enc = new TextEncoder(), sha = async s => new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s)));
       const hex = a => Array.from(a, v => v.toString(16).padStart(2, '0')).join('');
@@ -494,13 +563,14 @@ const Net = {
       if (!this.brokers.length) return this.fail("Couldn't reach the matchmaking servers. Check the internet connection and try again.");
       this.brokers.forEach(c => c.subscribe(this.topic));
       if (role === 'guest') { const hello = () => this.signal({ k: 'hello' }); hello(); this.timers.push(setInterval(hello, 2000)); }
-      this.timers.push(setTimeout(() => this.fail(role === 'host' ? 'Nobody joined. Try again when your friend is ready.'
-        : "Couldn't connect. Check the code. Some school or phone networks block games like this."), NET_CONFIG.timeoutSeconds * 1000));
+      this.waitTimer = setTimeout(() => { if (!this.connected) this.fail(role === 'host' ? 'Nobody joined. Try again when your friends are ready.'
+        : "Couldn't connect. Check the code; the game may have started already. Some school or phone networks block games like this."); }, NET_CONFIG.timeoutSeconds * 1000);
+      this.timers.push(this.waitTimer);
     } catch (e) { this.fail('Online play does not work in this browser.'); }
     return code;
   },
-  async signal(msg) { // encrypt and post a handshake message on every broker
-    msg = { ...msg, from: this.id, to: this.partner, n: Math.random() };
+  async signal(msg, to = null) { // encrypt and post a handshake message on every broker
+    msg = { ...msg, from: this.id, to, n: Math.random() };
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, this.key, new TextEncoder().encode(JSON.stringify(msg))));
     const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
@@ -515,99 +585,161 @@ const Net = {
     } catch { return; } // not for us (wrong code, or junk on the topic)
     if (m.from === this.id || this.seen.has(m.n) || (m.to && m.to !== this.id)) return;
     this.seen.add(m.n); // the same message arrives once per broker
+    const peer = this.peers.get(m.from);
     if (this.role === 'host' && m.k === 'hello') {
-      if (this.partner && m.from !== this.partner) return; // room is full: one friend per game
-      if (this.pc) return;
-      this.partner = m.from; this.makePeer();
-      this.useChannel(this.pc.createDataChannel('game'));
-      await this.pc.setLocalDescription(await this.pc.createOffer());
-      this.signal({ k: 'offer', sdp: this.pc.localDescription.sdp });
-    } else if (this.role === 'guest' && m.k === 'offer' && !this.pc) {
-      this.partner = m.from; this.makePeer();
-      this.pc.ondatachannel = e => this.useChannel(e.channel);
-      await this.pc.setRemoteDescription({ type: 'offer', sdp: m.sdp }); this.flushIce();
-      await this.pc.setLocalDescription(await this.pc.createAnswer());
-      this.signal({ k: 'answer', sdp: this.pc.localDescription.sdp });
-    } else if (this.role === 'host' && m.k === 'answer' && m.from === this.partner && this.pc && !this.pc.remoteDescription) {
-      await this.pc.setRemoteDescription({ type: 'answer', sdp: m.sdp }); this.flushIce();
-    } else if (m.k === 'ice' && m.from === this.partner) {
-      this.iceWait.push(m.c); if (this.pc && this.pc.remoteDescription) this.flushIce();
+      if (peer) return;
+      if (this.locked || this.peers.size + 1 >= this.max) return this.signal({ k: 'full' }, m.from);
+      const p = this.makePeer(m.from);
+      this.useChannel(m.from, p.pc.createDataChannel('game'));
+      await p.pc.setLocalDescription(await p.pc.createOffer());
+      this.signal({ k: 'offer', sdp: p.pc.localDescription.sdp }, m.from);
+    } else if (this.role === 'guest' && m.k === 'full' && !this.peers.size) {
+      this.fail('That game is full or has already started.');
+    } else if (this.role === 'guest' && m.k === 'offer' && !this.peers.size) {
+      const p = this.makePeer(m.from);
+      p.pc.ondatachannel = e => this.useChannel(m.from, e.channel);
+      await p.pc.setRemoteDescription({ type: 'offer', sdp: m.sdp }); this.flushIce(p);
+      await p.pc.setLocalDescription(await p.pc.createAnswer());
+      this.signal({ k: 'answer', sdp: p.pc.localDescription.sdp }, m.from);
+    } else if (this.role === 'host' && m.k === 'answer' && peer && !peer.pc.remoteDescription) {
+      await peer.pc.setRemoteDescription({ type: 'answer', sdp: m.sdp }); this.flushIce(peer);
+    } else if (m.k === 'ice' && peer) {
+      peer.ice.push(m.c); if (peer.pc.remoteDescription) this.flushIce(peer);
     }
   },
-  makePeer() {
-    this.pc = new RTCPeerConnection({ iceServers: NET_CONFIG.ice });
-    this.pc.onicecandidate = e => { if (e.candidate) this.signal({ k: 'ice', c: e.candidate.toJSON() }); };
-    this.pc.onconnectionstatechange = () => { if (this.pc && this.pc.connectionState === 'failed') this.fail("Couldn't connect to your friend's device."); };
+  makePeer(id) {
+    const p = { pc: new RTCPeerConnection({ iceServers: NET_CONFIG.ice }), dc: null, ice: [] };
+    this.peers.set(id, p);
+    p.pc.onicecandidate = e => { if (e.candidate) this.signal({ k: 'ice', c: e.candidate.toJSON() }, id); };
+    p.pc.onconnectionstatechange = () => { if (p.pc.connectionState === 'failed') this.dropPeer(id, "Couldn't connect to the host's device."); };
+    return p;
   },
-  flushIce() { for (const c of this.iceWait.splice(0)) this.pc.addIceCandidate(c).catch(() => {}); },
-  useChannel(dc) {
-    this.dc = dc;
-    dc.onopen = () => { // connected: stop matchmaking, drop the brokers
-      this.timers.forEach(t => { clearInterval(t); clearTimeout(t); }); this.timers = [];
-      setTimeout(() => { this.brokers.forEach(c => c.close()); this.brokers = []; }, 1500);
-      this.on({ type: 'open' });
+  flushIce(p) { for (const c of p.ice.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); },
+  useChannel(id, dc) {
+    const p = this.peers.get(id); if (!p) return;
+    p.dc = dc;
+    dc.onopen = () => {
+      if (this.role === 'guest') { // connected to the host: stop matchmaking, drop the brokers
+        this.timers.forEach(t => { clearInterval(t); clearTimeout(t); }); this.timers = [];
+        setTimeout(() => this.dropBrokers(), 1500);
+        this.on({ type: 'open' });
+      } else { clearTimeout(this.waitTimer); this.on({ type: 'join', id }); }
     };
-    dc.onmessage = e => { try { this.on({ type: 'message', data: JSON.parse(e.data) }); } catch { /* ignore bad data */ } };
-    dc.onclose = () => { if (this.dc === dc) { const on = this.on; this.close(); on && on({ type: 'closed' }); } };
+    dc.onmessage = e => { try { this.on && this.on({ type: 'message', id, data: JSON.parse(e.data) }); } catch { /* ignore bad data */ } };
+    dc.onclose = () => this.dropPeer(id);
   },
-  send(msg) { if (this.dc && this.dc.readyState === 'open') this.dc.send(JSON.stringify(msg)); },
-  get connected() { return !!(this.dc && this.dc.readyState === 'open'); },
+  dropPeer(id, why) { // a link closed or failed
+    const p = this.peers.get(id); if (!p) return;
+    this.peers.delete(id);
+    try { p.pc.close(); } catch { /* fine */ }
+    if (this.role === 'host') { this.on && this.on({ type: 'leave', id }); return; }
+    const on = this.on; const wasOpen = p.dc && p.dc.readyState !== 'connecting';
+    this.close(); on && on(wasOpen && !why ? { type: 'closed' } : { type: 'error', text: why || "Lost the connection to the host." });
+  },
+  lock() { this.locked = true; this.dropBrokers(); }, // host: nobody else can join
+  dropBrokers() { this.brokers.forEach(c => c.close()); this.brokers = []; },
+  send(msg) { const t = JSON.stringify(msg); for (const p of this.peers.values()) if (p.dc && p.dc.readyState === 'open') p.dc.send(t); },
+  sendTo(id, msg) { const p = this.peers.get(id); if (p && p.dc && p.dc.readyState === 'open') p.dc.send(JSON.stringify(msg)); },
   fail(text) { const on = this.on; this.close(); on && on({ type: 'error', text }); },
   close() {
-    this.run = null;
+    this.run = null; this.on = null;
     this.timers.forEach(t => { clearInterval(t); clearTimeout(t); }); this.timers = [];
-    this.brokers.forEach(c => c.close()); this.brokers = [];
-    const dc = this.dc; this.dc = null; if (dc) try { dc.close(); } catch { /* fine */ }
-    if (this.pc) try { this.pc.close(); } catch { /* fine */ }
-    this.pc = null; this.on = null; this.role = null;
+    this.dropBrokers();
+    for (const p of this.peers.values()) { try { p.dc && p.dc.close(); } catch { /* fine */ } try { p.pc.close(); } catch { /* fine */ } }
+    this.peers.clear(); this.role = null;
   },
 };
 
-// The online screen: host or join, then start the game when the link opens.
+// The online screen: host or join. The host sees who is in and taps Start; seats go in join order.
 const Online = {
-  open() { $('roomLabel').textContent = 'Tell your friend this code:'; $('onlinePick').hidden = false; $('onlineWait').hidden = true; $('onlineStatus').textContent = ''; $('joinCode').value = ''; UI.show('scrOnline'); },
+  seats: new Map(), // host only: friend's id -> seat number
+  lobby: [],        // host only: friends waiting, in the order they joined
+  open() {
+    $('roomLabel').textContent = 'Tell your friends this code:'; $('onlinePick').hidden = false; $('onlineWait').hidden = true;
+    $('btnStart').hidden = true; $('roomPlayers').textContent = ''; $('onlineStatus').textContent = ''; $('joinCode').value = ''; UI.show('scrOnline');
+  },
+  syncLobby() {
+    const n = this.lobby.length + 1;
+    $('roomPlayers').textContent = `Players here: ${n} of ${CFG.MAX_PLAYERS}`;
+    $('btnStart').disabled = n < 2;
+  },
   event(e) {
     if (e.type === 'status') $('onlineStatus').textContent = e.text;
-    if (e.type === 'error') { $('onlineStatus').textContent = e.text; $('onlinePick').hidden = false; $('onlineWait').hidden = true; if (Game.mode === 'online') { Game.toTitle(); Online.open(); $('onlineStatus').textContent = e.text; } }
-    if (e.type === 'open') { Sound.beep(660, 0.2, 'triangle'); Game.play('online'); }
-    if (e.type === 'message') Game.onNet(e.data);
+    if (e.type === 'error') {
+      if (Game.mode === 'online') Game.toTitle();
+      this.open(); $('onlineStatus').textContent = e.text;
+    }
+    if (e.type === 'join') { this.lobby.push(e.id); Sound.beep(660, 0.15, 'triangle'); this.syncLobby(); }
+    if (e.type === 'leave') {
+      this.lobby = this.lobby.filter(id => id !== e.id);
+      if (Game.mode !== 'online') return this.syncLobby();
+      const seat = this.seats.get(e.id); this.seats.delete(e.id);
+      if (!this.seats.size) { Game.state = 'over'; Game.winner = -2; return UI.endRun(); } // everyone left
+      Game.playerLeft(seat);
+    }
+    if (e.type === 'open') { Sound.beep(660, 0.2, 'triangle'); $('onlineStatus').textContent = 'Joined! Waiting for the host to start...'; Game.mode = 'online'; }
+    if (e.type === 'message') Game.onNet(e.data, e.id);
     if (e.type === 'closed' && Game.mode === 'online') { Game.state = 'over'; Game.winner = -2; UI.endRun(); }
   },
-  host() { $('onlinePick').hidden = true; $('onlineWait').hidden = false; Net.host(e => this.event(e)); $('roomCode').textContent = Net.code; },
+  host() {
+    this.lobby = []; this.seats = new Map();
+    $('onlinePick').hidden = true; $('onlineWait').hidden = false; $('btnStart').hidden = false;
+    Net.host(e => this.event(e), CFG.MAX_PLAYERS); $('roomCode').textContent = Net.code; this.syncLobby();
+  },
+  start() { // host: lock the room, give every friend a seat, and go
+    if (!this.lobby.length) return;
+    Net.lock();
+    this.lobby.forEach((id, i) => { this.seats.set(id, i + 1); Net.sendTo(id, { t: 'seat', seat: i + 1 }); });
+    Game.play('online');
+  },
   join() {
     const code = Net.cleanCode($('joinCode').value);
     if (code.length !== 5) { $('onlineStatus').textContent = 'The code has 5 letters and numbers.'; return; }
-    $('onlinePick').hidden = true; $('onlineWait').hidden = false; $('roomLabel').textContent = 'Joining game'; $('roomCode').textContent = code;
+    $('onlinePick').hidden = true; $('onlineWait').hidden = false; $('btnStart').hidden = true; $('roomLabel').textContent = 'Joining game'; $('roomCode').textContent = code;
     Net.join(code, e => this.event(e));
   },
-  cancel() { Net.close(); $('roomLabel').textContent = 'Tell your friend this code:'; UI.show('scrTitle'); },
+  cancel() { Net.close(); Game.mode = 'solo'; UI.show('scrTitle'); },
 };
 $('joinCode').addEventListener('input', e => { e.target.value = Net.cleanCode(e.target.value); });
 $('joinCode').addEventListener('keydown', e => { if (e.code === 'Enter') { e.preventDefault(); Online.join(); } });
 
 // ---------- RENDERER (plain WebGL: colored triangles, no library) ----------
-// R.flip turns the whole field upside down, so the online guest sees their own paddle at the bottom.
+// R.view turns the whole field so seat R.view is at the bottom of this screen (online friends).
 const canvas = $('view');
 const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
-const R = { verts: [], prog: null, buf: null, scale: 1, ox: 0, oy: 0, flip: false };
-// Fingers (and a held mouse button) on the field. Every finger is tracked by its own pointerId,
-// so two players can drag at the same time. On a shared screen the half you touch picks the player.
-function pointerToWorld(e) {
+const R = { verts: [], prog: null, buf: null, scale: 1, ox: 0, oy: 0, view: 0 };
+const S = CFG.S;
+function toView(x, y, v = R.view) { // field -> as this screen shows it
+  return v === 0 ? [x, y] : v === 1 ? [S - x, S - y] : v === 2 ? [y, S - x] : [S - y, x];
+}
+function fromView(a, b, v = R.view) { // as this screen shows it -> field
+  return v === 0 ? [a, b] : v === 1 ? [S - a, S - b] : v === 2 ? [S - b, a] : [b, S - a];
+}
+
+// Fingers (and a held mouse button) on the field. Every finger is tracked by its own pointerId, so
+// several players can drag at once. On a shared screen, the nearest side that is still playing
+// picks the player.
+function pointerToField(e) {
   const dpr = canvas.width / canvas.clientWidth || 1;
-  let x = (e.clientX * dpr - R.ox) / R.scale, y = (e.clientY * dpr - R.oy) / R.scale;
-  if (R.flip) { x = CFG.W - x; y = CFG.H - y; }
+  const [x, y] = fromView((e.clientX * dpr - R.ox) / R.scale, (e.clientY * dpr - R.oy) / R.scale);
   return { x, y };
 }
 canvas.addEventListener('pointerdown', e => {
   Sound.unlock();
   if (Game.state !== 'play' && Game.state !== 'serve') return;
-  const w = pointerToWorld(e);
-  const player = Game.mode === 'shared' ? (w.y > CFG.H / 2 ? 0 : 1) : Game.me;
-  Input.drags.set(e.pointerId, { player, x: w.x });
+  const w = pointerToField(e);
+  let seat = Game.me;
+  if (Game.mode === 'shared') {
+    const dist = s => Math.abs((SEATS[s].axis === 'x' ? w.y : w.x) - SEATS[s].line);
+    seat = Game.alive().sort((a, b) => dist(a) - dist(b))[0];
+  }
+  if (seat == null) return;
+  Input.drags.set(e.pointerId, { seat, t: SEATS[seat].axis === 'x' ? w.x : w.y });
   try { canvas.setPointerCapture(e.pointerId); } catch { /* fine */ }
 });
-canvas.addEventListener('pointermove', e => { const d = Input.drags.get(e.pointerId); if (d) d.x = pointerToWorld(e).x; });
+canvas.addEventListener('pointermove', e => { const d = Input.drags.get(e.pointerId); if (d) { const w = pointerToField(e); d.t = SEATS[d.seat].axis === 'x' ? w.x : w.y; } });
 for (const ev of ['pointerup', 'pointercancel']) canvas.addEventListener(ev, e => Input.drags.delete(e.pointerId));
+
 function initGL() {
   const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
   R.prog = gl.createProgram();
@@ -623,26 +755,30 @@ function initGL() {
 function resize() { // fit the whole field on screen, centered, on any screen shape
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = Math.round(canvas.clientWidth * dpr); canvas.height = Math.round(canvas.clientHeight * dpr);
-  R.scale = Math.min(canvas.width / CFG.W, canvas.height / CFG.H);
-  R.ox = (canvas.width - CFG.W * R.scale) / 2; R.oy = (canvas.height - CFG.H * R.scale) / 2;
+  R.scale = Math.min(canvas.width, canvas.height) / S;
+  R.ox = (canvas.width - S * R.scale) / 2; R.oy = (canvas.height - S * R.scale) / 2;
 }
 const hex = (h, a = 1) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255, a];
 function tri(x1, y1, x2, y2, x3, y3, c1, c2 = c1, c3 = c1) { R.verts.push(x1, y1, ...c1, x2, y2, ...c2, x3, y3, ...c3); }
 function rect(x, y, w, h, top, bottom = top) { tri(x, y, x + w, y, x, y + h, top, top, bottom); tri(x + w, y, x + w, y + h, x, y + h, top, bottom, bottom); }
-function wbox(cx, cy, w, h, color) { // a box centered on a world point, flipped for the online guest
-  if (R.flip) { cx = CFG.W - cx; cy = CFG.H - cy; }
-  rect(R.ox + (cx - w / 2) * R.scale, R.oy + (cy - h / 2) * R.scale, w * R.scale, h * R.scale, color);
+function wbox(cx, cy, w, h, color) { // a box centered on a field point, turned for this screen's view
+  const [x, y] = toView(cx, cy);
+  if (R.view >= 2) [w, h] = [h, w];
+  rect(R.ox + (x - w / 2) * R.scale, R.oy + (y - h / 2) * R.scale, w * R.scale, h * R.scale, color);
 }
 const BACKDROP = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), s: 1 + Math.random() * 2, a: 0.25 + Math.random() * 0.6 })); // looks only
 function draw(now) { // YOUR GAME: draw your world here
   R.verts.length = 0;
   rect(0, 0, canvas.width, canvas.height, hex('#1b1147'), hex('#070514'));
   for (const s of BACKDROP) rect(s.x * canvas.width, s.y * canvas.height, s.s, s.s, hex('#ffffff', s.a * (0.7 + 0.3 * Math.sin(now / 600 + s.x * 40))));
-  rect(R.ox, R.oy, CFG.W * R.scale, CFG.H * R.scale, hex('#2a1f6b', 0.35), hex('#43378c', 0.35));
-  for (let x = 0.25; x < CFG.W; x += 0.7) wbox(x + 0.2, CFG.H / 2, 0.4, 0.06, hex('#b8afe2', 0.4)); // the middle line
+  rect(R.ox, R.oy, S * R.scale, S * R.scale, hex('#2a1f6b', 0.35), hex('#43378c', 0.35));
   if (Game.paddles) {
-    const colors = ['#7dffa0', '#5fd0ff'];
-    for (let i = 0; i < 2; i++) wbox(Game.paddles[i].x, Game.paddleY(i), CFG.PADDLE_W, CFG.PADDLE_H, hex(colors[i]));
+    for (let s = 0; s < 4; s++) {
+      const seat = Game.seats[s], xs = SEATS[s].axis === 'x', edge = s === 0 || s === 3 ? S - 0.1 : 0.1;
+      if (!seat || seat.out) { wbox(xs ? S / 2 : edge, xs ? edge : S / 2, xs ? S : 0.2, xs ? 0.2 : S, hex('#b8afe2', 0.6)); continue; } // a wall
+      const p = Game.paddlePos(s);
+      wbox(p.x, p.y, xs ? CFG.PADDLE_W : CFG.PADDLE_H, xs ? CFG.PADDLE_H : CFG.PADDLE_W, hex(COLORS[s]));
+    }
     const b = Game.ball, blink = Game.state === 'serve' && Math.floor(now / 120) % 2;
     if (b && !blink) wbox(b.x, b.y, CFG.BALL_R * 2, CFG.BALL_R * 2, hex('#ffe066'));
   }
@@ -659,7 +795,7 @@ const UI = {
   show(id) {
     for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id;
     const playing = id === null || id === 'scrPause';
-    $('hud').hidden = !playing; $('scoreLow').hidden = !playing; $('scoreHigh').hidden = !playing;
+    $('hud').hidden = !playing; this.labels = playing;
     if (id === 'scrTitle') this.syncTitle();
   },
   syncTitle() {
@@ -668,17 +804,23 @@ const UI = {
     $('titleBot').textContent = bot ? `Bot's best: ${bot.score} ${SCORE_NAME}. Can you beat it?` : '';
     $('titleBuild').textContent = window.GAME_BUILD ? `Build ${window.GAME_BUILD}` : '';
   },
-  names() { // what each paddle is called on this device: [bottom of my screen, top of my screen]
-    if (Game.mode === 'solo') return ['You', 'Computer'];
-    if (Game.mode === 'online') return ['You', 'Friend'];
-    return ['Green', 'Blue'];
+  name(s) { // what seat s is called on this device
+    if (Game.mode === 'solo') return s === 0 ? 'You' : 'Computer';
+    if (Game.mode === 'online' && s === Game.me) return 'You';
+    return NAMES[s];
   },
-  syncHud() {
-    if (!Game.paddles) return;
-    const [low, high] = this.names(), me = Game.me, them = 1 - me;
-    $('scoreLow').textContent = `${low} ${Game.points[me]}`;
-    $('scoreHigh').textContent = `${high} ${Game.points[them]}`;
-    $('scoreHigh').style.transform = Game.mode === 'shared' ? '' : 'translateY(-2.2em)'; // shared screen: the top label stays upside down for the top player
+  syncHud() { // each player's label sits by their side, turned to face them
+    const dpr = canvas.width / canvas.clientWidth || 1;
+    for (let s = 0; s < 4; s++) {
+      const el = $('lab' + s), seat = Game.seats[s];
+      el.hidden = !this.labels || !seat || !Game.paddles;
+      if (el.hidden) continue;
+      const sd = SEATS[s], at = sd.line + sd.inward * 1.6;
+      const [x, y] = toView(sd.axis === 'x' ? S / 2 : at, sd.axis === 'x' ? at : S / 2);
+      el.textContent = `${this.name(s)} ${seat.out ? 'out' : '♥'.repeat(seat.lives)}`;
+      el.style.color = COLORS[s];
+      el.style.transform = `translate(${(R.ox + x * R.scale) / dpr}px, ${(R.oy + y * R.scale) / dpr}px) translate(-50%, -50%) rotate(${sd.rot - SEATS[R.view].rot}deg)`;
+    }
   },
   table(newRow = -1) {
     const l = Scores.list();
@@ -686,22 +828,22 @@ const UI = {
     return (l.length ? `<table>${rows}</table>` : '<p>No scores yet. Be the first!</p>') + (store.ok ? '' : '<p class="note">Scores can\'t be saved in this browser.</p>');
   },
   endRun() {
-    const [p0, p1] = Game.points, me = Game.me, w = Game.winner;
-    $('endTitleFlip').hidden = true; $('endForm').hidden = true; $('endBot').textContent = ''; $('endTable').innerHTML = ''; this.pending = null;
+    const w = Game.winner;
+    $('endTitleFlip').hidden = true; $('endForm').hidden = true; $('endBot').textContent = ''; $('endTable').innerHTML = ''; $('endScore').textContent = ''; this.pending = null;
     $('btnAgain').hidden = false;
-    if (w === -2) { // online friend left
-      $('endTitle').textContent = 'Your friend left'; $('endScore').textContent = `${Game.points[me]} to ${Game.points[1 - me]}`; $('btnAgain').hidden = true;
+    if (w === -2) { // online: the others left
+      $('endTitle').textContent = Net.role === 'host' || Game.me === 0 ? 'Everyone left' : 'The host left'; $('btnAgain').hidden = true;
     } else if (Game.mode === 'shared') {
-      $('endTitle').textContent = w === 0 ? 'Green wins!' : 'Blue wins!';
-      $('endTitleFlip').textContent = w === 1 ? 'Blue wins!' : 'Green wins!'; $('endTitleFlip').hidden = false; // readable from the top
-      $('endScore').textContent = `Green ${p0}, Blue ${p1}`;
+      $('endTitle').textContent = w >= 0 ? `${NAMES[w]} wins!` : 'Nobody wins!';
+      $('endTitleFlip').textContent = $('endTitle').textContent; $('endTitleFlip').hidden = false; // readable from the other side
     } else if (Game.mode === 'online') {
-      $('endTitle').textContent = w === me ? 'You win!' : 'Your friend wins!';
-      $('endScore').textContent = `${Game.points[me]} to ${Game.points[1 - me]}`;
+      $('endTitle').textContent = w === Game.me ? 'You win!' : w >= 0 ? `${NAMES[w]} wins!` : 'Nobody wins!';
+      if (Net.role === 'host' && !Online.seats.size) $('btnAgain').hidden = true;
     } else { // 1 player: score, bot score and the high score table
-      const score = Game.score, detail = `${w === 0 ? 'Won' : 'Lost'} ${p0}-${p1}`, bot = window.BOT_SCORES && window.BOT_SCORES.champion;
+      const score = Game.score, you = Game.seats[0].lives, cpu = Game.seats[1].lives, bot = window.BOT_SCORES && window.BOT_SCORES.champion;
+      const detail = w === 0 ? `Won, ${you} hearts left` : `Lost, computer had ${cpu}`;
       $('endTitle').textContent = w === 0 ? 'You win!' : 'Game over';
-      $('endScore').textContent = `${p0} to ${p1}. Score: ${score} ${SCORE_NAME}`;
+      $('endScore').textContent = `Score: ${score} ${SCORE_NAME}`;
       $('endBot').textContent = bot && score > bot.score ? 'You beat the bot!' : '';
       const saving = !Hook.mode && Scores.qualifies(score);
       this.pending = saving ? { score, detail } : null;
@@ -719,20 +861,23 @@ const UI = {
   },
   primary() { // what Enter does on each screen
     if (Game.state === 'title' && !$('scrScores').hidden) return this.show('scrTitle');
-    if (Game.state === 'title' && !$('scrOnline').hidden) return;
+    if (Game.state === 'title' && $('scrTitle').hidden) return; // the online or players screen is open
     if (Game.state === 'title') return Game.play('solo');
     if (Game.state === 'paused') return Game.togglePause();
-    if (Game.state === 'over' && !$('btnAgain').hidden) { this.save(); Game.play(Game.mode); }
+    if (Game.state === 'over' && !$('btnAgain').hidden) { this.save(); Game.play(Game.mode, Game.filled.length); }
   },
 };
 $('initials').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); });
 $('initials').addEventListener('keydown', e => { if (e.code === 'Enter') { e.preventDefault(); UI.save(); } });
 const onTap = (id, fn) => $(id).addEventListener('click', () => { Sound.unlock(); fn(); });
 onTap('btnPlay', () => Game.play('solo'));
-onTap('btnShared', () => Game.play('shared'));
+onTap('btnShared', () => UI.show('scrShared'));
+for (const n of [2, 3, 4]) onTap('btnShared' + n, () => Game.play('shared', n));
+onTap('btnSharedBack', () => UI.show('scrTitle'));
 onTap('btnOnline', () => Online.open());
 onTap('btnHost', () => Online.host());
 onTap('btnJoin', () => Online.join());
+onTap('btnStart', () => Online.start());
 onTap('btnOnlineBack', () => Online.cancel());
 onTap('btnScores', () => { $('scoresTable').innerHTML = UI.table(); UI.show('scrScores'); });
 onTap('btnBack', () => UI.show('scrTitle'));
@@ -740,7 +885,7 @@ onTap('btnPause', () => Game.togglePause());
 onTap('btnResume', () => Game.togglePause());
 onTap('btnQuit', () => Game.toTitle());
 onTap('btnSave', () => UI.save());
-onTap('btnAgain', () => { UI.save(); Game.play(Game.mode); });
+onTap('btnAgain', () => { UI.save(); Game.play(Game.mode, Game.filled.length); });
 onTap('btnMenu', () => { UI.save(); Game.toTitle(); });
 
 // ---------- FULL SCREEN ----------
@@ -781,7 +926,7 @@ if (/\/games\/[^/]+\/?(index\.html)?$/.test(location.pathname)) {
   $('allGames').hidden = false; onTap('allGames', () => { location.href = '../../'; });
   if ('serviceWorker' in navigator && window.isSecureContext && location.protocol.startsWith('http')) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
-window.__game = { Game, Input, Scores, UI, Full, CFG, store, Net, Online, R }; // for test_game.py
+window.__game = { Game, Input, Scores, UI, Full, CFG, store, Net, Online, R, SEATS, toView }; // for test_game.py
 
 // ---------- TEST HOOK (spec v1) ----------
 // The harness and its bots play 1 player mode: you (bottom) against the computer (top).
@@ -805,8 +950,8 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, store, Net, Online, R }; /
     reset({ seed = 1, level = 0, realtime = false } = {}) {
       Net.close(); Input.clear(); UI.pending = null;
       Hook.mode = realtime ? 'realtime' : 'bot'; Hook.steps = 0; Hook.bot = { x: 0 };
-      Game.mode = 'solo'; Game.me = 0; R.flip = false;
-      Game.start(seed);
+      Game.mode = 'solo'; Game.me = 0; R.view = 0;
+      Game.start(seed, [0, 1]);
       return this.getState();
     },
     step(action = 'idle', n = 1) {
@@ -817,23 +962,24 @@ window.__game = { Game, Input, Scores, UI, Full, CFG, store, Net, Online, R }; /
       return this.getState();
     },
     getState() {
-      const p = Game.paddles && Game.paddles[0];
+      const you = Game.seats[0], p = Game.paddles && Game.paddlePos(0);
       return {
-        status: status(), score: Game.score, lives: CFG.WIN_POINTS - Game.points[1], livesLost: Game.points[1],
+        status: status(), score: Game.score, lives: you ? you.lives : CFG.LIVES, livesLost: you ? CFG.LIVES - you.lives : 0,
         level: 0, levelsCompleted: Game.winner === 0 ? 1 : 0, progress: Game.progress(), steps: Hook.steps,
-        player: p ? { x: +p.x.toFixed(3), y: Game.paddleY(0) } : null,
+        player: p ? { x: +p.x.toFixed(3), y: p.y } : null,
       };
     },
     observe() { // what a bot "sees": a small text map and a few facts
       if (!Game.paddles) return { text: 'Game not started.', facts: {} };
-      const rows = Array.from({ length: CFG.H }, () => Array(CFG.W).fill('.'));
-      const put = (x, y, ch) => { rows[clamp(Math.floor(y), 0, CFG.H - 1)][clamp(Math.floor(x), 0, CFG.W - 1)] = ch; };
-      for (const dx of [-0.8, 0, 0.8]) { put(Game.paddles[1].x + dx, Game.paddleY(1), '-'); put(Game.paddles[0].x + dx, Game.paddleY(0), '='); }
+      const rows = Array.from({ length: S }, () => Array(S).fill('.'));
+      const put = (x, y, ch) => { rows[clamp(Math.floor(y), 0, S - 1)][clamp(Math.floor(x), 0, S - 1)] = ch; };
+      for (const dx of [-0.9, 0, 0.9]) { const a = Game.paddlePos(1), b = Game.paddlePos(0); put(a.x + dx, a.y, '-'); put(b.x + dx, b.y, '='); }
+      for (let i = 0; i < S; i++) { put(0, i, '|'); put(S - 1, i, '|'); }
       put(Game.ball.x, Game.ball.y, 'o');
-      const b = Game.ball, p = Game.paddles[0];
+      const b = Game.ball, p = Game.paddlePos(0);
       return {
-        text: 'Legend: = your paddle (bottom), - computer paddle (top), o ball. Row 0 is the top.\n' + rows.map(r => r.join('')).join('\n'),
-        facts: { you: Game.points[0], computer: Game.points[1], ballComing: b.vy > 0, ballIs: Math.abs(b.x - p.x) < 0.4 ? 'above your paddle' : b.x > p.x ? 'to your right' : 'to your left' },
+        text: 'Legend: = your paddle (bottom), - computer paddle (top), | wall, o ball. Row 0 is the top.\n' + rows.map(r => r.join('')).join('\n'),
+        facts: { yourHearts: Game.seats[0].lives, computerHearts: Game.seats[1].lives, ballComing: b.vy > 0, ballIs: Math.abs(b.x - p.x) < 0.4 ? 'above your paddle' : b.x > p.x ? 'to your right' : 'to your left' },
       };
     },
     selfCheck() { return []; },

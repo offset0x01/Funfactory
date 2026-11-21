@@ -1,7 +1,7 @@
 {
-  "name": "Paddle Duel",
-  "short_name": "Paddle Duel",
-  "description": "Two-player paddle duel: one screen, online, or against the computer.",
+  "name": "Paddle Party",
+  "short_name": "Paddle Party",
+  "description": "Paddle party for up to 4: one screen, online, or against the computer.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
