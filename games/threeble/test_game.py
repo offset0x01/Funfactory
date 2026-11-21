@@ -337,6 +337,18 @@ with GameSession(str(GAME)) as g:
             check(wait_for(host, "__game.Game.state === 'play' && __game.Game.players.length === 3", 3000), "a friend's Play again starts a new game with everyone still here")
             host.evaluate("__game.Game.toTitle()")
             check(wait_for(guests[0], "/host left/i.test(document.querySelector('#endTitle').textContent)", 5000), "when the host leaves, friends are told")
+        # the devices find each other but the network blocks the direct link: both say so clearly
+        blocked = tab(", linkSeconds: 3")
+        blocked.evaluate("RTCPeerConnection.prototype.setRemoteDescription = function () { return Promise.resolve(); }")  # this host never links
+        blocked.click("#btnOnline"); blocked.click("#btnHost")
+        bcode = blocked.inner_text("#roomCode").strip()
+        wait_for(blocked, "__game.Net.brokers.length > 0", 8000)
+        jp = tab(", linkSeconds: 3")
+        join(jp, bcode)
+        check(wait_for(jp, "/found the game/i.test(document.querySelector('#onlineStatus').textContent)", 10000), "a friend who finds the game is told so while the devices link up")
+        check(wait_for(jp, "/couldn't link up/i.test(document.querySelector('#onlineStatus').textContent)", 15000)
+              and wait_for(blocked, "/couldn't link up/i.test(document.querySelector('#onlineStatus').textContent)", 5000),
+              "when the network blocks the direct link, both devices say the devices couldn't link up")
         offline = g.browser.new_context()
         offline.add_init_script("window.NET_TEST_CONFIG = { brokers: ['ws://127.0.0.1:9'], ice: [] };")
         op = offline.new_page(); op.goto(GAME.as_uri()); op.wait_for_timeout(300)

@@ -27,7 +27,7 @@ Live: https://offset0x01.github.io/Funfactory/games/<folder>/
 - **Seats:** 0 bottom, 1 top, 2 left, 3 right (`SEATS`). `Game.seats[s]` is `null` for an empty side, or `{ lives, out, cpu }`. Empty sides and players who are out are walls. `Game.me` is the seat this device controls, and `R.view` turns the drawing (and finger positions, via `toView`/`fromView`) so that seat is at the bottom of this screen.
 - **Input:** `Input.dir(s)` (keys) and `Input.target(s)` (a finger or held mouse button) for each seat, along the seat's axis. 1 player and online: your arrows (or A/D) mean left and right as you see them (`RIGHT`). One shared keyboard: arrows, A/D, T/G and I/K, as seen on the screen. On a shared screen, a finger belongs to the nearest side still playing, and every finger is tracked by its `pointerId`. On the online host, each friend's input is whatever they last sent (`Input.remote[seat]`).
 - **Online:** a star. The host runs the only simulation and sends everyone `{ t: 's', ... }` (ball, paddles, hearts, state) 20 times a second; each friend moves its own paddle at once, sends `{ t: 'i', d, x }`, and draws the host's state in between. The host's lobby lists who joined; Start gives seats in join order (`{ t: 'seat' }`) and locks the room. Pause, resume, play again and leaving are messages, so every screen matches. A friend who leaves becomes a wall; if the host leaves, everyone is told. Nothing is fetched until a player taps Play online.
-- **Matchmaking (`NET`):** devices join a topic on free public MQTT brokers (named in `NET_CONFIG`), swap WebRTC handshakes encrypted with a key made from the 5-letter room code, then each friend talks directly to the host. `CFG.MAX_PLAYERS` caps the room (a full room says so). The brokers are dropped when the host taps Start. A TURN server can be added to `NET_CONFIG.ice` if strict networks become a problem.
+- **Matchmaking (`NET`):** devices join a topic on free public MQTT brokers (named in `NET_CONFIG`), swap WebRTC handshakes encrypted with a key made from the 5-letter room code (one offer and one answer, each sent only after the browser has gathered all its addresses, `Net.gathered()`), then each friend talks directly to the host. The online screen shows each step: how many matchmaking servers it reached, "Found the game! Linking up...", and a clear message if the devices can't link within `NET_CONFIG.linkSeconds` (25 s). `CFG.MAX_PLAYERS` caps the room (a full room says so). The brokers are dropped when the host taps Start. A TURN server can be added to `NET_CONFIG.ice` if strict networks become a problem.
 
 ## Decisions
 
@@ -60,7 +60,7 @@ python3 test-harness/harness/check_live.py games/<folder>                    # a
 - How `progress` is measured (points won, plus a little for each return), and `maxSteps`.
 - **Bot scores:** start, mid, best; did it win; any flags it needed.
 - **Tight moments** from the timing-tolerance check, as places to playtest.
-- **Not tested here:** the real public brokers and STUN servers (the sandbox has no internet). Try a game between two real devices on different networks after publishing.
+- **Not tested here:** the real public brokers and STUN servers (the sandbox has no internet). Try a game between two real devices on different networks after publishing. Checked from a real computer (2026-11-21): the three brokers connect and pass messages. The Claude desktop app's built-in browser can't make WebRTC links (not even to itself), so it can't stand in for a second device.
 
 ## Build log
 

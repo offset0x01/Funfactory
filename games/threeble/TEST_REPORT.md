@@ -1,6 +1,6 @@
 # Test report: Threeble
 
-Run at 2026-11-21 14:52:49 · seed 1
+Run at 2026-11-21 16:28:54 · seed 1
 
 ## Smoke tests
 
@@ -37,9 +37,9 @@ Run at 2026-11-21 14:52:49 · seed 1
 | PASS | unknown action is rejected |  |
 | PASS | observe() gives text | 243 chars |
 | PASS | same seed + same inputs = same run | run A 20/0.408 vs B 20/0.408 |
-| PASS | full-length run simulates in < 5 s | 0.08 s for 54000 steps |
+| PASS | full-length run simulates in < 5 s | 0.05 s for 54000 steps |
 | PASS | real keyboard works (hint) | idle player {'x': 0, 'y': 7, 'z': 1, 'turn': 0} vs keys {'x': 4, 'y': 7, 'z': 1, 'turn': 0} |
-| PASS | game screen is drawn (not blank) | pixel std 30.1, ~1670 colors |
+| PASS | game screen is drawn (not blank) | pixel std 30.1, ~1680 colors |
 | PASS | no console errors while playing |  |
 | PASS | P pauses and resumes | nothing may change while paused, and the smoke action must work again after the second P |
 | PASS | page never scrolls | page is 0 px too wide, 0 px too tall |
@@ -47,16 +47,16 @@ Run at 2026-11-21 14:52:49 · seed 1
 | PASS | storage keys start with the folder name | 1 key(s) checked |
 | PASS | no network requests |  |
 | PASS | title screen has a High scores button | no 'High scores' text on the title screen |
-| PASS | phone touch screen: loads, draws, no scroll | pixel std 44.7, ~2159 colors; overflow [0, 0] |
+| PASS | phone touch screen: loads, draws, no scroll | pixel std 44.7, ~2161 colors; overflow [0, 0] |
 | PASS | title screen shows the bot's best | set window.BOT_SCORES and the number did not appear |
 
 ## Bots
 
 | Bot | Start | Mid | Best | Won? | Passes in this run |
 | --- | --- | --- | --- | --- | --- |
-| Evolution Bot | 591 | 591 | 591 | yes | 591 (won, 100%), 591 (won, 100%) |
+| Evolution Bot | 591 | 591 | 591 | yes | 591 (won, 100%) |
 
-- **Evolution Bot** stopped searching at the time limit (`--max-minutes`); the best run so far is saved.
+- **Evolution Bot** replayed its saved best run (`bot-best-run.json`): it still wins exactly as before, so nothing was searched. Its earlier passes are in `bot-scores.json`.
 
 ## Fairness
 

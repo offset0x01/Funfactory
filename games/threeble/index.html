@@ -253,11 +253,11 @@ input.big { font: 700 24px monospace; text-align: center; text-transform: upperc
 <!-- WORDS-END -->
 <!-- The build number, written by stamp_build.py right before publishing. -->
 <!-- BUILD-START -->
-<script>window.GAME_BUILD = "2026.11.21-1515";</script>
+<script>window.GAME_BUILD = "2026.11.21-1631";</script>
 <!-- BUILD-END -->
 <!-- The test harness writes the bots' scores between these two markers. Keep them before the main script. -->
 <!-- BOT-SCORES-START -->
-<script>window.BOT_SCORES = {"game":"Threeble","bots":{"evolutionary":{"label":"Evolution Bot","start":591,"mid":591,"best":591,"won":true,"passes":[591,591]}},"updated":"2026-11-21T20:15:19Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":591,"won":true}};</script>
+<script>window.BOT_SCORES = {"game":"Threeble","bots":{"evolutionary":{"label":"Evolution Bot","start":591,"mid":591,"best":591,"won":true,"passes":[591,591]}},"updated":"2026-11-21T21:31:17Z","champion":{"bot":"evolutionary","label":"Evolution Bot","score":591,"won":true}};</script>
 <!-- BOT-SCORES-END -->
 
 <script>
@@ -916,6 +916,7 @@ const NET_CONFIG = Object.assign({
   brokers: ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'],
   ice: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }],
   timeoutSeconds: 90,
+  linkSeconds: 25,   // after finding each other, how long two devices get to link up directly
 }, window.NET_TEST_CONFIG || {});
 const CODE_LETTERS = 'ACDEFHJKMNPRTUVWXY34679';
 
@@ -973,6 +974,8 @@ const Net = {
       clients.filter(c => !this.brokers.includes(c)).forEach(c => c.close());
       if (!this.brokers.length) return this.fail("Couldn't reach the matchmaking servers. Check the internet connection and try again.");
       this.brokers.forEach(c => c.subscribe(this.topic));
+      const servers = `${this.brokers.length} of ${NET_CONFIG.brokers.length} matchmaking servers`;
+      status(role === 'host' ? `Waiting for friends to join... (${servers})` : `Looking for the game... (${servers})`);
       if (role === 'guest') { const hello = () => this.signal({ k: 'hello' }); hello(); this.timers.push(setInterval(hello, 2000)); }
       this.waitTimer = setTimeout(() => { if (!this.connected) this.fail(role === 'host' ? 'Nobody joined. Try again when your friends are ready.'
         : "Couldn't connect. Check the code; the game may have started already. Some school or phone networks block games like this."); }, NET_CONFIG.timeoutSeconds * 1000);
@@ -1001,35 +1004,51 @@ const Net = {
       if (peer) return;
       if (this.locked || this.peers.size + 1 >= this.max) return this.signal({ k: 'full' }, m.from);
       const p = this.makePeer(m.from);
+      this.on({ type: 'status', text: 'A friend found the game. Linking up...' });
       this.useChannel(m.from, p.pc.createDataChannel('game'));
       await p.pc.setLocalDescription(await p.pc.createOffer());
+      await this.gathered(p.pc); // send the offer with all of this device's addresses in it
       this.signal({ k: 'offer', sdp: p.pc.localDescription.sdp }, m.from);
     } else if (this.role === 'guest' && m.k === 'full' && !this.peers.size) {
       this.fail('That game is full or has already started.');
     } else if (this.role === 'guest' && m.k === 'offer' && !this.peers.size) {
       const p = this.makePeer(m.from);
+      this.on({ type: 'status', text: "Found the game! Linking up with the host's device..." });
       p.pc.ondatachannel = e => this.useChannel(m.from, e.channel);
-      await p.pc.setRemoteDescription({ type: 'offer', sdp: m.sdp }); this.flushIce(p);
+      await p.pc.setRemoteDescription({ type: 'offer', sdp: m.sdp });
       await p.pc.setLocalDescription(await p.pc.createAnswer());
+      await this.gathered(p.pc);
       this.signal({ k: 'answer', sdp: p.pc.localDescription.sdp }, m.from);
     } else if (this.role === 'host' && m.k === 'answer' && peer && !peer.pc.remoteDescription) {
-      await peer.pc.setRemoteDescription({ type: 'answer', sdp: m.sdp }); this.flushIce(peer);
-    } else if (m.k === 'ice' && peer) {
-      peer.ice.push(m.c); if (peer.pc.remoteDescription) this.flushIce(peer);
+      await peer.pc.setRemoteDescription({ type: 'answer', sdp: m.sdp });
     }
   },
+  // Wait until the browser has found its addresses (or 4 s), so the offer and answer carry them all.
+  // One message each way, instead of a stream of address messages that could arrive out of order.
+  gathered(pc) {
+    if (pc.iceGatheringState === 'complete') return Promise.resolve();
+    return new Promise(done => {
+      const t = setTimeout(done, 4000);
+      pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); done(); } });
+    });
+  },
   makePeer(id) {
-    const p = { pc: new RTCPeerConnection({ iceServers: NET_CONFIG.ice }), dc: null, ice: [] };
+    const p = { pc: new RTCPeerConnection({ iceServers: NET_CONFIG.ice }), dc: null };
     this.peers.set(id, p);
-    p.pc.onicecandidate = e => { if (e.candidate) this.signal({ k: 'ice', c: e.candidate.toJSON() }, id); };
-    p.pc.onconnectionstatechange = () => { if (p.pc.connectionState === 'failed') this.dropPeer(id, "Couldn't connect to the host's device."); };
+    // The two devices found each other but can't link directly: some networks block it (school Wi-Fi,
+    // some phone data, Wi-Fi that keeps devices apart). Give up after a clear message, not silence.
+    const failed = () => this.dropPeer(id, this.role === 'host' ? 'linkfail'
+      : "Found the game, but the two devices couldn't link up. Some networks block this (school Wi-Fi, some phone data, or Wi-Fi that keeps devices apart). Try both on the same home Wi-Fi, or both on phone data.");
+    const watch = () => { if (p.pc.connectionState === 'failed' || p.pc.iceConnectionState === 'failed') failed(); };
+    p.pc.onconnectionstatechange = watch; p.pc.oniceconnectionstatechange = watch;
+    p.linkTimer = setTimeout(() => { if (!p.dc || p.dc.readyState !== 'open') failed(); }, NET_CONFIG.linkSeconds * 1000);
     return p;
   },
-  flushIce(p) { for (const c of p.ice.splice(0)) p.pc.addIceCandidate(c).catch(() => {}); },
   useChannel(id, dc) {
     const p = this.peers.get(id); if (!p) return;
     p.dc = dc;
     dc.onopen = () => {
+      clearTimeout(p.linkTimer);
       if (this.role === 'guest') {
         this.timers.forEach(t => { clearInterval(t); clearTimeout(t); }); this.timers = [];
         setTimeout(() => this.dropBrokers(), 1500);
@@ -1041,9 +1060,12 @@ const Net = {
   },
   dropPeer(id, why) {
     const p = this.peers.get(id); if (!p) return;
-    this.peers.delete(id);
+    this.peers.delete(id); clearTimeout(p.linkTimer);
     try { p.pc.close(); } catch { /* fine */ }
-    if (this.role === 'host') { this.on && this.on({ type: 'leave', id }); return; }
+    if (this.role === 'host') {
+      if (why === 'linkfail' && this.on) this.on({ type: 'status', text: "A friend found the game, but your devices couldn't link up. Some networks block this; try both on the same home Wi-Fi." });
+      this.on && this.on({ type: 'leave', id }); return;
+    }
     const on = this.on; const wasOpen = p.dc && p.dc.readyState !== 'connecting';
     this.close(); on && on(wasOpen && !why ? { type: 'closed' } : { type: 'error', text: why || "Lost the connection to the host." });
   },
@@ -1071,7 +1093,7 @@ const Online = {
   event(e) {
     if (e.type === 'status') $('onlineStatus').textContent = e.text;
     if (e.type === 'error') { if (Game.mode === 'online') Game.toTitle(); this.open(); $('onlineStatus').textContent = e.text; }
-    if (e.type === 'join') { this.lobby.push(e.id); Sound.beep(660, 0.15, 'triangle'); this.syncLobby(); }
+    if (e.type === 'join') { this.lobby.push(e.id); Sound.beep(660, 0.15, 'triangle'); this.syncLobby(); $('onlineStatus').textContent = 'A friend joined! Tap Start when everyone is in.'; }
     if (e.type === 'leave') {
       this.lobby = this.lobby.filter(id => id !== e.id);
       if (Game.mode !== 'online') return this.syncLobby();
